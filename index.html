@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/scolalink_logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ScolaLink</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #F8F9FA; /* Off-white background */
+        color: #1A202C; /* Anthracite text */
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      h1, h2, h3, h4, h5, h6, .font-display {
+        font-family: 'Inter', sans-serif;
+        font-weight: 700;
+        color: #1A202C;
+      }
+      
+      input[type="text"], 
+      input[type="password"], 
+      input[type="email"], 
+      input[type="number"], 
+      input[type="tel"],
+      input[type="date"],
+      input[type="datetime-local"],
+      textarea, 
+      select {
+        @apply mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 sm:text-sm transition duration-200;
+      }
+
+      @keyframes toast-in {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+      @keyframes toast-out {
+        from {
+          transform: translateX(0);
+          opacity: 1;
+        }
+        to {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+      }
+      .toast-in {
+        animation: toast-in 0.5s forwards;
+      }
+      .toast-out {
+        animation: toast-out 0.5s forwards;
+      }
+
+      @media print {
+        body {
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+          font-size: 10pt;
+          color: black;
+          background-color: white;
+          padding: 20mm;
+          box-sizing: border-box;
+        }
+        @page {
+          size: A4 portrait;
+          margin: 0;
+        }
+        .no-print {
+          display: none !important;
+        }
+        .printable-content {
+           box-shadow: none !important;
+           border: none !important;
+           margin: 0 !important;
+        }
+        .overflow-x-auto {
+            overflow: visible !important;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 4px 6px;
+        }
+        thead {
+          display: table-header-group;
+        }
+        a {
+            text-decoration: none;
+            color: black;
+        }
+      }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.6.3",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "vite": "https://esm.sh/vite@^7.0.3",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^4.6.0",
+    "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
+    "remark-gfm": "https://esm.sh/remark-gfm@^4.0.1"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>
