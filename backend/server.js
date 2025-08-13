@@ -16,7 +16,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'votre_super_secret_jwt_a_changer_absolument';
 
 if (JWT_SECRET === 'votre_super_secret_jwt_a_changer_absolument') {
@@ -1392,7 +1392,7 @@ async function startServer() {
             if (rowCount === 0) return res.status(403).json({ message: 'Accès refusé.' });
 
             try {
-                await req.db.query('INSERT INTO class_subjects (year_id, class_name, subject_id) VALUES ($1, $2, $3)', [yearId, className, subjectId]);
+                await req.db.query('INSERT INTO class_subjects (year_id, class_name, subject_id, max_grade) VALUES ($1, $2, $3, 100)', [yearId, className, subjectId]);
                 res.status(201).json({ message: 'Subject assigned successfully.' });
             } catch (error) {
                  if (error.code === '23505') {
@@ -2937,8 +2937,25 @@ async function startServer() {
         }));
 
 
-        app.listen(PORT, () => {
-            console.log(`✅ Serveur backend démarré sur http://localhost:${PORT}`);
+        // --- Serve React App ---
+        // This should be after all API routes
+        const frontendDistPath = path.join(__dirname, '..', 'dist');
+        
+        // Check if the build folder exists (it won't in local dev, but will in production)
+        if (fs.existsSync(frontendDistPath)) {
+            // Serve static files from the React app build folder
+            app.use(express.static(frontendDistPath));
+        
+            // The "catchall" handler: for any request that doesn't
+            // match one of the API routes above, send back React's index.html file.
+            app.get('*', (req, res) => {
+                res.sendFile(path.resolve(frontendDistPath, 'index.html'));
+            });
+        }
+
+
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`✅ Serveur backend démarré sur le port ${PORT}`);
         });
 
     } catch (error) {
