@@ -1,4 +1,12 @@
-/// <reference types="vite/client" />
+// This interface declaration fixes TypeScript errors for `import.meta.env`.
+// It replaces the `/// <reference types="vite/client" />` which was causing an error.
+declare global {
+  interface ImportMeta {
+    readonly env: {
+      readonly VITE_API_URL?: string;
+    };
+  }
+}
 
 import { addNotification } from '../contexts/NotificationContext';
 

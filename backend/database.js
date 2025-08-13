@@ -1,7 +1,21 @@
 const { Pool, types } = require('pg');
 const bcrypt = require('bcryptjs');
 
-const pool = new Pool();
+// Conditional pool configuration for Render.com compatibility
+let pool;
+if (process.env.DATABASE_URL) {
+  // Production environment (like Render) where DATABASE_URL is available
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
+} else {
+  // Local development environment using .env variables (PGHOST, PGUSER, etc.)
+  pool = new Pool();
+}
+
 
 // --- Helper Functions ---
 
