@@ -15,6 +15,7 @@ import PromotionManager from './PromotionManager';
 import TimetableManager from './TimetableManager';
 import StudentPortalManager from './StudentPortalManager';
 import ResourceManager from './ResourceManager';
+import PhoneInput from 'react-phone-input-2';
 
 const SuspensionWarningBanner: React.FC<{ instance: Instance | null }> = ({ instance }) => {
     const [timeRemaining, setTimeRemaining] = useState('');
@@ -654,7 +655,16 @@ const TeacherManager: React.FC<{
                             <input type="text" value={formState.prenom} onChange={e => setFormState(s => ({...s, prenom: e.target.value}))} placeholder="Prénom" required className="px-3 py-2 border rounded-md" />
                             <input type="text" value={formState.nom} onChange={e => setFormState(s => ({...s, nom: e.target.value}))} placeholder="Nom" required className="px-3 py-2 border rounded-md" />
                             <input type="email" value={formState.email} onChange={e => setFormState(s => ({...s, email: e.target.value}))} placeholder="Email (optionnel)" className="px-3 py-2 border rounded-md" />
-                            <input type="tel" value={formState.phone} onChange={e => setFormState(s => ({...s, phone: e.target.value}))} placeholder="Téléphone (optionnel)" className="px-3 py-2 border rounded-md" />
+                            <PhoneInput
+                                country={'ht'}
+                                value={formState.phone}
+                                onChange={phone => setFormState(s => ({...s, phone}))}
+                                containerClass="mt-0"
+                                inputProps={{
+                                    name: 'phone',
+                                    placeholder: 'Téléphone (optionnel)'
+                                }}
+                            />
                         </div>
                         <div className="flex justify-end gap-2">
                             <button type="button" onClick={resetForm} className="px-4 py-2 bg-slate-100 rounded-md">Annuler</button>
@@ -731,7 +741,7 @@ const ResourceAdminManager: React.FC = () => {
 };
 
 
-const InputField: React.FC<{ label: string; name: keyof Omit<Instance, 'id' | 'status' | 'passing_grade' | 'expires_at'>; value: string | null; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; }> = ({ label, name, value, onChange, type = 'text' }) => (
+const InputField: React.FC<{ label: string; name: keyof Omit<Instance, 'id' | 'status' | 'passing_grade' | 'expires_at' | 'phone'>; value: string | null; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; }> = ({ label, name, value, onChange, type = 'text' }) => (
     <div>
       <label htmlFor={name} className="block text-sm font-medium text-slate-700">{label}</label>
       <input type={type} id={name} name={name} value={value || ''} onChange={onChange} className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm" />
@@ -887,7 +897,19 @@ const AdminPage: React.FC = () => {
                   <h2 className="text-xl font-semibold text-slate-700 font-display">Informations de l'Établissement</h2>
                    <InputField label="Nom de l'établissement" name="name" value={info.name} onChange={handleInfoChange} />
                    <InputField label="Adresse" name="address" value={info.address} onChange={handleInfoChange} />
-                   <InputField label="Téléphone" name="phone" value={info.phone} onChange={handleInfoChange} type="tel" />
+                   <div>
+                        <label htmlFor="phone" className="block text-sm font-medium text-slate-700">Téléphone</label>
+                        <PhoneInput
+                            country={'ht'}
+                            value={info.phone || ''}
+                            onChange={(phone) => setInfo(prev => ({ ...prev, phone }))}
+                            containerClass="mt-1"
+                            inputProps={{
+                                id: 'phone',
+                                name: 'phone',
+                            }}
+                        />
+                    </div>
                    <InputField label="Email" name="email" value={info.email} onChange={handleInfoChange} type="email" />
                    
                     <div>

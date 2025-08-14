@@ -2,6 +2,7 @@ import React, { ChangeEvent } from 'react';
 import type { StudentFormState, SchoolYear } from '../types';
 import { CLASSES } from '../constants';
 import DateInput from './DateInput';
+import PhoneInput from 'react-phone-input-2';
 
 interface StudentFormProps {
   formState: StudentFormState;
@@ -12,7 +13,7 @@ interface StudentFormProps {
   selectedYear: SchoolYear | null;
 }
 
-const InputField: React.FC<{ label: string; name: keyof Omit<StudentFormState, 'photo_url' | 'classe_ref' | 'enrollNow' | 'enrollmentClassName' | 'enrollmentMppa' | 'enrollmentId' | 'medical_notes' | 'date_of_birth'>; value: string | number | null; onChange: (e: ChangeEvent<HTMLInputElement>) => void; type?: string; placeholder?: string; }> = 
+const InputField: React.FC<{ label: string; name: keyof Omit<StudentFormState, 'photo_url' | 'classe_ref' | 'enrollNow' | 'enrollmentClassName' | 'enrollmentMppa' | 'enrollmentId' | 'medical_notes' | 'date_of_birth' | 'tutor_phone'>; value: string | number | null; onChange: (e: ChangeEvent<HTMLInputElement>) => void; type?: string; placeholder?: string; }> = 
   ({ label, name, value, onChange, type = 'text', placeholder }) => (
   <div>
     <label htmlFor={name} className="block text-sm font-medium text-slate-700">{label}</label>
@@ -33,6 +34,10 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
     } else {
         setFormState(prev => ({ ...prev, [name]: value }));
     }
+  };
+
+  const handlePhoneChange = (phone: string) => {
+    setFormState(prev => ({ ...prev, tutor_phone: phone }));
   };
 
   const handlePhotoChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -163,7 +168,19 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
         <fieldset className="space-y-4">
           <legend className="text-base font-semibold text-slate-500 mb-2 -ml-1">Informations Tuteur</legend>
           <InputField label="Nom du Tuteur/Parent" name="tutor_name" value={formState.tutor_name} onChange={handleChange} placeholder="Nom complet" />
-          <InputField label="Téléphone du Tuteur" name="tutor_phone" value={formState.tutor_phone} onChange={handleChange} type="tel" placeholder="+509 XX XX XX XX" />
+          <div>
+            <label htmlFor="tutor_phone" className="block text-sm font-medium text-slate-700">Téléphone du Tuteur</label>
+            <PhoneInput
+                country={'ht'}
+                value={formState.tutor_phone || ''}
+                onChange={handlePhoneChange}
+                containerClass="mt-1"
+                inputProps={{
+                    id: 'tutor_phone',
+                    name: 'tutor_phone',
+                }}
+            />
+          </div>
           <InputField label="Email du Tuteur" name="tutor_email" value={formState.tutor_email} onChange={handleChange} type="email" placeholder="email@example.com" />
         </fieldset>
 

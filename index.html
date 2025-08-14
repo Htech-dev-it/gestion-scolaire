@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/react-phone-input-2/lib/style.css" />
     <style>
       body {
         font-family: 'Inter', sans-serif;
@@ -33,6 +34,20 @@
       textarea, 
       select {
         @apply mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 sm:text-sm transition duration-200;
+      }
+
+      /* Custom styles for react-phone-input-2 to match the app's theme */
+      .react-tel-input .form-control {
+        @apply !w-full !py-2 !px-3 !border !border-slate-300 !rounded-md !shadow-sm !bg-white;
+        height: auto !important;
+        font-size: 0.875rem !important;
+        line-height: 1.25rem !important;
+        transition: border-color .15s ease-in-out,box-shadow .15s ease-in-out;
+      }
+       .react-tel-input .form-control:focus {
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 2px rgb(59 130 246 / 0.5) !important;
+        outline: none !important;
       }
 
       @keyframes toast-in {
@@ -114,7 +129,8 @@
     "vite": "https://esm.sh/vite@^7.0.3",
     "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^4.6.0",
     "react-markdown": "https://esm.sh/react-markdown@^10.1.0",
-    "remark-gfm": "https://esm.sh/remark-gfm@^4.0.1"
+    "remark-gfm": "https://esm.sh/remark-gfm@^4.0.1",
+    "react-phone-input-2": "https://esm.sh/react-phone-input-2@2.15.1"
   }
 }
 </script>
