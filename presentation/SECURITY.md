@@ -7,10 +7,6 @@ La sécurité est une priorité fondamentale de la plateforme. Une architecture 
 - **Authentification par JWT (JSON Web Tokens)**
   - Chaque connexion génère un token sécurisé, requis pour chaque requête au serveur.
   - Les tokens ont une durée de vie limitée (8 heures) pour minimiser les risques.
-  - Techniquement, ce "bracelet" (le token JWT) est une chaîne de caractères chiffrée qui contient trois informations clés :
-    - Qui vous êtes (votre id d'utilisateur, votre rôle superadmin, et l'ID de l'école instance_id).
-    - Ce que vous avez le droit de faire (votre rôle détermine vos permissions).
-    - Jusqu'à quand votre accès est valide (la fameuse date d'expiration).
 
 - **Hachage des Mots de Passe avec `bcrypt`**
   - **Aucun mot de passe n'est jamais stocké en clair**. Ils sont transformés en "hashs" irréversibles.
@@ -26,41 +22,22 @@ Le principe de sécurité le plus important de cette architecture est la **sépa
 
 L'application utilise un système de rôles stricts pour compartimenter l'accès aux fonctionnalités.
 
-### a) Rôle : `Super Admin`
-C'est le rôle le plus élevé, avec un contrôle total sur l'ensemble de la plateforme. Il n'est lié à aucune instance spécifique.
+### a) Rôles de Supervision (Niveau Plateforme)
 
-**Permissions Clés :**
-- Créer, configurer, suspendre et supprimer des instances (écoles).
-- Accéder aux données de n'importe quelle instance à des fins de support.
-- Gérer les annonces globales et ciblées.
-- Effectuer des sauvegardes complètes de la plateforme.
-- Communiquer avec les administrateurs de chaque instance via le système de support.
+-   **`Super Admin`** : Le rôle le plus élevé, avec un contrôle total sur l'ensemble de la plateforme. Non lié à une instance. **Seul ce rôle peut supprimer des instances ou gérer les autres Super Admins.**
+-   **`Super Admin Délégué`** : Un rôle de supervision avec des permissions étendues (créer/gérer des instances, support, annonces) mais **sans accès aux actions les plus destructives** (suppression d'instance, gestion des autres super admins, suppression des journaux d'activité).
 
-### b) Rôle : `Admin` (Administrateur d'Instance)
-L'administrateur a un accès **total aux données de son instance**, mais est strictement confiné à celle-ci.
+### b) Rôles d'Instance (Niveau École)
 
-**Permissions Clés :**
-- Gérer toutes les données de son école (élèves, professeurs, notes, etc.).
-- Gérer les comptes utilisateurs de son instance.
-- Configurer les paramètres de son école.
-- **Ne peut PAS** voir ou interagir avec les données d'une autre instance.
+-   **`Admin` (Administrateur Principal d'Instance)** : Accès total aux données et aux paramètres de son instance, mais confiné à celle-ci. Ce rôle est implicitement accordé à l'utilisateur `admin` intégré et à tout utilisateur ayant le rôle personnalisé "Administrateur Principal".
+-   **`Standard`** : Rôle de base pour le personnel administratif. Ce rôle n'a aucune permission par défaut. Son accès est entièrement défini par les **rôles personnalisés** (ex: Comptable, Secrétaire) qui lui sont assignés par un `Admin`.
+-   **`Teacher` (Professeur)** : L'accès est **strictement limité aux classes et matières qui lui sont assignées**.
+-   **`Student` (Élève)** : L'accès est **limité à ses données personnelles**.
 
-### c) Rôle : `Standard`
-Destiné au personnel administratif d'une instance. Il donne un accès large aux fonctionnalités de gestion quotidienne, mais restreint l'accès aux paramètres critiques.
+## 4. Rôles Personnalisés et Permissions Granulaires
 
-**Permissions Clés :**
-- Gérer les élèves et les paiements.
-- Générer des bulletins et des rapports.
-- **N'a PAS accès** aux paramètres avancés de l'instance (gestion des utilisateurs, configuration des années, etc.).
+L'administrateur de chaque instance peut créer des rôles sur mesure (ex: "Comptable") et leur assigner des permissions très spécifiques (ex: "Mettre à jour les paiements", "Voir les rapports financiers"). Cela permet d'appliquer le **principe de sécurité du moindre privilège** et de s'adapter parfaitement à l'organisation de chaque école.
 
-### d) Rôle : `Teacher` (Professeur)
-L'accès est **strictement limité aux classes et matières qui lui sont assignées** au sein de son instance.
-
-### e) Rôle : `Student` (Élève)
-L'accès est **limité à ses données personnelles** au sein de son instance.
-
----
-
-## 4. Journal d'Activité (`Audit Log`)
+## 5. Journal d'Activité (`Audit Log`)
 
 Les actions critiques des `Super Admins` et des `Admins` sont enregistrées, fournissant une traçabilité complète des opérations sur la plateforme et au sein de chaque instance.

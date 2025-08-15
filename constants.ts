@@ -1,6 +1,6 @@
 import type { StudentFormState } from './types';
 
-export const CLASSES = ['7AF', '8AF', '9AF', 'NSI', 'NSII', 'NSIII', 'NSIV'];
+export const CLASSES: string[] = [];
 
 export const EMPTY_STUDENT_FORM: StudentFormState = {
   nom: '',
@@ -14,7 +14,7 @@ export const EMPTY_STUDENT_FORM: StudentFormState = {
   medical_notes: null,
   classe_ref: '',
   enrollNow: false,
-  enrollmentClassName: CLASSES[0],
+  enrollmentClassName: '',
   enrollmentMppa: 0,
   enrollmentId: null,
 };

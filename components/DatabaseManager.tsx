@@ -23,9 +23,9 @@ const BackupConfirmationModal: React.FC<{
     if (!isOpen || !modalInfo) return null;
 
     const colorClasses: Record<BackupColor, string> = {
-        'blue': 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500',
-        'green': 'bg-green-600 hover:bg-green-700 focus:ring-green-500',
-        'orange': 'bg-orange-500 hover:bg-orange-600 focus:ring-orange-500'
+        'blue': 'bg-[#4A90E2] hover:bg-[#357ABD]',
+        'green': 'bg-teal-500 hover:bg-teal-600',
+        'orange': 'bg-[#F5A623] hover:bg-[#E49B20]'
     };
 
     return (
@@ -61,15 +61,15 @@ const BackupCard: React.FC<{
     color: BackupColor;
 }> = ({ title, description, icon, buttonText, onButtonClick, isLoading, color }) => {
 
-    const borderColors: Record<BackupColor, string> = { blue: 'border-blue-200', green: 'border-green-200', orange: 'border-orange-200' };
+    const borderColors: Record<BackupColor, string> = { blue: 'border-blue-300', green: 'border-teal-300', orange: 'border-amber-300' };
     const buttonColors: Record<BackupColor, string> = { 
-        blue: 'bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400', 
-        green: 'bg-green-600 hover:bg-green-700 disabled:bg-green-400',
-        orange: 'bg-orange-500 hover:bg-orange-600 disabled:bg-orange-300'
+        blue: 'bg-[#4A90E2] hover:bg-[#357ABD] disabled:bg-blue-300', 
+        green: 'bg-teal-500 hover:bg-teal-600 disabled:bg-teal-300',
+        orange: 'bg-[#F5A623] hover:bg-[#E49B20] disabled:bg-amber-300'
     };
     
     return (
-        <div className={`bg-white p-6 rounded-xl shadow-md border-l-4 ${borderColors[color]}`}>
+        <div className={`bg-white p-6 rounded-xl shadow-md border ${borderColors[color]}`}>
             <h3 className="text-xl font-bold text-slate-800 font-display">{title}</h3>
             <div className="text-sm text-slate-500 mt-2 mb-4 min-h-[40px]">{description}</div>
             <button onClick={onButtonClick} disabled={isLoading} className={`w-full flex items-center justify-center px-4 py-2.5 text-sm font-medium text-white rounded-lg transition-colors shadow-sm ${buttonColors[color]}`}>
@@ -124,7 +124,7 @@ const BackupManager: React.FC = () => {
         addNotification({ type: 'info', message: 'La création de la sauvegarde a commencé. Le téléchargement démarrera bientôt...' });
 
         try {
-            const response = await fetch(`/api/backups/${type}`, {
+            const response = await fetch(`/api/superadmin/backups/${type}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -165,6 +165,7 @@ const BackupManager: React.FC = () => {
     
     return (
         <div className="space-y-6">
+             <h2 className="text-xl font-semibold text-slate-700 font-display">Sauvegarde de la Plateforme</h2>
             <BackupCard 
                 title="Sauvegarde de la Base de Données (SQL)"
                 description={<>Générez et téléchargez une sauvegarde de la structure et des données de la base de données au format SQL. Ceci n'inclut pas les fichiers uploadés (images, documents).</>}
@@ -203,10 +204,92 @@ const BackupManager: React.FC = () => {
     );
 };
 
-const DatabaseManager: React.FC = () => {
+const RestoreManager: React.FC = () => {
+    const { addNotification } = useNotification();
+    const { token } = useAuth();
+    const [file, setFile] = useState<File | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [stagedInfo, setStagedInfo] = useState<{ fileName: string, command: string } | null>(null);
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            setFile(e.target.files[0]);
+        }
+    };
+
+    const handleStageBackup = async () => {
+        if (!file) {
+            addNotification({ type: 'warning', message: 'Veuillez sélectionner un fichier de sauvegarde.' });
+            return;
+        }
+        setIsLoading(true);
+        setStagedInfo(null);
+
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            const base64File = (reader.result as string).split(',')[1];
+            try {
+                const data = await apiFetch('/superadmin/restore/stage-backup', {
+                    method: 'POST',
+                    body: JSON.stringify({ fileName: file.name, fileContent: base64File }),
+                });
+                setStagedInfo({ fileName: file.name, command: data.command });
+                addNotification({ type: 'success', message: 'Fichier préparé sur le serveur. Suivez les instructions.' });
+            } catch (error) {
+                if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+    };
+
+    const copyCommand = () => {
+        if (stagedInfo) {
+            navigator.clipboard.writeText(stagedInfo.command);
+            addNotification({ type: 'info', message: 'Commande copiée dans le presse-papiers.' });
+        }
+    };
+    
+    return (
+        <div className="border-t-2 border-red-300 pt-6 mt-8">
+            <h2 className="text-xl font-semibold text-red-700 font-display">Restauration des Données (Action Destructive)</h2>
+            <p className="text-sm text-slate-600 mt-2 mb-4">Cette action écrasera les données actuelles. Elle doit être effectuée manuellement sur le serveur pour des raisons de sécurité. La limite de téléversement est de 10Mo.</p>
+
+            <div className="bg-slate-50 p-4 rounded-lg border space-y-4">
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">1. Préparer le fichier de sauvegarde</label>
+                    <input type="file" onChange={handleFileChange} className="w-full text-sm" accept=".sql,.dump,.zip" />
+                </div>
+                <div>
+                    <button onClick={handleStageBackup} disabled={isLoading || !file} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg shadow-sm hover:bg-red-700 disabled:bg-slate-400">
+                        {isLoading ? 'Préparation...' : 'Préparer le Fichier sur le Serveur'}
+                    </button>
+                </div>
+            </div>
+
+            {stagedInfo && (
+                <div className="mt-6 p-4 border-2 border-green-300 bg-green-50 rounded-lg">
+                    <h3 className="text-lg font-semibold text-green-800 font-display mb-2">2. Exécuter la Restauration</h3>
+                    <p className="text-sm text-slate-700 mb-2">Connectez-vous au terminal de votre serveur et exécutez la commande suivante :</p>
+                    <div className="bg-slate-800 text-white font-mono text-sm p-3 rounded-md flex justify-between items-center">
+                        <code>{stagedInfo.command}</code>
+                        <button onClick={copyCommand} className="p-2 text-slate-300 hover:bg-slate-600 rounded-md">
+                           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2-2H9a2 2 0 01-2-2V9z" /><path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H4z" /></svg>
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+
+const DatabaseManager: React.FC<{ canRestore: boolean }> = ({ canRestore }) => {
     return (
         <div className="space-y-8">
             <BackupManager />
+            {canRestore && <RestoreManager />}
         </div>
     );
 };

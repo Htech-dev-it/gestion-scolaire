@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import type { Enrollment, Instance, SchoolYear, StudentProfile, PaginatedEnrollments, PaginationInfo } from '../types';
-import { CLASSES } from '../constants';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
 import Tooltip from './Tooltip';
@@ -63,7 +62,7 @@ const MonthlyBarChart: React.FC<{ data: { month: string; amount: number }[] }> =
 
 const ReportPage: React.FC = () => {
     const { addNotification } = useNotification();
-    const { schoolYears, selectedYear } = useSchoolYear();
+    const { schoolYears, selectedYear, classes } = useSchoolYear();
     const [allEnrollments, setAllEnrollments] = useState<Enrollment[]>([]);
     const [pagination, setPagination] = useState<PaginationInfo | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
@@ -72,11 +71,17 @@ const ReportPage: React.FC = () => {
     const [instanceInfo, setInstanceInfo] = useState<Instance | null>(null);
 
     // Filter states
-    const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set(CLASSES));
+    const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState('');
     const [balanceFilter, setBalanceFilter] = useState('all'); // 'all', 'zero', 'nonzero'
     const [installmentFilter, setInstallmentFilter] = useState('all'); // e.g., 'all', 'v1-paid', 'v2-unpaid'
     const [mppaFilter, setMppaFilter] = useState('');
+
+    useEffect(() => {
+        if (classes.length > 0) {
+            setSelectedClasses(new Set(classes.map(c => c.name)));
+        }
+    }, [classes]);
     
     const fetchReportData = useCallback(async (page: number) => {
         setIsLoading(true);
@@ -189,7 +194,7 @@ const ReportPage: React.FC = () => {
         }
 
         const selectedClassesArray = Array.from(selectedClasses);
-        if (selectedClassesArray.length > 0 && selectedClassesArray.length < CLASSES.length) {
+        if (selectedClassesArray.length > 0 && selectedClassesArray.length < classes.length) {
             titleParts.push(`Classe(s): ${selectedClassesArray.join(', ')}`);
         }
 
@@ -350,7 +355,7 @@ const ReportPage: React.FC = () => {
                      <div className="lg:col-span-2">
                          <label className="block text-sm font-medium text-slate-700 mb-2">Filtrer par Classe</label>
                          <div className="flex flex-wrap gap-x-4 gap-y-2">
-                            {CLASSES.map(c => <label key={c} className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={selectedClasses.has(c)} onChange={() => handleClassToggle(c)} className="h-4 w-4 rounded text-blue-600"/><span>{c}</span></label>)}
+                            {classes.map(c => <label key={c.id} className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={selectedClasses.has(c.name)} onChange={() => handleClassToggle(c.name)} className="h-4 w-4 rounded text-blue-600"/><span>{c.name}</span></label>)}
                         </div>
                     </div>
                 </div>

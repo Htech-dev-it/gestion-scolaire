@@ -1,8 +1,10 @@
 import React from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import AttendanceReport from './AttendanceReport';
+import { useSchoolYear } from '../contexts/SchoolYearContext';
 
 const AttendanceReportPage: React.FC = () => {
+  const { classes } = useSchoolYear();
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto">
       <header className="mb-8">
@@ -16,7 +18,7 @@ const AttendanceReportPage: React.FC = () => {
         <p className="text-lg text-slate-500 mt-2">Consulter et imprimer les rapports de présence par classe.</p>
       </header>
       <div className="bg-white p-6 rounded-xl shadow-lg">
-        <AttendanceReport />
+        <AttendanceReport classes={classes} />
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   user: User | null;
   isLoading: boolean;
+  hasPermission: (permissionKey: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -21,12 +22,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!tokenToParse) return null;
     try {
       const decodedToken = JSON.parse(atob(tokenToParse.split('.')[1]));
-      // The user object now includes nom, prenom, and instance_id
+      // The user object now includes nom, prenom, instance_id, and permissions
       return { 
         id: decodedToken.id, 
         username: decodedToken.username, 
         role: decodedToken.role,
         instance_id: decodedToken.instance_id,
+        permissions: decodedToken.permissions || [],
+        roles: decodedToken.roles || [],
         ...decodedToken,
       };
     } catch (e) {
@@ -78,10 +81,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return parsedUser;
   };
 
+  const hasPermission = useCallback((permissionKey: string): boolean => {
+    if (!user) return false;
+    // Admins always have all permissions. The backend is the source of truth,
+    // but this is a convenient and safe frontend override.
+    if (user.role === 'admin') return true;
+    return user.permissions?.includes(permissionKey) ?? false;
+  }, [user]);
+
   const isAuthenticated = !!token;
 
   return (
-    <AuthContext.Provider value={{ token, login, logout, isAuthenticated, user, isLoading }}>
+    <AuthContext.Provider value={{ token, login, logout, isAuthenticated, user, isLoading, hasPermission }}>
       {children}
     </AuthContext.Provider>
   );

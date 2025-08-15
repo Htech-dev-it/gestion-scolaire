@@ -1,97 +1,67 @@
 # Guide pour l'Administrateur
 
-Bienvenue dans le guide complet du portail d'administration. Ce document vous aidera à maîtriser toutes les fonctionnalités à votre disposition.
+Bienvenue dans le guide complet du portail d'administration. Ce document vous explique, étape par étape, comment maîtriser toutes les fonctionnalités à votre disposition.
 
-## Tableau de Bord Admin
+## Comprendre Votre Interface
 
-Le tableau de bord est votre centre de contrôle. Il est organisé en plusieurs onglets pour une gestion simplifiée.
+Votre interface est conçue pour être simple et efficace, organisée autour de deux points d'entrée principaux :
 
-### Onglet Général
-C'est ici que vous configurez les informations de base de votre établissement.
-- **Nom de l'établissement, adresse, etc.**: Ces informations apparaîtront sur les documents officiels comme les bulletins et les reçus.
-- **Logo de l'école**: Importez le logo de votre école. Il sera utilisé sur la page de connexion et les documents imprimés.
+1.  **Le Tableau de Bord** : C'est votre page d'accueil. Elle contient des cartes d'accès rapide pour les **opérations quotidiennes** (Gestion des élèves, des bulletins, etc.).
+2.  **Le Lien "Administration"** : Dans le menu du haut, ce lien vous mène aux **paramètres de fond** de l'école (années scolaires, matières, etc.).
 
-### Onglet Portail Élève
-Cet onglet est crucial pour donner l'accès au portail aux élèves. Il contient deux sections :
+---
 
-#### Création en Masse
-1.  Sélectionnez une classe dans la liste déroulante.
-2.  Cliquez sur `Créer les comptes`. Le système générera automatiquement un nom d'utilisateur et un mot de passe temporaire pour **tous les élèves de cette classe qui n'ont pas encore de compte**.
-3.  Une fiche avec tous les identifiants sera générée. Imprimez-la et distribuez-la aux élèves concernés.
+## Tâches Opérationnelles (via le Tableau de Bord)
 
-#### Gestion Individuelle
-Cette section est parfaite pour gérer les cas particuliers, comme un nouvel élève ou un oubli de mot de passe.
-1.  La liste des élèves de la classe sélectionnée s'affiche avec le statut de leur compte.
-2.  **Créer le compte**: Si un élève n'a pas de compte, cliquez sur ce bouton pour lui en générer un individuellement.
-3.  **Réinitialiser le mot de passe**: Si un élève a oublié son mot de passe, cliquez ici pour lui en générer un nouveau.
-4.  **Supprimer**: Ce bouton supprime le compte de connexion de l'élève, l'empêchant d'accéder au portail. Son profil académique n'est pas affecté.
-5.  Après chaque action, une fenêtre avec les nouveaux identifiants s'affichera.
+### `Gérer les Élèves`
+C'est le module central pour toute la gestion des dossiers élèves.
 
-### Onglet Professeurs
-Cet onglet vous permet de gérer le corps professoral.
-- **Ajouter un professeur**: Créez un compte pour un nouveau professeur. Le système générera un nom d'utilisateur et un mot de passe temporaire que vous devrez lui communiquer.
-- **Réinitialiser MDP**: Si un professeur oublie son mot de passe, utilisez ce bouton pour lui en générer un nouveau.
-- **Gérer les assignations**: Définissez quelles matières un professeur enseigne dans quelles classes pour l'année scolaire en cours.
+1.  **Accès** : Allez sur **Tableau de Bord > Gestion des Élèves**.
+2.  **Ajouter un élève** : Utilisez le formulaire sur la gauche pour créer un profil. Si vous cochez **"Inscrire cet élève..."**, il sera immédiatement ajouté à une classe pour l'année en cours.
+3.  **Modifier un élève** : Double-cliquez sur un élève dans la liste pour charger ses informations dans le formulaire. Modifiez, puis cliquez sur **"Mettre à jour"**.
+4.  **Inscrire un élève existant** : Pour un élève qui a un profil mais n'est pas inscrit pour l'année en cours, trouvez-le dans la liste et cliquez sur le bouton **"Inscrire"**.
+5.  **Actions en masse (Archiver, Supprimer, Changer de classe)** : Cochez les cases à côté des noms des élèves. Des boutons d'action apparaîtront en haut du tableau pour appliquer une action à toute votre sélection.
 
-### Onglet Ressources
-Cet onglet vous donne un contrôle total sur les ressources pédagogiques de toute l'école.
-1.  Sélectionnez un cours (Classe - Matière - Professeur) dans la liste.
-2.  Vous pouvez ensuite ajouter des fichiers (PDF, Word, images) ou des liens web pour ce cours spécifique.
+### `Gérer les Paiements`
+Les paiements se gèrent par classe.
 
-### Onglet Emploi du temps
-C'est l'outil central pour construire l'horaire de toute l'école.
-- **Gérer les Salles**: Ajoutez, modifiez ou supprimez des salles de classe.
-- **Créer un créneau**: Cliquez sur une case vide de la grille pour ouvrir la fenêtre de création.
-- **Modifier un créneau**: Cliquez sur un cours existant pour modifier son assignation, ses horaires ou sa salle.
+1.  **Accès** : Depuis le **Tableau de Bord**, cliquez sur une classe dans la section **"Accès Rapide aux Paiements"**.
+2.  **Modifier une fiche** : Double-cliquez sur un élève dans la liste. Sa fiche de paiement s'ouvre à gauche.
+3.  **Saisir un paiement** : Entrez le montant dans l'un des champs "Versement". La date est ajoutée automatiquement.
+4.  **Imprimer un reçu** : Cliquez sur l'icône d'imprimante sur la fiche de paiement.
 
-### Onglet Années, Périodes, et Matières
-Ces sections vous permettent de structurer l'année académique.
-1.  **Années Scolaires**: Créez et gérez les années scolaires (ex: 2023-2024). Vous devez définir une année comme "actuelle" pour que le système fonctionne correctement.
-2.  **Périodes**: Pour chaque année, définissez les périodes (ex: Trimestre 1, Trimestre 2).
-3.  **Matières**: Créez la liste de toutes les matières enseignées dans l'établissement.
+### `Gérer les Professeurs`
+1.  **Accès** : Allez sur **Tableau de Bord > Gestion des Professeurs**.
+2.  **Ajouter un professeur** : Créez son profil. Le système génère un nom d'utilisateur et un mot de passe temporaire. **Communiquez-les-lui.**
+3.  **Assigner des cours** : Cliquez sur **"Gérer les assignations"** pour un professeur. Cochez les matières qu'il enseignera dans chaque classe.
 
-### Onglet Programme
-Ici, vous définissez le curriculum pour chaque classe.
-1.  Sélectionnez une classe.
-2.  Assignez les matières qui sont enseignées dans cette classe pour l'année en cours.
-3.  Définissez la **note maximale** pour chaque matière (ex: 100 points). C'est le total de points que les professeurs pourront distribuer sur leurs évaluations pour cette matière durant une période.
+### `Gérer l'Emploi du Temps`
+1.  **Accès** : Allez sur **Tableau de Bord > Gestion Emploi du temps**.
+2.  **Ajouter des salles** : Utilisez le panneau de gauche pour lister toutes les salles disponibles.
+3.  **Créer un créneau** : Cliquez sur une case vide de la grille. Dans la fenêtre qui s'ouvre, choisissez l'assignation (un cours, donné par un professeur, à une classe), l'heure et la salle.
 
-### Onglet Sécurité
-- **Changer votre mot de passe**: Pour des raisons de sécurité, vous pouvez mettre à jour votre propre mot de passe ici.
+---
 
-## Contact & Support
-Un nouvel onglet `Contact & Support` est disponible dans le menu de navigation principal (en haut de l'écran).
-- **Consulter les Informations de Contact** : Vous y trouverez les coordonnées (email, téléphone) pour joindre le support technique de la plateforme.
-- **Messagerie Intégrée** : Utilisez la fenêtre de messagerie pour envoyer un message directement au support en cas de problème ou pour poser une question. Vous verrez également les réponses du support dans cette même fenêtre, ce qui centralise toutes vos communications.
+## Paramètres de l'École (via le lien "Administration")
 
-## Gestion des Utilisateurs
-Cette section vous permet de gérer les comptes qui ont accès à l'application.
-- **Ajouter un utilisateur**: Créez des comptes pour le personnel administratif (secrétaires). Par défaut, ils ont le rôle "Standard".
-- **Changer le rôle**: Vous pouvez promouvoir un utilisateur "Standard" au rang d'"Admin". Un administrateur a accès à toutes les fonctionnalités, y compris ce tableau de bord. **Il est crucial d'avoir au moins deux comptes administrateurs.**
-- **Supprimer un utilisateur**: Supprimez un compte qui ne devrait plus avoir accès au système. Pour des raisons de sécurité, vous ne pouvez pas supprimer le compte `admin` principal ni votre propre compte.
+### `Gérer les Utilisateurs et les Rôles`
+1.  **Accès** : Allez dans **Administration > Gérer les utilisateurs**.
+2.  **Créer un utilisateur** : Ajoutez un compte pour un membre du personnel (non-professeur).
+3.  **Gérer les rôles** : Cliquez sur **"Gérer les Rôles"** pour un utilisateur. Cochez les rôles que vous voulez lui assigner (ex: "Comptable"). Les permissions s'appliqueront instantanément.
+4.  **Créer un rôle personnalisé** : Allez dans **Administration > Rôles & Permissions**.
+    - Utilisez un modèle pour commencer rapidement.
+    - Donnez un nom au rôle et cochez les permissions exactes que vous souhaitez accorder.
 
-## Gestion des Élèves
-La page "Gestion des Élèves" est le cœur de la gestion des dossiers.
-1.  **Ajouter un élève**: Remplissez le formulaire à gauche pour créer un nouveau profil d'élève.
-2.  **Modifier un élève**: Double-cliquez sur un élève dans la liste pour charger ses informations dans le formulaire et les modifier.
-3.  **Inscrire un élève**: Pour un élève non-inscrit pour l'année en cours, cliquez sur le bouton "Inscrire". Choisissez sa classe et définissez son Montant à Payer Pour l'Année (MPPA).
-4.  **Inscrire en masse**: Sélectionnez plusieurs élèves non-inscrits, puis utilisez le bouton "Inscrire en masse" qui apparaît en haut de la liste.
+### `Configurer l'Année Académique`
+Il est crucial de suivre cet ordre :
+1.  **Administration > Années** : Créez l'année scolaire (ex: `2024-2025`) et définissez-la comme **"Actuelle"**.
+2.  **Administration > Périodes** : Sélectionnez la bonne année et ajoutez les périodes (ex: `Trimestre 1`).
+3.  **Administration > Matières** : Assurez-vous que toutes les matières sont listées.
+4.  **Administration > Programme** : Pour **chaque classe**, assignez les matières qui y seront enseignées et leur note maximale (souvent `100`).
 
-## Gestion des Paiements
-Accédez à cette fonctionnalité en cliquant sur une classe depuis la page d'accueil.
-1.  Double-cliquez sur un élève pour ouvrir sa fiche de paiement.
-2.  Entrez les montants pour chaque versement.
-3.  Imprimez un reçu détaillé à tout moment.
+---
 
-## Suivi des Présences
-Cette page vous donne une vue d'ensemble des registres de présence saisis par les professeurs.
-1.  Sélectionnez une classe et une plage de dates.
-2.  Le tableau affiche le statut de chaque élève (Présent, Absent, En Retard) pour chaque jour.
-3.  Cliquez sur une cellule pour voir le détail des matières concernées pour ce jour.
-
-## Génération des Bulletins
-La page "Gestion des Bulletins" vous permet de générer les bulletins pour une classe entière.
-1.  Sélectionnez une classe et une période.
-2.  Choisissez un modèle de bulletin.
-3.  Cliquez sur "Générer les Bulletins".
-4.  Sur l'écran de prévisualisation, vous pouvez ajuster les appréciations pour chaque matière avant d'imprimer.
+### `Gérer le Portail Élève`
+1.  **Accès** : Cliquez sur **"Portail Élève"** dans le menu du haut.
+2.  **Créer les comptes en masse** : Sélectionnez une classe et cliquez sur **"Créer les comptes..."**. Une fiche d'identifiants est générée à imprimer et distribuer.
+3.  **Gérer un compte individuel** : Utilisez la liste en bas pour réinitialiser un mot de passe ou supprimer un compte.

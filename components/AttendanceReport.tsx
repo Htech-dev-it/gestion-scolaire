@@ -2,18 +2,21 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { apiFetch } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
-import { CLASSES } from '../constants';
-import type { AttendanceReportData, AttendanceReportRecord, Instance } from '../types';
+import type { AttendanceReportData, AttendanceReportRecord, Instance, ClassDefinition } from '../types';
 import Tooltip from './Tooltip';
 
-const AttendanceReport: React.FC = () => {
+interface AttendanceReportProps {
+    classes: ClassDefinition[];
+}
+
+const AttendanceReport: React.FC<AttendanceReportProps> = ({ classes }) => {
     const { addNotification } = useNotification();
     const { selectedYear } = useSchoolYear();
     const [isLoading, setIsLoading] = useState(false);
     const [instanceInfo, setInstanceInfo] = useState<Instance | null>(null);
 
     // Filters
-    const [selectedClass, setSelectedClass] = useState(CLASSES[0]);
+    const [selectedClass, setSelectedClass] = useState(classes[0]?.name || '');
     const [dateRange, setDateRange] = useState(() => {
         const today = new Date();
         const dayOfWeek = today.getDay();
@@ -33,8 +36,14 @@ const AttendanceReport: React.FC = () => {
     // Data
     const [reportData, setReportData] = useState<AttendanceReportData | null>(null);
 
+    useEffect(() => {
+        if (classes.length > 0 && !classes.find(c => c.name === selectedClass)) {
+            setSelectedClass(classes[0].name);
+        }
+    }, [classes, selectedClass]);
+
     const fetchReportData = useCallback(async () => {
-        if (!selectedYear) return;
+        if (!selectedYear || !selectedClass) return;
         setIsLoading(true);
         try {
             const data = await apiFetch(`/attendance-report?yearId=${selectedYear.id}&className=${selectedClass}&startDate=${dateRange.start}&endDate=${dateRange.end}`);
@@ -141,7 +150,7 @@ const AttendanceReport: React.FC = () => {
                 <div>
                     <label className="block text-sm font-medium text-gray-700">Classe</label>
                     <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 rounded-md">
-                        {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                        {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                     </select>
                 </div>
                 <div>

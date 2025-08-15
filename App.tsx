@@ -32,6 +32,9 @@ const StudentResourcesPage = React.lazy(() => import('./components/student/Stude
 const StudentDocumentationPage = React.lazy(() => import('./components/DocumentationPage'));
 const SuperAdminPage = React.lazy(() => import('./components/SuperAdminPage')); // Lazy load SuperAdminPage
 const AdminContactPage = React.lazy(() => import('./components/AdminContactPage'));
+const StudentPortalAdminPage = React.lazy(() => import('./components/StudentPortalAdminPage'));
+const TeachersManagementPage = React.lazy(() => import('./components/TeachersManagementPage'));
+const TimetablePage = React.lazy(() => import('./components/TimetablePage'));
 
 
 const ProtectedLayout = () => {
@@ -73,6 +76,30 @@ const App: React.FC = () => {
           <ReactRouterDOM.Route path="/reports/attendance" element={<AttendanceReportPage />} />
           <ReactRouterDOM.Route path="/report-cards" element={<ReportCardPage />} />
           <ReactRouterDOM.Route path="/docs" element={<DocumentationPage />} />
+          <ReactRouterDOM.Route 
+            path="/student-portal" 
+            element={
+              <Suspense fallback={<div className="p-8 text-center">Chargement...</div>}>
+                <StudentPortalAdminPage />
+              </Suspense>
+            } 
+          />
+          <ReactRouterDOM.Route 
+            path="/teachers-management" 
+            element={
+              <Suspense fallback={<div className="p-8 text-center">Chargement...</div>}>
+                <TeachersManagementPage />
+              </Suspense>
+            } 
+          />
+          <ReactRouterDOM.Route 
+            path="/timetable" 
+            element={
+              <Suspense fallback={<div className="p-8 text-center">Chargement...</div>}>
+                <TimetablePage />
+              </Suspense>
+            } 
+          />
         </ReactRouterDOM.Route>
 
         {/* Admin Routes (also protected and with header) */}

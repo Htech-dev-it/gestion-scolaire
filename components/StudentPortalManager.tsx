@@ -2,8 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
-import { CLASSES } from '../constants';
-import type { Instance, StudentWithAccountStatus } from '../types';
+import type { Instance, StudentWithAccountStatus, ClassDefinition } from '../types';
 import ConfirmationModal from './ConfirmationModal';
 
 interface GeneratedCredential {
@@ -55,9 +54,9 @@ const CredentialModal: React.FC<{ credential: GeneratedCredential, onClose: () =
 
 
 const StudentPortalManager: React.FC = () => {
-    const { selectedYear } = useSchoolYear();
+    const { selectedYear, classes } = useSchoolYear();
     const { addNotification } = useNotification();
-    const [selectedClass, setSelectedClass] = useState<string>(CLASSES[0]);
+    const [selectedClass, setSelectedClass] = useState<string>('');
     const [isLoading, setIsLoading] = useState(false);
     const [isListLoading, setIsListLoading] = useState(false);
     const [generatedData, setGeneratedData] = useState<GeneratedCredential[] | null>(null);
@@ -67,11 +66,17 @@ const StudentPortalManager: React.FC = () => {
     const [studentToDelete, setStudentToDelete] = useState<StudentWithAccountStatus | null>(null);
 
     useEffect(() => {
+        if (classes.length > 0 && !selectedClass) {
+            setSelectedClass(classes[0].name);
+        }
+    }, [classes, selectedClass]);
+
+    useEffect(() => {
         apiFetch('/instance/current').then(setSchoolInfo).catch(console.error);
     }, []);
     
     const fetchStudentsWithStatus = useCallback(async () => {
-        if (!selectedYear) return;
+        if (!selectedYear || !selectedClass) return;
         setIsListLoading(true);
         try {
             const data = await apiFetch(`/classes/${selectedClass}/students-with-account-status?yearId=${selectedYear.id}`);
@@ -192,7 +197,7 @@ const StudentPortalManager: React.FC = () => {
                         }}
                         className="mt-1 block w-full md:w-1/2 pl-3 pr-10 py-2 border-slate-300 rounded-md"
                     >
-                        {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                        {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                     </select>
                 </div>
                 <div>

@@ -38,21 +38,25 @@ La nouvelle architecture a permis l'introduction de fonctionnalités qui transfo
 
 ### a) Portail Super Administrateur : Le Centre de Contrôle Absolu
 Le Super Administrateur dispose d'un portail dédié lui donnant une vue d'ensemble et un contrôle total sur la plateforme.
-- **Gestion d'Instances** : Créer de nouvelles écoles à la volée, activer, suspendre ou planifier la suspension d'un abonnement, et modifier les informations de contact de chaque instance.
-- **Sécurité Renforcée** : Suppression d'une instance protégée par une double confirmation (texte + mot de passe), rendant les actions critiques extrêmement sécurisées.
+- **Gestion d'Instances** : Créer de nouvelles écoles à la volée, activer, suspendre ou planifier la suspension d'un abonnement.
+- **Gestion des Rôles** : Introduction d'un rôle `Super Admin Délégué` avec des permissions restreintes.
+- **Centre de Support Intégré** : Hub de messagerie pour répondre aux demandes des administrateurs d'école.
+- **Système d'Annonces** : Publication d'annonces globales ou ciblées.
 - **Maintenance Centralisée** : Outils de sauvegarde complets pour l'ensemble de la plateforme.
 
-### b) Système de Support Intégré : Une Communication Réinventée
-Fini les emails dispersés et le support désorganisé. La plateforme intègre désormais un module de messagerie direct entre les administrateurs d'école et le Super Administrateur.
+### b) Contrôle d'Accès Granulaire (RBAC) pour les Instances
+Fini le rôle "Standard" monolithique. Les administrateurs d'école peuvent désormais créer des **rôles personnalisés** (Comptable, Secrétaire, etc.) en choisissant parmi une liste de permissions détaillées.
+- **Flexibilité Totale** : Créez des rôles qui correspondent exactement aux responsabilités du personnel.
+- **Sécurité Renforcée** : Appliquez le principe du moindre privilège en n'accordant que les accès strictement nécessaires.
+
+### c) Pages de Gestion Dédiées
+Pour clarifier les responsabilités et améliorer l'ergonomie, plusieurs modules critiques ont été déplacés de l'onglet "Administration" vers leurs propres pages accessibles via le tableau de bord :
+- **Gestion des Professeurs**
+- **Gestion de l'Emploi du Temps**
+- **Gestion du Portail Élève**
+
+### d) Système de Support Intégré : Une Communication Réinventée
+Un module de messagerie direct entre les administrateurs d'école et le Super Administrateur.
 - **Canal Direct et Organisé** : Chaque école dispose de son propre fil de discussion avec le support.
-- **Notifications en Temps Réel** : Le Super Administrateur est notifié instantanément des nouveaux messages, lui permettant une réactivité maximale.
+- **Notifications en Temps Réel** : Le Super Administrateur est notifié instantanément des nouveaux messages.
 - **Efficacité Accrue** : Centralise toutes les demandes de support, simplifiant le suivi et la résolution des problèmes.
-
-### c) Annonces Ciblées
-L'outil de communication a été amélioré pour permettre au Super Administrateur de diffuser des annonces soit à **toutes les écoles** de la plateforme, soit de **cibler un établissement spécifique** avec un message particulier.
-
-### d) Portails dédiés pour chaque Instance
-Chaque école bénéficie de l'ensemble des fonctionnalités de gestion déjà existantes, de manière totalement indépendante :
-- **Portail d'Administration d'École** : Gestion des élèves, finances, bulletins, professeurs, emploi du temps, etc.
-- **Portail des Professeurs** : Gestion des notes, des présences et des ressources pour leurs classes.
-- **Portail des Élèves** : Consultation des notes, de l'emploi du temps et des ressources.

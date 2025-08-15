@@ -7,7 +7,7 @@ interface AdminRouteProps {
 }
 
 const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
-  const { isAuthenticated, user, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, hasPermission } = useAuth();
   const location = ReactRouterDOM.useLocation();
 
   if (isLoading) {
@@ -18,8 +18,8 @@ const AdminRoute: React.FC<AdminRouteProps> = ({ children }) => {
     return <ReactRouterDOM.Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (user?.role !== 'admin') {
-    // Si l'utilisateur est connecté mais n'est pas admin, on le redirige vers l'accueil
+  if (!hasPermission('user:manage')) {
+    // Si l'utilisateur est connecté mais n'a pas les permissions d'admin, on le redirige
     return <ReactRouterDOM.Navigate to="/" replace />;
   }
 

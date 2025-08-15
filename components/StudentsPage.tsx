@@ -35,7 +35,7 @@ const ErrorDisplay: React.FC<{ message: string }> = ({ message }) => (
 
 const StudentsPage: React.FC = () => {
   const { addNotification } = useNotification();
-  const { selectedYear, isLoading: isYearLoading, error: yearError } = useSchoolYear();
+  const { selectedYear, isLoading: isYearLoading, error: yearError, classes } = useSchoolYear();
   
   const [students, setStudents] = useState<StudentWithEnrollment[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
@@ -395,6 +395,7 @@ const StudentsPage: React.FC = () => {
             onSubmit={handleEnrollSubmit}
             student={studentToEnroll}
             schoolYear={selectedYear}
+            classes={classes}
           />
       )}
 
@@ -405,6 +406,7 @@ const StudentsPage: React.FC = () => {
               onSubmit={handleBulkEnrollSubmit}
               schoolYear={selectedYear}
               studentCount={students.filter(s => selectedIds.has(s.id) && !s.enrollment).length}
+              classes={classes}
           />
       )}
 
@@ -423,6 +425,7 @@ const StudentsPage: React.FC = () => {
         onSubmit={handleChangeClassSubmit}
         studentCount={students.filter(s => selectedIds.has(s.id) && s.enrollment).length}
         currentClasses={[...new Set(students.filter(s => selectedIds.has(s.id) && s.enrollment).map(s => s.enrollment!.className))]}
+        classes={classes}
       />
     </div>
   );

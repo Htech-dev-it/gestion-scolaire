@@ -36,6 +36,14 @@ export interface Enrollment {
     promotionStatus?: 'ADMIS(E) EN CLASSE SUPÉRIEURE' | 'À REFAIRE';
 }
 
+export interface ClassDefinition {
+    id: number;
+    name: string;
+    order_index: number;
+    instance_id: number;
+}
+
+
 export interface SchoolYear {
     id: number;
     name: string; // E.g., "2023-2024"
@@ -180,6 +188,21 @@ export interface Student extends StudentProfile {
     payments: [Payment, Payment, Payment, Payment];
 }
 
+// --- NEW RBAC (Role-Based Access Control) TYPES ---
+export interface Permission {
+    id: number;
+    key: string;
+    description: string;
+    category: string;
+}
+
+export interface Role {
+    id: number;
+    name: string;
+    instance_id: number;
+    permissions?: Permission[]; // Optional for full role data
+}
+
 // Auth-related types
 export type UserRole = 'admin' | 'teacher' | 'standard' | 'student' | 'superadmin' | 'superadmin_delegate';
 
@@ -191,6 +214,8 @@ export interface User {
     nom?: string;
     student_id?: string; // For student users
     instance_id?: number | null; // Can be null for superadmin
+    permissions?: string[]; // RBAC permissions
+    roles?: Role[]; // RBAC assigned roles
 }
 
 export interface StudentUser {

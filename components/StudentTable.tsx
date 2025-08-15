@@ -1,7 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import type { Student, Instance } from '../types';
+import type { Student, Instance, ClassDefinition } from '../types';
 import Tooltip from './Tooltip';
-import { CLASSES } from '../constants';
 
 interface StudentTableProps {
   students: Student[];
@@ -16,10 +15,11 @@ interface StudentTableProps {
   onSearchChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   sortConfig: { key: string; direction: 'ascending' | 'descending' } | null;
   onSort: (key: string) => void;
+  classes: ClassDefinition[];
 }
 
-const StudentTable: React.FC<StudentTableProps> = ({ students, selectedIds, setSelectedIds, onEdit, onDeleteRequest, onChangeClassRequest, className, schoolInfo, searchTerm, onSearchChange, sortConfig, onSort }) => {
-  const [targetClass, setTargetClass] = useState(CLASSES.find(c => c !== className) || CLASSES[0]);
+const StudentTable: React.FC<StudentTableProps> = ({ students, selectedIds, setSelectedIds, onEdit, onDeleteRequest, onChangeClassRequest, className, schoolInfo, searchTerm, onSearchChange, sortConfig, onSort, classes }) => {
+  const [targetClass, setTargetClass] = useState(classes.find(c => c.name !== className)?.name || classes[0]?.name || '');
 
   const handleSelectAll = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -184,7 +184,7 @@ const StudentTable: React.FC<StudentTableProps> = ({ students, selectedIds, setS
               onChange={(e) => setTargetClass(e.target.value)}
               className="block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
             >
-              {CLASSES.filter(c => c !== className).map(c => <option key={c} value={c}>{c}</option>)}
+              {classes.filter(c => c.name !== className).map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
           </div>
           <button

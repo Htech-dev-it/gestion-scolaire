@@ -1,6 +1,6 @@
-import React, { ChangeEvent } from 'react';
+import React, { ChangeEvent, useEffect } from 'react';
 import type { StudentFormState, SchoolYear } from '../types';
-import { CLASSES } from '../constants';
+import { useSchoolYear } from '../contexts/SchoolYearContext';
 import DateInput from './DateInput';
 import PhoneInput from 'react-phone-input-2';
 
@@ -24,6 +24,15 @@ const InputField: React.FC<{ label: string; name: keyof Omit<StudentFormState, '
 );
 
 const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setFormState, onSubmit, onCancel, selectedYear }) => {
+  const { classes } = useSchoolYear();
+
+  useEffect(() => {
+    // Set a default class for enrollment if 'enrollNow' is checked and no class is selected
+    if (formState.enrollNow && !formState.enrollmentClassName && classes.length > 0) {
+      setFormState(prev => ({ ...prev, enrollmentClassName: classes[0].name }));
+    }
+  }, [classes, formState.enrollNow, formState.enrollmentClassName, setFormState]);
+
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -71,7 +80,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
               className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition"
             >
               <option value="">Non spécifiée</option>
-              {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+              {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
           </div>
 
@@ -130,7 +139,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
                                 onChange={handleChange}
                                 className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm"
                             >
-                                {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                                {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                             </select>
                         </div>
                         <div>

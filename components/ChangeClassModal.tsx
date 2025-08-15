@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { CLASSES } from '../constants';
+import React, { useState, useMemo, useEffect } from 'react';
+import type { ClassDefinition } from '../types';
 
 interface ChangeClassModalProps {
   isOpen: boolean;
@@ -7,11 +7,19 @@ interface ChangeClassModalProps {
   onSubmit: (className: string) => void;
   studentCount: number;
   currentClasses: string[];
+  classes: ClassDefinition[];
 }
 
-const ChangeClassModal: React.FC<ChangeClassModalProps> = ({ isOpen, onClose, onSubmit, studentCount, currentClasses }) => {
-  const availableClasses = useMemo(() => CLASSES.filter(c => !new Set(currentClasses).has(c)), [currentClasses]);
-  const [targetClass, setTargetClass] = useState(availableClasses[0] || '');
+const ChangeClassModal: React.FC<ChangeClassModalProps> = ({ isOpen, onClose, onSubmit, studentCount, currentClasses, classes }) => {
+  const availableClasses = useMemo(() => classes.filter(c => !new Set(currentClasses).has(c.name)), [classes, currentClasses]);
+  const [targetClass, setTargetClass] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      setTargetClass(availableClasses[0]?.name || '');
+    }
+  }, [isOpen, availableClasses]);
+
 
   if (!isOpen) return null;
 
@@ -40,7 +48,7 @@ const ChangeClassModal: React.FC<ChangeClassModalProps> = ({ isOpen, onClose, on
               className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
             >
               <option value="" disabled>Sélectionner une classe</option>
-              {availableClasses.map(c => <option key={c} value={c}>{c}</option>)}
+              {availableClasses.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
             {availableClasses.length === 0 && <p className="text-xs text-orange-500 mt-1">Toutes les classes sont déjà représentées dans la sélection ou il n'y a pas d'autre classe disponible.</p>}
           </div>

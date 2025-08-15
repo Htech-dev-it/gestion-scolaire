@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import type { StudentProfile, SchoolYear } from '../types';
-import { CLASSES } from '../constants';
+import type { StudentProfile, SchoolYear, ClassDefinition } from '../types';
 
 interface EnrollmentFormProps {
   isOpen: boolean;
@@ -8,10 +7,11 @@ interface EnrollmentFormProps {
   onSubmit: (className: string, mppa: number) => void;
   student: StudentProfile;
   schoolYear: SchoolYear;
+  classes: ClassDefinition[];
 }
 
-const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ isOpen, onClose, onSubmit, student, schoolYear }) => {
-  const [className, setClassName] = useState(CLASSES[0]);
+const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ isOpen, onClose, onSubmit, student, schoolYear, classes }) => {
+  const [className, setClassName] = useState(classes[0]?.name || '');
   const [mppa, setMppa] = useState(0);
 
   if (!isOpen) return null;
@@ -36,7 +36,7 @@ const EnrollmentForm: React.FC<EnrollmentFormProps> = ({ isOpen, onClose, onSubm
               onChange={(e) => setClassName(e.target.value)}
               className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
             >
-              {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+              {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
           </div>
           <div>

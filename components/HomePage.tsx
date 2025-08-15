@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
-import { CLASSES } from '../constants';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
 import type { Instance } from '../types';
 import { useAuth } from '../auth/AuthContext';
+import { useSchoolYear } from '../contexts/SchoolYearContext';
 
 interface NavCardProps {
     to: string;
@@ -35,8 +35,9 @@ const NavCard: React.FC<NavCardProps> = ({ to, icon, title, description, color }
 const HomePage: React.FC = () => {
   const { addNotification } = useNotification();
   const [instanceInfo, setInstanceInfo] = useState<Instance | null>(null);
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const navigate = ReactRouterDOM.useNavigate();
+  const { classes } = useSchoolYear();
 
   useEffect(() => {
     // Redirect users to their specific dashboards
@@ -89,52 +90,80 @@ const HomePage: React.FC = () => {
         <main className="w-full space-y-24">
             <section>
                 <h2 className="text-3xl font-bold text-center text-slate-800 mb-12 font-display">Actions Principales</h2>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-                    <NavCard
-                        to="/students"
-                        title="Gestion des Élèves"
-                        description="Ajouter, inscrire et gérer tous les élèves"
-                        color="bg-[#4A90E2]"
-                        icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M17 20h5v-2a3 3 0 0 0-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 0 1 5-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 0 1 9.288 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm-18 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" /></svg>}
-                    />
-                    <NavCard
-                        to="/report-cards"
-                        title="Gestion des Bulletins"
-                        description="Générer les bulletins par classe et période"
-                        color="bg-purple-500"
-                        icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>}
-                    />
-                     <NavCard
-                        to="/report"
-                        title="Rapports Financiers"
-                        description="Consulter l'historique financier complet"
-                        color="bg-teal-500"
-                        icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" /></svg>}
-                    />
-                    <NavCard
-                        to="/reports/attendance"
-                        title="Suivi des Présences"
-                        description="Consulter les registres de présence par classe"
-                        color="bg-[#F5A623]"
-                        icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
-                    />
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                    {hasPermission('student:update') && (
+                        <NavCard
+                            to="/students"
+                            title="Gestion des Élèves"
+                            description="Ajouter, inscrire et gérer tous les élèves"
+                            color="bg-[#4A90E2]"
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M17 20h5v-2a3 3 0 0 0-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 0 1 5-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 0 1 9.288 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm-18 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" /></svg>}
+                        />
+                    )}
+                    {hasPermission('report_card:generate') && (
+                        <NavCard
+                            to="/report-cards"
+                            title="Gestion des Bulletins"
+                            description="Générer les bulletins par classe et période"
+                            color="bg-purple-500"
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>}
+                        />
+                    )}
+                    {hasPermission('settings:manage_teachers') && (
+                        <NavCard
+                            to="/teachers-management"
+                            title="Gestion des Professeurs"
+                            description="Gérer les profils, comptes et assignations"
+                            color="bg-sky-500"
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>}
+                        />
+                    )}
+                    {hasPermission('settings:manage_timetable') && (
+                        <NavCard
+                            to="/timetable"
+                            title="Gestion Emploi du temps"
+                            description="Construire et modifier l'horaire des cours"
+                            color="bg-amber-500"
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>}
+                        />
+                    )}
+                    {hasPermission('report:financial') && (
+                        <NavCard
+                            to="/report"
+                            title="Rapports Financiers"
+                            description="Consulter l'historique financier complet"
+                            color="bg-teal-500"
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" /></svg>}
+                        />
+                    )}
+                    {hasPermission('report:attendance') && (
+                        <NavCard
+                            to="/reports/attendance"
+                            title="Suivi des Présences"
+                            description="Consulter les registres de présence par classe"
+                            color="bg-[#F5A623]"
+                            icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+                        />
+                    )}
                  </div>
             </section>
             
-            <section>
-                <h2 className="text-3xl font-bold text-center text-slate-800 mb-12 font-display">Accès Rapide aux Paiements</h2>
-                 <div className="flex flex-wrap justify-center gap-4">
-                    {CLASSES.map((className) => (
-                      <ReactRouterDOM.Link
-                        key={className}
-                        to={`/class/${className}`}
-                        className="group px-6 py-3 bg-white rounded-full border border-slate-200 shadow-lg hover:shadow-xl hover:bg-blue-500 transform hover:-translate-y-1 transition-all duration-300 ease-in-out"
-                      >
-                         <span className="font-bold text-lg text-slate-700 group-hover:text-white transition-colors">{className}</span>
-                      </ReactRouterDOM.Link>
-                    ))}
-                 </div>
-            </section>
+            {hasPermission('enrollment:update_payment') && (
+                <section>
+                    <h2 className="text-3xl font-bold text-center text-slate-800 mb-12 font-display">Accès Rapide aux Paiements</h2>
+                    <div className="flex flex-wrap justify-center gap-4">
+                        {classes.map((c) => (
+                        <ReactRouterDOM.Link
+                            key={c.id}
+                            to={`/class/${c.name}`}
+                            className="group px-6 py-3 bg-white rounded-full border border-slate-200 shadow-lg hover:shadow-xl hover:bg-blue-500 transform hover:-translate-y-1 transition-all duration-300 ease-in-out"
+                        >
+                            <span className="font-bold text-lg text-slate-700 group-hover:text-white transition-colors">{c.name}</span>
+                        </ReactRouterDOM.Link>
+                        ))}
+                    </div>
+                </section>
+            )}
         </main>
 
         <footer className="w-full py-8 text-center text-slate-500 text-sm mt-16">

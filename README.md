@@ -117,52 +117,16 @@ Pour que la fonctionnalité de sauvegarde fonctionne, le serveur Node.js doit po
 
 ## 4. ⚙️ Guide de Configuration Initiale (pour l'Admin)
 
-Ce guide vous accompagne dans les premières étapes cruciales de la configuration de l'application pour une nouvelle année scolaire. Il est recommandé de suivre ces étapes dans l'ordre pour une mise en place cohérente.
+Ce guide accompagne l'administrateur d'une instance dans les premières étapes de configuration pour une nouvelle année scolaire. Il est recommandé de suivre ces étapes dans l'ordre pour une mise en place cohérente.
 
-Toutes ces actions se déroulent dans le **Tableau de Bord Admin**.
+Toutes ces actions se déroulent principalement depuis le **panneau d'Administration**.
 
-### Étape 1 : Créer la Nouvelle Année Scolaire
-
-C'est la toute première chose à faire.
-1.  Allez dans l'onglet **"Années"**.
-2.  Dans le champ "Ajouter une année scolaire", entrez la nouvelle année au format `AAAA-AAAA` (par exemple, `2024-2025`).
-3.  Cliquez sur **"Ajouter"**.
-4.  La nouvelle année apparaît dans la liste. Cliquez sur **"Définir comme actuelle"** à côté d'elle. Le bandeau vert "Actuelle" confirme votre choix.
-
-> **Pourquoi c'est important ?** Toutes les données (inscriptions, notes, etc.) sont liées à l'année scolaire "actuelle".
-
-### Étape 2 : Définir les Périodes Académiques
-
-Une fois l'année créée, vous devez la diviser en périodes (trimestres, semestres, etc.).
-1.  Allez dans l'onglet **"Périodes"**.
-2.  Assurez-vous que la nouvelle année scolaire est bien sélectionnée dans la liste déroulante.
-3.  Dans le champ "Ajouter une période", entrez le nom de la première période (par exemple, `Trimestre 1`).
-4.  Cliquez sur **"Ajouter"**.
-5.  Répétez l'opération pour toutes les périodes de l'année (ex: `Trimestre 2`, `Trimestre 3`).
-
-### Étape 3 : Gérer la Liste des Matières
-
-Assurez-vous que toutes les matières enseignées dans l'école sont présentes dans le système.
-1.  Allez dans l'onglet **"Matières"**.
-2.  Consultez la liste. Si une matière manque, ajoutez-la en utilisant le formulaire en haut.
-3.  Vous pouvez également corriger ou supprimer des matières existantes.
-
-### Étape 4 : Définir le Programme Scolaire
-
-C'est une étape cruciale où vous liez les matières aux classes.
-1.  Allez dans l'onglet **"Programme"**.
-2.  Sélectionnez une classe dans la liste déroulante (par exemple, `7AF`).
-3.  Assignez les matières qui sont enseignées dans cette classe pour l'année en cours.
-4.  Une fois une matière assignée, définissez sa **note maximale** pour la période (généralement `100`).
-5.  Répétez l'opération pour **chaque classe**.
-
-### Étape 5 : Gérer les Professeurs et leurs Assignations
-
-1.  Allez dans l'onglet **"Professeurs"**.
-2.  Créez les profils pour tous les professeurs si ce n'est pas déjà fait.
-3.  Pour chaque professeur, cliquez sur **"Gérer les assignations"**.
-4.  Cochez les cases correspondant aux cours que ce professeur enseignera pour l'année en cours.
-5.  Cliquez sur **"Sauvegarder"**.
+1.  **Créer la Nouvelle Année Scolaire** (Onglet "Années").
+2.  **Définir les Périodes Académiques** pour cette année (Onglet "Périodes").
+3.  **Gérer la Liste des Matières** de l'établissement (Onglet "Matières").
+4.  **Définir le Programme Scolaire** en liant les matières aux classes (Onglet "Programme").
+5.  **Gérer les Professeurs** en créant leurs profils depuis la page **"Gestion des Professeurs"** (accessible via le tableau de bord).
+6.  **Assigner les Cours aux Professeurs** via le bouton "Gérer les assignations" sur la page de gestion des professeurs.
 
 ---
 
@@ -170,64 +134,34 @@ C'est une étape cruciale où vous liez les matières aux classes.
 
 L'application est structurée autour de portails distincts, chacun offrant une expérience et des outils adaptés.
 
-### 5.1. Portail Super Administrateur (`Super Admin`)
-Le poste de pilotage de toute la plateforme pour une supervision globale et une gestion centralisée.
-- **Tableau de Bord Global** : Statistiques clés (nombre d'instances, utilisateurs, etc.).
-- **Gestion des Instances** : Créer, activer/suspendre, et modifier les détails de chaque école.
-- **Centre de Support Intégré** : Hub de messagerie pour répondre aux demandes des administrateurs d'école.
-- **Système d'Annonces** : Publication d'annonces globales ou ciblées.
-- **Maintenance** : Outils de sauvegarde de la plateforme.
-
-### 5.2. Portail d'Administration d'Instance (`Admin` & `Standard`)
-Le centre de commande d'une école spécifique.
-- **Gestion Complète** : Élèves, inscriptions, finances, bulletins, professeurs, emploi du temps, etc.
-- **Configuration Académique** : Années, périodes, matières, programme.
-- **Contact & Support** : Canal de communication direct avec le Super Administrateur.
-
-### 5.3. Portail des Professeurs (`Teacher`)
-L'espace de travail numérique du professeur, axé sur la gestion de classe.
-- **Tableau de Bord** : Vue des cours assignés et de l'emploi du temps personnel.
-- **Gestion de Classe** : Outils pour faire l'appel, gérer le carnet de notes et partager des ressources pédagogiques.
-
-### 5.4. Portail des Élèves (`Student`)
-Un hub d'information clair et facile à utiliser pour les élèves.
-- **Consultation** : Notes, emploi du temps et ressources pédagogiques.
-- **Sécurité** : Chaque élève peut changer son propre mot de passe.
+-   **Portail Super Administrateur (`Super Admin` & `Délégué`)** : Le poste de pilotage de la plateforme pour une supervision globale et une gestion centralisée.
+-   **Portail d'Administration d'Instance (`Admin` & `Standard`)** : Le centre de commande d'une école, avec des accès définis par un système de permissions granulaires.
+-   **Portail des Professeurs (`Teacher`)** : L'espace de travail numérique du professeur, axé sur la gestion de classe.
+-   **Portail des Élèves (`Student`)** : Un hub d'information clair et facile à utiliser pour les élèves.
 
 ---
 
 ## 6. 🛡️ Sécurité des Données et Niveaux d'Accès
 
-La sécurité est une priorité fondamentale de la plateforme.
+La sécurité est une priorité fondamentale de la plateforme, assurée par un système de **Contrôle d'Accès Basé sur les Rôles (RBAC)** et un cloisonnement strict des données.
 
-### 6.1. Isolation des Données (Cloisonnement Multi-Instances)
-- **`instance_id`** : Chaque information dans la base de données (élève, professeur, note, etc.) est obligatoirement liée à un `instance_id`.
-- **Requêtes Sécurisées** : Toutes les requêtes sont automatiquement filtrées par l'`instance_id` de l'utilisateur connecté.
-- **Conséquence** : Il est **techniquement impossible** pour un utilisateur de l'école A d'accéder aux informations de l'école B.
-
-### 6.2. Contrôle d'Accès Basé sur les Rôles (RBAC)
-- **`Super Admin`** : Contrôle total sur l'ensemble de la plateforme. Non lié à une instance.
-- **`Admin` (Administrateur d'Instance)** : Accès total aux données de son instance, mais confiné à celle-ci.
-- **`Standard`** : Personnel administratif d'une instance avec accès aux fonctionnalités de gestion quotidienne.
-- **`Teacher`** : Accès limité aux classes et matières qui lui sont assignées.
-- **`Student`** : Accès limité à ses données personnelles.
-
-### 6.3. Journal d'Activité (`Audit Log`)
-Les actions critiques des `Super Admins` et des `Admins` sont enregistrées, fournissant une traçabilité complète.
+- **Isolation des Données (Cloisonnement Multi-Instances)** via un `instance_id`.
+- **Rôles Hiérarchiques** :
+    - `Super Admin` : Contrôle total sur la plateforme.
+    - `Super Admin Délégué` : Permissions étendues mais restreintes sur les actions destructives.
+    - `Admin` (Administrateur d'Instance) : Accès total aux données de son instance.
+    - `Standard` : Rôle de base pour le personnel, dont les accès sont définis par des permissions granulaires assignées via des **rôles personnalisés** (ex: Comptable, Secrétaire).
+    - `Teacher` & `Student` : Accès limités à leurs données pertinentes.
+- **Journal d'Activité (`Audit Log`)** : Traçabilité des actions critiques.
 
 ---
 
 ## 7. ⚡ Performance et Optimisation
 
-### 7.1. Stratégies Backend et Base de Données
-- **Indexation Avancée** : Des index sur l'`instance_id` et les colonnes fréquemment utilisées garantissent des requêtes quasi instantanées.
-- **Pagination Côté Serveur** : Le serveur ne renvoie que des "pages" de données (ex: 25 élèves à la fois), évitant de surcharger le navigateur.
-- **Stockage Externe des Fichiers** : Les images sont sauvegardées sur le système de fichiers, allégeant la base de données.
-- **Nettoyage Automatique des Journaux** : Un processus automatisé supprime les journaux de plus de 30 jours pour maîtriser la taille de la base de données.
-
-### 7.2. Stratégies Frontend
-- **Chargement Différé (`Lazy Loading`)** : Les composants des portails sont téléchargés uniquement lorsque l'utilisateur y accède, accélérant le chargement initial.
-- **Limitation du Rendu** : L'interface n'affiche que de petites quantités de données à la fois, garantissant une fluidité constante.
+- **Indexation Avancée** de la base de données pour des requêtes rapides.
+- **Pagination Côté Serveur** pour gérer de grands volumes de données.
+- **Stockage Externe des Fichiers** pour une base de données allégée.
+- **Chargement Différé (`Lazy Loading`)** pour un chargement initial plus rapide.
 
 ---
 
@@ -238,27 +172,11 @@ La fonctionnalité de sauvegarde est intégrée dans l'interface du **Super Admi
 - **Sauvegarde des Fichiers** : Fichier `.zip` contenant les fichiers téléversés.
 - **Sauvegarde Complète** : `.zip` combinant la base de données et les fichiers.
 
-### Procédure de Restauration des Données
-- **Restauration d'une Sauvegarde SQL (.sql)**
-  ```bash
-  psql -h localhost -U postgres -d arawak < chemin\vers\votre\backup.sql
-  ```
-- **Restauration d'une Sauvegarde Complète (.zip)**
-  1.  **Fichiers** : Décompressez le `.zip` et copiez `uploads` dans `backend/uploads/`.
-  2.  **Base de Données** :
-      ```bash
-      pg_restore -h localhost -U postgres -d arawak --clean "chemin\vers\votre\database.dump"
-      ```
-
 ---
 
 ## 9. 🔮 Évolutions Futures et Vision du Projet
 
-- **Stockage Cloud** : Migrer le stockage des fichiers vers un service cloud (Firebase Storage, AWS S3) pour une scalabilité et une fiabilité accrues.
-- **Portail des Parents** : Créer un portail dédié aux parents pour le suivi des notes, des absences et la communication.
-- **Améliorations du Module Financier** : Gestion de frais multiples (cantine, transport), génération de factures et intégration du paiement en ligne.
-<<<<<<< HEAD
-- **Module de Communication Interne** : Un centre de notifications et d'annonces pour faciliter la communication au sein de chaque école.
-=======
-- **Module de Communication Interne** : Un centre de notifications et d'annonces pour faciliter la communication au sein de chaque école.
->>>>>>> 0b416be (Ajout des nouvelles modifications)
+- **Stockage Cloud** : Migrer le stockage des fichiers vers un service cloud (Firebase Storage, AWS S3).
+- **Portail des Parents** : Créer un portail dédié aux parents pour le suivi scolaire.
+- **Améliorations du Module Financier** : Gestion de frais multiples et intégration du paiement en ligne.
+- **Module de Communication Interne** au sein de chaque école.

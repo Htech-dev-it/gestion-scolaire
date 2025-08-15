@@ -85,7 +85,7 @@ const DateInput: React.FC<DateInputProps> = ({ label, id, value, onChange, requi
           value={day}
           onChange={(e) => handleDateChange('day', e.target.value)}
           required={required}
-          className="block w-full py-2.5 bg-white border-0 rounded-l-lg placeholder:text-slate-400 focus:outline-none focus:ring-0 sm:text-sm"
+          className="block w-full px-2 py-1.5 bg-white border-0 rounded-l-lg placeholder:text-slate-400 focus:outline-none focus:ring-0 text-sm"
         >
           <option value="">Jour</option>
           {days.map(d => <option key={d} value={d}>{d}</option>)}
@@ -96,7 +96,7 @@ const DateInput: React.FC<DateInputProps> = ({ label, id, value, onChange, requi
           value={month}
           onChange={(e) => handleDateChange('month', e.target.value)}
           required={required}
-          className="block w-full py-2.5 bg-white border-0 border-x border-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-0 sm:text-sm"
+          className="block w-full px-2 py-1.5 bg-white border-0 border-x border-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-0 text-sm"
         >
           <option value="">Mois</option>
           {months.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
@@ -107,7 +107,7 @@ const DateInput: React.FC<DateInputProps> = ({ label, id, value, onChange, requi
           value={year}
           onChange={(e) => handleDateChange('year', e.target.value)}
           required={required}
-          className="block w-full py-2.5 bg-white border-0 rounded-r-lg placeholder:text-slate-400 focus:outline-none focus:ring-0 sm:text-sm"
+          className="block w-full px-2 py-1.5 bg-white border-0 rounded-r-lg placeholder:text-slate-400 focus:outline-none focus:ring-0 text-sm"
         >
           <option value="">Année</option>
           {years.map(y => <option key={y} value={y}>{y}</option>)}

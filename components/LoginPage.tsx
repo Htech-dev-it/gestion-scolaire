@@ -86,19 +86,17 @@ const LoginPage: React.FC = () => {
                     <form className="space-y-6" onSubmit={handleSubmit}>
                         <div>
                             <label htmlFor="username-address" className="sr-only">Nom d'utilisateur</label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                                    </svg>
-                                </div>
+                            <div className="flex items-center gap-3 w-full bg-white rounded-xl shadow-lg border border-blue-600 transition-all duration-300 focus-within:ring-2 focus-within:ring-blue-400 focus-within:ring-offset-2 px-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                </svg>
                                 <input
                                     id="username-address"
                                     name="username"
                                     type="text"
                                     autoComplete="username"
                                     required
-                                    className="block w-full pl-10 pr-4 py-3 bg-white border border-slate-300 placeholder-slate-400 text-slate-900 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/50 focus:border-[#4A90E2] sm:text-sm"
+                                    className="flex-1 min-w-0 !mt-0 !p-0 !rounded-none !border-0 bg-white placeholder-slate-400 text-slate-900 focus:!outline-none focus:!ring-0 sm:text-sm !py-3"
                                     placeholder="Nom d'utilisateur"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
@@ -108,37 +106,33 @@ const LoginPage: React.FC = () => {
 
                         <div>
                             <label htmlFor="password" className="sr-only">Mot de passe</label>
-                            <div className="relative">
-                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
-                                    </svg>
-                                </div>
+                            <div className="flex items-center gap-3 w-full bg-white rounded-xl shadow-lg border border-blue-600 transition-all duration-300 focus-within:ring-2 focus-within:ring-blue-400 focus-within:ring-offset-2 pl-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                                </svg>
                                 <input
                                     id="password"
                                     name="password"
                                     type={passwordVisible ? "text" : "password"}
                                     autoComplete="current-password"
                                     required
-                                    className="block w-full pl-10 pr-10 py-3 bg-white border border-slate-300 placeholder-slate-400 text-slate-900 rounded-md focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/50 focus:border-[#4A90E2] sm:text-sm"
+                                    className="flex-1 min-w-0 !mt-0 !p-0 !rounded-none !border-0 bg-white placeholder-slate-400 text-slate-900 focus:!outline-none focus:!ring-0 sm:text-sm !py-3"
                                     placeholder="Mot de passe"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
                                 />
-                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5">
-                                    <button
-                                        type="button"
-                                        onClick={() => setPasswordVisible(!passwordVisible)}
-                                        className="text-gray-500 hover:text-gray-700"
-                                        aria-label={passwordVisible ? "Cacher le mot de passe" : "Afficher le mot de passe"}
-                                    >
-                                        {passwordVisible ? (
-                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C3.732 4.943 7.523 3 10 3s6.268 1.943 9.542 7c-3.274 5.057-7.03 7-9.542 7S3.732 15.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>
-                                        ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 8.473 16.559 7.142 14.478 6.135L13.707 5.364A1 1 0 0013.707 2.293L3.707 2.293zM10 12a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /><path d="M2 10s3.939 6 8 6 8-6 8-6-3.939-6-8-6S2 10 2 10zm10.894 2.894l-3.788-3.788A2.002 2.002 0 0110 8a2 2 0 112.894 2.894z" /></svg>
-                                        )}
-                                    </button>
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setPasswordVisible(!passwordVisible)}
+                                    className="text-gray-500 hover:text-gray-700 p-3"
+                                    aria-label={passwordVisible ? "Cacher le mot de passe" : "Afficher le mot de passe"}
+                                >
+                                    {passwordVisible ? (
+                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z" /><path fillRule="evenodd" d="M.458 10C3.732 4.943 7.523 3 10 3s6.268 1.943 9.542 7c-3.274 5.057-7.03 7-9.542 7S3.732 15.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" /></svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 8.473 16.559 7.142 14.478 6.135L13.707 5.364A1 1 0 0013.707 2.293L3.707 2.293zM10 12a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" /><path d="M2 10s3.939 6 8 6 8-6 8-6-3.939-6-8-6S2 10 2 10zm10.894 2.894l-3.788-3.788A2.002 2.002 0 0110 8a2 2 0 112.894 2.894z" /></svg>
+                                    )}
+                                </button>
                             </div>
                         </div>
 

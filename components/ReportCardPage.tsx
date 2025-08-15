@@ -4,7 +4,6 @@ import type { Enrollment, Grade, SchoolYear, Instance, AcademicPeriod, ClassSubj
 import { apiFetch } from '../utils/api';
 import { useNotification } from '../contexts/NotificationContext';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
-import { CLASSES } from '../constants';
 import GradebookModal from './GradebookModal';
 import { useAuth } from '../auth/AuthContext';
 
@@ -52,7 +51,7 @@ const TemplateRenderer: React.FC<{
     );
 
     const renderAnnualSummary = (showPromotionStatus: boolean = true) => {
-        if (enrollment.annualAverage === undefined) return null;
+        if (enrollment.annualAverage === undefined || enrollment.annualAverage === null) return null;
         
         const statusColor = enrollment.promotionStatus === 'ADMIS(E) EN CLASSE SUPÉRIEURE' ? 'text-green-700' : 'text-red-700';
 
@@ -62,7 +61,7 @@ const TemplateRenderer: React.FC<{
                 <div className={`grid ${showPromotionStatus ? 'grid-cols-2' : 'grid-cols-1 text-center'} gap-x-4 text-sm bg-slate-100 p-3 rounded-lg border`}>
                     <div>
                         <span className="font-semibold">Moyenne Générale Annuelle:</span>
-                        <p className="font-bold text-lg">{enrollment.annualAverage.toFixed(2)}%</p>
+                        <p className="font-bold text-lg">{Number(enrollment.annualAverage).toFixed(2)}%</p>
                     </div>
                     {showPromotionStatus && enrollment.promotionStatus && (
                         <div className="text-right">
@@ -253,12 +252,12 @@ const TemplateRenderer: React.FC<{
 
 const ReportCardPage: React.FC = () => {
     const { addNotification } = useNotification();
-    const { selectedYear } = useSchoolYear();
+    const { selectedYear, classes } = useSchoolYear();
     const { user } = useAuth();
     
     const [academicPeriods, setAcademicPeriods] = useState<AcademicPeriod[]>([]);
     const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
-    const [selectedClass, setSelectedClass] = useState<string>(CLASSES[0]);
+    const [selectedClass, setSelectedClass] = useState<string>('');
     
     const [classData, setClassData] = useState<{ enrollments: Enrollment[], gradesByEnrollment: Record<number, Grade[]>, subjects: ClassSubject[], appreciationsByEnrollment: Record<number, Record<number, string>>, generalAppreciationsByEnrollment: Record<number, string> } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -273,6 +272,12 @@ const ReportCardPage: React.FC = () => {
     const [modalEnrollment, setModalEnrollment] = useState<Enrollment | null>(null);
     
     const appreciationSaveTimeout = useRef<number | null>(null);
+
+    useEffect(() => {
+        if (classes.length > 0 && !selectedClass) {
+            setSelectedClass(classes[0].name);
+        }
+    }, [classes, selectedClass]);
 
     useEffect(() => {
         const fetchSchoolInfo = async () => {
@@ -521,7 +526,7 @@ const ReportCardPage: React.FC = () => {
     const renderSelectionView = () => (
         <>
             <div className="bg-white p-6 rounded-xl shadow-md mb-8 grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
-                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Classe</label><select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md">{CLASSES.map(c => <option key={c} value={c}>{c}</option>)}</select></div>
+                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Classe</label><select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md">{classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</select></div>
                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Période</label><select value={selectedPeriodId} onChange={e => setSelectedPeriodId(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md" disabled={academicPeriods.length === 0}>{academicPeriods.length === 0 ? <option>Aucune période</option> : academicPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
                  <div className="md:col-span-2 flex items-center justify-end flex-wrap gap-2">
                     <h3 className="text-sm font-medium text-slate-700">Modèle de Bulletin</h3>

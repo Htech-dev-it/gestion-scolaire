@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import type { StudentWithEnrollment, StudentProfile, Instance, PaginationInfo } from '../types';
-import { CLASSES } from '../constants';
 import { useAuth } from '../auth/AuthContext';
 import ImageLightbox from './ImageLightbox'; // Import the new component
+import { useSchoolYear } from '../contexts/SchoolYearContext';
 
 interface AllStudentsTableProps {
   students: StudentWithEnrollment[];
@@ -46,6 +46,7 @@ const Avatar: React.FC<{ student: StudentProfile }> = ({ student }) => {
 const AllStudentsTable: React.FC<AllStudentsTableProps> = ({ students, selectedIds, setSelectedIds, onDeleteRequest, onSetStatusRequest, onEditRequest, onEnrollRequest, onBulkEnrollRequest, onChangeClassRequest, onViewDetailsRequest, schoolInfo, showArchived, onShowArchivedChange, isLoading, pagination, onPageChange, classFilter, onClassFilterChange }) => {
   const navigate = ReactRouterDOM.useNavigate();
   const { user } = useAuth();
+  const { classes } = useSchoolYear();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: keyof StudentProfile; direction: 'ascending' | 'descending' } | null>({ key: 'nom', direction: 'ascending' });
   const [lightboxStudent, setLightboxStudent] = useState<StudentWithEnrollment | null>(null);
@@ -356,7 +357,7 @@ const handlePrintSheets = () => {
                 className="w-full sm:w-auto px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
               >
                 <option value="all">Toutes les classes</option>
-                {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
             <label className="flex items-center space-x-2 whitespace-nowrap text-sm">

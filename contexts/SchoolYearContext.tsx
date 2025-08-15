@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { SchoolYear } from '../types';
+import type { SchoolYear, ClassDefinition } from '../types';
 import { apiFetch } from '../utils/api';
 import { useAuth } from '../auth/AuthContext';
 
 interface SchoolYearContextType {
   schoolYears: SchoolYear[];
   selectedYear: SchoolYear | null;
+  classes: ClassDefinition[];
   setSelectedYearById: (id: number) => void;
   isLoading: boolean;
   error: string | null;
@@ -18,19 +19,26 @@ export const SchoolYearProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const { isAuthenticated } = useAuth();
   const [schoolYears, setSchoolYears] = useState<SchoolYear[]>([]);
   const [selectedYear, setSelectedYear] = useState<SchoolYear | null>(null);
+  const [classes, setClasses] = useState<ClassDefinition[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchSchoolYears = useCallback(async () => {
+  const fetchContextData = useCallback(async () => {
     if (!isAuthenticated) {
         setIsLoading(false);
+        setClasses([]);
         return;
     };
     setIsLoading(true);
     setError(null);
     try {
-      const years: SchoolYear[] = await apiFetch('/school-years');
+      const [years, classesData]: [SchoolYear[], ClassDefinition[]] = await Promise.all([
+          apiFetch('/school-years'),
+          apiFetch('/classes')
+      ]);
+      
       setSchoolYears(years);
+      setClasses(classesData);
       
       if (years.length === 0) {
         setError("Aucune année scolaire n'a été trouvée. Veuillez en ajouter une dans le panneau d'administration.");
@@ -40,17 +48,17 @@ export const SchoolYearProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         setSelectedYear(currentYear);
       }
     } catch (err) {
-      console.error("Failed to fetch school years:", err);
+      console.error("Failed to fetch context data:", err);
       if (err instanceof Error) setError(err.message);
-      else setError("Une erreur inconnue est survenue lors du chargement des années scolaires.");
+      else setError("Une erreur inconnue est survenue lors du chargement des données.");
     } finally {
       setIsLoading(false);
     }
   }, [isAuthenticated]);
 
   useEffect(() => {
-    fetchSchoolYears();
-  }, [fetchSchoolYears]);
+    fetchContextData();
+  }, [fetchContextData]);
 
   const setSelectedYearById = (id: number) => {
     const year = schoolYears.find(y => y.id === id);
@@ -60,11 +68,11 @@ export const SchoolYearProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   };
   
   const refreshYears = useCallback(() => {
-      fetchSchoolYears();
-  }, [fetchSchoolYears]);
+      fetchContextData();
+  }, [fetchContextData]);
 
   return (
-    <SchoolYearContext.Provider value={{ schoolYears, selectedYear, setSelectedYearById, isLoading, error, refreshYears }}>
+    <SchoolYearContext.Provider value={{ schoolYears, selectedYear, classes, setSelectedYearById, isLoading, error, refreshYears }}>
       {children}
     </SchoolYearContext.Provider>
   );

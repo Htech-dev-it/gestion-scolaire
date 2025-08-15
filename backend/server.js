@@ -111,6 +111,21 @@ const isAnySuperAdmin = (req, res, next) => {
     }
 };
 
+const requirePermission = (permissionKey) => {
+    return (req, res, next) => {
+        if (!req.user) {
+            return res.status(401).json({ message: 'Accès non autorisé.' });
+        }
+        if (req.user.role === 'admin') {
+            return next();
+        }
+        if (req.user.permissions && req.user.permissions.includes(permissionKey)) {
+            return next();
+        }
+        return res.status(403).json({ message: 'Permissions insuffisantes pour effectuer cette action.' });
+    };
+};
+
 const isAdmin = (req, res, next) => {
     if (req.user && req.user.role === 'admin') {
         next();
@@ -132,15 +147,6 @@ const isStudent = (req, res, next) => {
         next();
     } else {
         res.status(403).json({ message: 'Accès réservé aux étudiants.' });
-    }
-};
-
-
-const isStandardOrAdmin = (req, res, next) => {
-    if (req.user && (req.user.role === 'admin' || req.user.role === 'standard')) {
-        next();
-    } else {
-        res.status(403).json({ message: 'Accès refusé. Action réservée au personnel administratif.' });
     }
 };
 
@@ -276,18 +282,57 @@ async function startServer() {
         
                 // 5. Prepare token payload with necessary profile data
                 let profileData = {};
-                if (user.role === 'teacher') {
+                let userPermissions = [];
+                let userRoles = [];
+                let effectiveRole = user.role; // Initialize with the user's database role
+
+                if (isStudentLogin) {
+                    profileData = { prenom: user.prenom, nom: user.nom, student_id: user.student_id };
+                } else if (user.role === 'teacher') {
                     const { rows: teacherRows } = await client.query('SELECT prenom, nom FROM teachers WHERE user_id = $1', [user.id]);
                     profileData = teacherRows[0] || {};
-                } else if (isStudentLogin) {
-                    profileData = { prenom: user.prenom, nom: user.nom, student_id: user.student_id };
+                } else if (user.role === 'admin') {
+                    const { rows: allPerms } = await client.query('SELECT key FROM permissions');
+                    userPermissions = allPerms.map(p => p.key);
+                } else if (user.role === 'standard') {
+                    const { rows: assignedRolesRows } = await client.query(`
+                        SELECT r.id, r.name
+                        FROM user_roles ur
+                        JOIN roles r ON ur.role_id = r.id
+                        WHERE ur.user_id = $1 AND r.instance_id = $2
+                    `, [user.id, user.instance_id]);
+                    userRoles = assignedRolesRows;
+
+                    const isPrincipalAdmin = userRoles.some(role => role.name === 'Administrateur Principal');
+                    
+                    if (isPrincipalAdmin) {
+                        const { rows: allPerms } = await client.query('SELECT key FROM permissions');
+                        userPermissions = allPerms.map(p => p.key);
+                        effectiveRole = 'admin'; // Elevate role to 'admin' for the session token
+                    } else {
+                        if (userRoles.length > 0) {
+                            const roleIds = userRoles.map(r => r.id);
+                            const placeholders = roleIds.map((_, i) => `$${i + 1}`).join(',');
+                            const { rows: permissionsForRoles } = await client.query(`
+                                SELECT DISTINCT p.key
+                                FROM role_permissions rp
+                                JOIN permissions p ON rp.permission_id = p.id
+                                WHERE rp.role_id IN (${placeholders})
+                            `, roleIds);
+                            userPermissions = permissionsForRoles.map(p => p.key);
+                        } else {
+                            userPermissions = [];
+                        }
+                    }
                 }
                 
                 const payload = {
                     id: user.id,
                     username: user.username,
-                    role: user.role,
+                    role: effectiveRole, // Use the effective role
                     instance_id: user.instance_id,
+                    permissions: userPermissions,
+                    roles: userRoles,
                     ...profileData,
                 };
                 
@@ -305,7 +350,7 @@ async function startServer() {
             }
         }));
         
-        app.post('/api/register', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/register', authenticateToken, requirePermission('user:manage'), asyncHandler(async (req, res) => {
             const { username, password } = req.body;
             if (!username || !password) return res.status(400).json({ message: 'Nom d\'utilisateur et mot de passe requis' });
             
@@ -320,7 +365,7 @@ async function startServer() {
             res.status(201).json({ message: `Utilisateur '${username}' créé avec succès.` });
         }));
 
-        app.delete('/api/delete-user/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.delete('/api/delete-user/:id', authenticateToken, requirePermission('user:manage'), asyncHandler(async (req, res) => {
             const { id } = req.params;
 
             const { rows } = await req.db.query('SELECT * FROM users WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
@@ -342,36 +387,52 @@ async function startServer() {
             res.json({ message: `Utilisateur '${userToDelete.username}' supprimé.` });
         }));
         
-        app.put('/api/users/:id/role', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.get('/api/users', authenticateToken, requirePermission('user:manage'), asyncHandler(async (req, res) => {
+            const { rows } = await req.db.query(`
+                SELECT
+                    u.id,
+                    u.username,
+                    u.role,
+                    (
+                        SELECT json_agg(json_build_object('id', r.id, 'name', r.name))
+                        FROM user_roles ur
+                        JOIN roles r ON ur.role_id = r.id
+                        WHERE ur.user_id = u.id
+                    ) as roles
+                FROM users u
+                WHERE u.instance_id = $1 AND u.role IN ('admin', 'standard', 'teacher')
+            `, [req.user.instance_id]);
+            res.json(rows.map(user => ({...user, roles: user.roles || [] })));
+        }));
+        
+        app.put('/api/users/:id/roles', authenticateToken, requirePermission('role:manage'), asyncHandler(async (req, res) => {
             const { id } = req.params;
-            const { role } = req.body;
-            if (!['admin', 'standard'].includes(role)) {
-                return res.status(400).json({ message: "Rôle invalide." });
-            }
-            
-            const { rows } = await req.db.query('SELECT * FROM users WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
-            const userToUpdate = rows[0];
+            const { roleIds } = req.body;
 
-            if (!userToUpdate) return res.status(404).json({ message: "Utilisateur non trouvé." });
-            if (userToUpdate.username === 'admin') return res.status(403).json({ message: "Le rôle de l'utilisateur 'admin' principal ne peut pas être changé." });
-            if (userToUpdate.id === req.user.id) return res.status(403).json({ message: "Vous ne pouvez pas changer votre propre rôle." });
-            
-            if (userToUpdate.role === 'admin' && role === 'standard') {
-                const { rows: adminCountRows } = await req.db.query('SELECT COUNT(*) as count FROM users WHERE role = $1 AND instance_id = $2', ['admin', req.user.instance_id]);
-                if (parseInt(adminCountRows[0].count, 10) <= 1) {
-                    return res.status(403).json({ message: "Impossible de rétrograder le dernier compte administrateur." });
+            const client = await req.db.connect();
+            try {
+                await client.query('BEGIN');
+                const { rowCount } = await client.query('SELECT 1 FROM users WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
+                if (rowCount === 0) {
+                    return res.status(404).json({ message: 'Utilisateur non trouvé ou non autorisé.' });
                 }
+                
+                await client.query('DELETE FROM user_roles WHERE user_id = $1', [id]);
+
+                if (roleIds && roleIds.length > 0) {
+                    const insertQuery = 'INSERT INTO user_roles (user_id, role_id) VALUES ' + roleIds.map((_, i) => `($1, $${i + 2})`).join(',');
+                    await client.query(insertQuery, [id, ...roleIds]);
+                }
+                await client.query('COMMIT');
+                res.json({ message: 'Rôles mis à jour.' });
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            } finally {
+                client.release();
             }
-            
-            await req.db.query('UPDATE users SET role = $1 WHERE id = $2', [role, id]);
-            await logActivity(req, 'USER_ROLE_CHANGED', id, userToUpdate.username, `Rôle de l'utilisateur '${userToUpdate.username}' changé en '${role}'.`);
-            res.json({ message: `Le rôle de l'utilisateur ${userToUpdate.username} a été mis à jour.` });
         }));
 
-        app.get('/api/users', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
-            const { rows } = await req.db.query('SELECT id, username, role FROM users WHERE instance_id = $1', [req.user.instance_id]);
-            res.json(rows);
-        }));
 
         app.put('/api/user/change-password', authenticateToken, asyncHandler(async (req, res) => {
             const { currentPassword, newPassword } = req.body;
@@ -389,7 +450,7 @@ async function startServer() {
             res.json({ message: 'Mot de passe mis à jour.' });
         }));
 
-        app.put('/api/users/:id/reset-password', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.put('/api/users/:id/reset-password', authenticateToken, requirePermission('user:manage'), asyncHandler(async (req, res) => {
             const { id } = req.params;
         
             const { rows } = await req.db.query('SELECT * FROM users WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
@@ -407,6 +468,80 @@ async function startServer() {
             await logActivity(req, 'USER_PASSWORD_RESET', id, userToReset.username, `Mot de passe de l'utilisateur '${userToReset.username}' réinitialisé.`);
             
             res.json({ username: userToReset.username, tempPassword });
+        }));
+
+        // --- RBAC MANAGEMENT ROUTES ---
+        app.get('/api/permissions', authenticateToken, requirePermission('role:manage'), asyncHandler(async (req, res) => {
+            const { rows } = await req.db.query('SELECT * FROM permissions ORDER BY category, description');
+            res.json(rows);
+        }));
+
+        app.get('/api/roles', authenticateToken, requirePermission('role:manage'), asyncHandler(async (req, res) => {
+            const { rows } = await req.db.query(`
+                SELECT
+                    r.*,
+                    (
+                        SELECT json_agg(p.*)
+                        FROM role_permissions rp
+                        JOIN permissions p ON rp.permission_id = p.id
+                        WHERE rp.role_id = r.id
+                    ) as permissions
+                FROM roles r
+                WHERE r.instance_id = $1
+                ORDER BY r.name
+            `, [req.user.instance_id]);
+            res.json(rows.map(role => ({ ...role, permissions: role.permissions || [] })));
+        }));
+
+        app.post('/api/roles', authenticateToken, requirePermission('role:manage'), asyncHandler(async (req, res) => {
+            const { name, permissionIds } = req.body;
+            const client = await req.db.connect();
+            try {
+                await client.query('BEGIN');
+                const roleResult = await client.query('INSERT INTO roles (name, instance_id) VALUES ($1, $2) RETURNING id', [name, req.user.instance_id]);
+                const newRoleId = roleResult.rows[0].id;
+                if (permissionIds && permissionIds.length > 0) {
+                    const insertPermissionsQuery = 'INSERT INTO role_permissions (role_id, permission_id) VALUES ' + permissionIds.map((_, i) => `($1, $${i + 2})`).join(',');
+                    await client.query(insertPermissionsQuery, [newRoleId, ...permissionIds]);
+                }
+                await client.query('COMMIT');
+                res.status(201).json({ id: newRoleId, name });
+            } catch (error) {
+                await client.query('ROLLBACK');
+                if (error.code === '23505') return res.status(409).json({ message: 'Un rôle avec ce nom existe déjà.' });
+                throw error;
+            } finally {
+                client.release();
+            }
+        }));
+
+        app.put('/api/roles/:id', authenticateToken, requirePermission('role:manage'), asyncHandler(async (req, res) => {
+            const { id } = req.params;
+            const { name, permissionIds } = req.body;
+            const client = await req.db.connect();
+            try {
+                await client.query('BEGIN');
+                await client.query('UPDATE roles SET name = $1 WHERE id = $2 AND instance_id = $3', [name, id, req.user.instance_id]);
+                await client.query('DELETE FROM role_permissions WHERE role_id = $1', [id]);
+                if (permissionIds && permissionIds.length > 0) {
+                    const insertPermissionsQuery = 'INSERT INTO role_permissions (role_id, permission_id) VALUES ' + permissionIds.map((_, i) => `($1, $${i + 2})`).join(',');
+                    await client.query(insertPermissionsQuery, [id, ...permissionIds]);
+                }
+                await client.query('COMMIT');
+                res.json({ message: 'Rôle mis à jour.' });
+            } catch (error) {
+                await client.query('ROLLBACK');
+                if (error.code === '23505') return res.status(409).json({ message: 'Un rôle avec ce nom existe déjà.' });
+                throw error;
+            } finally {
+                client.release();
+            }
+        }));
+
+        app.delete('/api/roles/:id', authenticateToken, requirePermission('role:manage'), asyncHandler(async (req, res) => {
+            const { id } = req.params;
+            await req.db.query('DELETE FROM roles WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
+            res.status(204).send();
         }));
 
         // --- SUPER ADMIN ROUTES ---
@@ -861,7 +996,7 @@ async function startServer() {
         }));
 
         // --- TEACHER ROUTES ---
-        app.get('/api/teachers', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.get('/api/teachers', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
             const { rows } = await req.db.query(`
                 SELECT t.*, u.username
                 FROM teachers t
@@ -871,7 +1006,7 @@ async function startServer() {
             res.json(rows);
         }));
 
-        app.post('/api/teachers', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/teachers', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
             const { nom, prenom, email, phone } = req.body;
             const username = (prenom.charAt(0) + nom).toLowerCase().replace(/\s+/g, '');
             const tempPassword = generateTempPassword();
@@ -915,7 +1050,7 @@ async function startServer() {
             }
         }));
 
-        app.put('/api/teachers/:id/reset-password', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.put('/api/teachers/:id/reset-password', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { rows } = await req.db.query('SELECT * FROM teachers WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
             const teacher = rows[0];
@@ -930,7 +1065,7 @@ async function startServer() {
             res.json({ tempPassword });
         }));
 
-        app.delete('/api/teachers/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.delete('/api/teachers/:id', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { rows } = await req.db.query('SELECT * FROM teachers WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
             const teacher = rows[0];
@@ -1046,7 +1181,7 @@ async function startServer() {
             });
         }));
 
-        app.get('/api/curriculum-for-assignment', authenticateToken, isAdmin, asyncHandler(async(req, res) => {
+        app.get('/api/curriculum-for-assignment', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async(req, res) => {
              const { rows } = await req.db.query(`
                 SELECT cs.class_name, s.id as subject_id, s.name as subject_name 
                 FROM class_subjects cs
@@ -1069,7 +1204,7 @@ async function startServer() {
             res.json(structuredCurriculum);
         }));
         
-        app.get('/api/teacher-assignments', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.get('/api/teacher-assignments', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
             const { teacherId, yearId } = req.query;
             const { rows } = await req.db.query(`
                 SELECT ta.* 
@@ -1080,7 +1215,7 @@ async function startServer() {
             res.json(rows);
         }));
 
-        app.post('/api/teacher-assignments/bulk-update', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/teacher-assignments/bulk-update', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
             const { teacherId, yearId, assignments } = req.body;
             
             // Security Check: ensure the teacher belongs to the admin's instance
@@ -1162,7 +1297,7 @@ async function startServer() {
         }));
         
         // --- ADMIN ATTENDANCE REPORT ---
-        app.get('/api/attendance-report', authenticateToken, isStandardOrAdmin, asyncHandler(async (req, res) => {
+        app.get('/api/attendance-report', authenticateToken, requirePermission('report:attendance'), asyncHandler(async (req, res) => {
             const { yearId, className, startDate, endDate } = req.query;
             if (!yearId || !className || !startDate || !endDate) {
                 return res.status(400).json({ message: "Année, classe et plage de dates sont requises." });
@@ -1222,13 +1357,13 @@ async function startServer() {
             res.json(rows);
         }));
 
-        app.post('/api/school-years', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/school-years', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { name } = req.body;
             const { rows } = await req.db.query('INSERT INTO school_years (name, instance_id) VALUES ($1, $2) RETURNING id', [name, req.user.instance_id]);
             res.status(201).json({ id: rows[0].id, name, is_current: false });
         }));
 
-        app.put('/api/school-years/:id/set-current', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.put('/api/school-years/:id/set-current', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const client = await req.db.connect();
             try {
@@ -1245,7 +1380,7 @@ async function startServer() {
             }
         }));
         
-        app.delete('/api/school-years/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.delete('/api/school-years/:id', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { rows } = await req.db.query('SELECT * FROM school_years WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
             const year = rows[0];
@@ -1260,6 +1395,114 @@ async function startServer() {
             res.json({ message: `L'année scolaire et toutes les données associées ont été supprimées.` });
         }));
         
+        // --- CLASS DEFINITION ROUTES ---
+        app.get('/api/classes', authenticateToken, asyncHandler(async (req, res) => {
+            const { rows } = await req.db.query(
+                'SELECT * FROM classes WHERE instance_id = $1 ORDER BY order_index ASC', 
+                [req.user.instance_id]
+            );
+            res.json(rows);
+        }));
+
+        app.post('/api/classes', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
+            const { name } = req.body;
+            if (!name) return res.status(400).json({ message: 'Le nom de la classe est requis.' });
+
+            const { rows: maxOrder } = await req.db.query('SELECT MAX(order_index) as max_idx FROM classes WHERE instance_id = $1', [req.user.instance_id]);
+            const nextOrderIndex = (maxOrder[0].max_idx || 0) + 1;
+
+            const { rows } = await req.db.query(
+                'INSERT INTO classes (name, order_index, instance_id) VALUES ($1, $2, $3) RETURNING *',
+                [name, nextOrderIndex, req.user.instance_id]
+            );
+            res.status(201).json(rows[0]);
+        }));
+
+        // Specific route for ordering must come BEFORE the parameterized route
+        app.put('/api/classes/order', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
+            const { orderedIds } = req.body;
+            if (!Array.isArray(orderedIds)) return res.status(400).json({ message: 'Données invalides.' });
+            
+            const client = await req.db.connect();
+            try {
+                await client.query('BEGIN');
+                for (let i = 0; i < orderedIds.length; i++) {
+                    const id = orderedIds[i];
+                    const order_index = i + 1;
+                    await client.query('UPDATE classes SET order_index = $1 WHERE id = $2 AND instance_id = $3', [order_index, id, req.user.instance_id]);
+                }
+                await client.query('COMMIT');
+                res.json({ message: 'Ordre des classes mis à jour.' });
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            } finally {
+                client.release();
+            }
+        }));
+
+        app.put('/api/classes/:id', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
+            const { id } = req.params;
+            const { name } = req.body;
+            if (!name) return res.status(400).json({ message: 'Le nom de la classe est requis.' });
+            
+            const client = await req.db.connect();
+            try {
+                await client.query('BEGIN');
+
+                const { rows: oldClassRows } = await client.query('SELECT name FROM classes WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
+                if (oldClassRows.length === 0) {
+                    throw { status: 404, message: 'Classe non trouvée.' };
+                }
+                const oldClassName = oldClassRows[0].name;
+
+                if (oldClassName !== name) {
+                    const yearsInInstanceSubquery = `SELECT id FROM school_years WHERE instance_id = $1`;
+
+                    await client.query(`UPDATE enrollments SET "className" = $1 WHERE "className" = $2 AND year_id IN (${yearsInInstanceSubquery})`, [name, oldClassName, req.user.instance_id]);
+                    await client.query(`UPDATE class_subjects SET class_name = $1 WHERE class_name = $2 AND year_id IN (${yearsInInstanceSubquery})`, [name, oldClassName, req.user.instance_id]);
+                    await client.query(`UPDATE teacher_assignments SET class_name = $1 WHERE class_name = $2 AND year_id IN (${yearsInInstanceSubquery})`, [name, oldClassName, req.user.instance_id]);
+                    await client.query('UPDATE students SET classe_ref = $1 WHERE classe_ref = $2 AND instance_id = $3', [name, oldClassName, req.user.instance_id]);
+                }
+                
+                const { rows } = await client.query('UPDATE classes SET name = $1 WHERE id = $2 AND instance_id = $3 RETURNING *', [name, id, req.user.instance_id]);
+                
+                await client.query('COMMIT');
+                res.json(rows[0]);
+            } catch (error) {
+                await client.query('ROLLBACK');
+                if (error.code === '23505') { // unique_violation on classes table
+                    return res.status(409).json({ message: 'Une classe avec ce nom existe déjà.' });
+                }
+                if (error.status) {
+                    return res.status(error.status).json({ message: error.message });
+                }
+                throw error;
+            } finally {
+                client.release();
+            }
+        }));
+
+        app.delete('/api/classes/:id', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
+            const { id } = req.params;
+
+            const { rows: classToDeleteRows } = await req.db.query('SELECT name FROM classes WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
+            if (classToDeleteRows.length === 0) return res.status(404).json({ message: 'Classe non trouvée.' });
+            const className = classToDeleteRows[0].name;
+
+            const checkUsageQuery = `
+                SELECT 1 FROM enrollments e JOIN school_years sy ON e.year_id = sy.id WHERE e."className" = $1 AND sy.instance_id = $2 LIMIT 1
+            `;
+            const { rows: usageRows } = await req.db.query(checkUsageQuery, [className, req.user.instance_id]);
+            if (usageRows.length > 0) {
+                return res.status(400).json({ message: 'Impossible de supprimer cette classe car des élèves y sont ou y ont été inscrits.' });
+            }
+
+            await req.db.query('DELETE FROM classes WHERE id = $1', [id]);
+            res.json({ message: `Classe '${className}' supprimée.` });
+        }));
+
+
         // --- ACADEMIC PERIOD ROUTES ---
         app.get('/api/academic-periods', authenticateToken, asyncHandler(async (req, res) => {
             const { yearId } = req.query;
@@ -1273,7 +1516,7 @@ async function startServer() {
             res.json(rows);
         }));
 
-        app.post('/api/academic-periods', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/academic-periods', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { year_id, name } = req.body;
             if (!year_id || !name) return res.status(400).json({ message: 'Year ID and name are required.' });
             
@@ -1290,7 +1533,7 @@ async function startServer() {
             }
         }));
 
-        app.put('/api/academic-periods/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.put('/api/academic-periods/:id', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { name } = req.body;
             const { rows } = await req.db.query(
@@ -1304,7 +1547,7 @@ async function startServer() {
             res.json({ message: 'Période mise à jour.' });
         }));
 
-        app.delete('/api/academic-periods/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.delete('/api/academic-periods/:id', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { rows } = await req.db.query(
                 `DELETE FROM academic_periods ap
@@ -1324,7 +1567,7 @@ async function startServer() {
             res.json(rows);
         }));
 
-        app.post('/api/subjects', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/subjects', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { name } = req.body;
             if (!name) return res.status(400).json({ message: 'Le nom de la matière est requis.' });
             try {
@@ -1337,7 +1580,7 @@ async function startServer() {
             }
         }));
         
-        app.put('/api/subjects/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.put('/api/subjects/:id', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { name } = req.body;
             if (!name) return res.status(400).json({ message: 'Le nom de la matière est requis.' });
@@ -1346,7 +1589,7 @@ async function startServer() {
             res.json({ message: 'Matière mise à jour.' });
         }));
         
-        app.delete('/api/subjects/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.delete('/api/subjects/:id', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { rowCount } = await req.db.query('DELETE FROM subjects WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
             if (rowCount === 0) return res.status(404).json({ message: 'Matière non trouvée ou accès refusé.' });
@@ -1384,7 +1627,7 @@ async function startServer() {
             res.json({ assigned: assignedSubjects, available: availableSubjects });
         }));
 
-        app.post('/api/curriculum/assign', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/curriculum/assign', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { yearId, className, subjectId } = req.body;
             if (!yearId || !className || !subjectId) return res.status(400).json({ message: 'Year ID, Class Name, and Subject ID are required.' });
             
@@ -1401,7 +1644,7 @@ async function startServer() {
             }
         }));
 
-        app.post('/api/curriculum/unassign', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/curriculum/unassign', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { yearId, className, subjectId } = req.body;
             if (!yearId || !className || !subjectId) return res.status(400).json({ message: 'Year ID, Class Name, and Subject ID are required.' });
             
@@ -1412,7 +1655,7 @@ async function startServer() {
             res.json({ message: 'Subject unassigned successfully.' });
         }));
 
-        app.put('/api/curriculum/max-grade/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.put('/api/curriculum/max-grade/:id', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { max_grade } = req.body;
             if (max_grade === undefined || isNaN(parseFloat(max_grade)) || parseFloat(max_grade) < 0) {
@@ -1461,6 +1704,13 @@ async function startServer() {
             
             return res.status(403).json({ message: 'Accès refusé. Vous n\'êtes pas assigné à cette matière.' });
         });
+        
+        const canManageGrades = (req, res, next) => {
+            if (req.user.role === 'admin' || (req.user.permissions && req.user.permissions.includes('grade:create'))) {
+                return next();
+            }
+            return isAssignedToSubject(req, res, next);
+        };
 
         app.get('/api/grades', authenticateToken, isStaff, asyncHandler(async (req, res) => {
             const { enrollmentId, subjectId, periodId } = req.query;
@@ -1508,7 +1758,7 @@ async function startServer() {
             return res.json(groupedGrades);
         }));
 
-        app.post('/api/grades', authenticateToken, isAssignedToSubject, asyncHandler(async (req, res) => {
+        app.post('/api/grades', authenticateToken, canManageGrades, asyncHandler(async (req, res) => {
             const { enrollment_id, subject_id, period_id, evaluation_name, score, max_score } = req.body;
             
             if (!enrollment_id || !subject_id || !period_id || !evaluation_name || score === undefined || max_score === undefined) {
@@ -1539,7 +1789,7 @@ async function startServer() {
             res.status(201).json(rows[0]);
         }));
 
-        app.put('/api/grades/:id', authenticateToken, isAssignedToSubject, asyncHandler(async (req, res) => {
+        app.put('/api/grades/:id', authenticateToken, canManageGrades, asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { evaluation_name, score, max_score } = req.body;
             
@@ -1571,7 +1821,7 @@ async function startServer() {
             res.json(updatedRows[0]);
         }));
 
-        app.delete('/api/grades/:id', authenticateToken, isAssignedToSubject, asyncHandler(async (req, res) => {
+        app.delete('/api/grades/:id', authenticateToken, canManageGrades, asyncHandler(async (req, res) => {
             const { id } = req.params;
              const { rowCount } = await req.db.query(`
                 DELETE FROM grades g USING enrollments e, students s 
@@ -1585,7 +1835,7 @@ async function startServer() {
 
 
         // --- STUDENT PROFILE & PORTAL ROUTES ---
-        app.get('/api/students-with-enrollment-status', authenticateToken, asyncHandler(async (req, res) => {
+        app.get('/api/students-with-enrollment-status', authenticateToken, requirePermission('student:read'), asyncHandler(async (req, res) => {
             const { yearId, includeArchived, classFilter, page = 1, limit = 25 } = req.query;
             if (!yearId) return res.status(400).json({ message: "L'année scolaire est requise." });
         
@@ -1643,7 +1893,7 @@ async function startServer() {
             });
         }));
         
-        app.post('/api/students/status', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/students/status', authenticateToken, requirePermission('student:archive'), asyncHandler(async (req, res) => {
             const { ids, status } = req.body;
             if (!ids || !Array.isArray(ids) || ids.length === 0 || !['active', 'archived'].includes(status)) {
                 return res.status(400).json({ message: 'Données invalides.' });
@@ -1658,7 +1908,7 @@ async function startServer() {
         }));
 
 
-        app.post('/api/students', authenticateToken, asyncHandler(async (req, res) => {
+        app.post('/api/students', authenticateToken, requirePermission('student:create'), asyncHandler(async (req, res) => {
             const { enrollment, ...profileData } = req.body;
             let { id, nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref } = profileData;
             const instance_id = req.user.instance_id;
@@ -1695,7 +1945,7 @@ async function startServer() {
             }
         }));
 
-        app.put('/api/students/:id', authenticateToken, asyncHandler(async (req, res) => {
+        app.put('/api/students/:id', authenticateToken, requirePermission('student:update'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { mppa, enrollmentId, ...profileData } = req.body;
             const { nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref } = profileData;
@@ -1757,7 +2007,7 @@ async function startServer() {
             }
         }));
 
-        app.post('/api/students/delete', authenticateToken, asyncHandler(async (req, res) => {
+        app.post('/api/students/delete', authenticateToken, requirePermission('student:delete'), asyncHandler(async (req, res) => {
             const { ids } = req.body;
             const placeholders = ids.map((_, i) => `$${i + 2}`).join(',');
             
@@ -1775,7 +2025,7 @@ async function startServer() {
             res.json({ message: 'Élèves supprimés avec succès.' });
         }));
 
-        app.post('/api/students/create-accounts', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/students/create-accounts', authenticateToken, requirePermission('student_portal:manage_accounts'), asyncHandler(async (req, res) => {
             const { yearId, className } = req.body;
             if (!yearId || !className) return res.status(400).json({ message: "Année et classe sont requises." });
 
@@ -1947,7 +2197,7 @@ async function startServer() {
         }));
 
         // --- NEW Student Account Individual Management ---
-        app.get('/api/classes/:className/students-with-account-status', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.get('/api/classes/:className/students-with-account-status', authenticateToken, requirePermission('student_portal:manage_accounts'), asyncHandler(async (req, res) => {
             const { className } = req.params;
             const { yearId } = req.query;
 
@@ -1963,7 +2213,7 @@ async function startServer() {
             res.json(rows);
         }));
 
-        app.post('/api/students/:studentId/create-account', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/students/:studentId/create-account', authenticateToken, requirePermission('student_portal:manage_accounts'), asyncHandler(async (req, res) => {
             const { studentId } = req.params;
 
             const { rows: studentRows } = await req.db.query('SELECT prenom, nom FROM students WHERE id = $1 AND instance_id = $2', [studentId, req.user.instance_id]);
@@ -1993,7 +2243,7 @@ async function startServer() {
             res.status(201).json({ prenom: student.prenom, nom: student.nom, username, temp_password });
         }));
 
-        app.put('/api/students/:studentId/reset-password', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.put('/api/students/:studentId/reset-password', authenticateToken, requirePermission('student_portal:manage_accounts'), asyncHandler(async (req, res) => {
             const { studentId } = req.params;
             
             const { rows: studentCheck } = await req.db.query('SELECT id FROM students WHERE id = $1 AND instance_id = $2', [studentId, req.user.instance_id]);
@@ -2018,7 +2268,7 @@ async function startServer() {
             res.json({ prenom: student.prenom, nom: student.nom, username: studentUser.username, temp_password });
         }));
         
-        app.delete('/api/students/:studentId/account', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.delete('/api/students/:studentId/account', authenticateToken, requirePermission('student_portal:manage_accounts'), asyncHandler(async (req, res) => {
             const { studentId } = req.params;
             
             const { rows } = await req.db.query(
@@ -2038,7 +2288,7 @@ async function startServer() {
 
 
         // --- ENROLLMENT ROUTES ---
-        app.get('/api/enrollments', authenticateToken, asyncHandler(async (req, res) => {
+        app.get('/api/enrollments', authenticateToken, requirePermission('student:read'), asyncHandler(async (req, res) => {
             const { yearId, className } = req.query;
             if (!yearId || !className) return res.status(400).json({ message: "Année et classe requises." });
 
@@ -2053,7 +2303,7 @@ async function startServer() {
             res.json(rows);
         }));
         
-        app.get('/api/enrollments/all', authenticateToken, asyncHandler(async (req, res) => {
+        app.get('/api/enrollments/all', authenticateToken, requirePermission('report:financial'), asyncHandler(async (req, res) => {
             const { page = 1, limit = 25, yearId, selectedClasses, balanceFilter, installmentFilter, mppaFilter, searchTerm } = req.query;
             const offset = (page - 1) * limit;
 
@@ -2121,7 +2371,7 @@ async function startServer() {
             });
         }));
 
-        app.post('/api/enrollments', authenticateToken, asyncHandler(async (req, res) => {
+        app.post('/api/enrollments', authenticateToken, requirePermission('enrollment:create'), asyncHandler(async (req, res) => {
             const { student_id, year_id, className, mppa } = req.body;
 
             // Security check
@@ -2135,7 +2385,7 @@ async function startServer() {
             res.status(201).json({ id: rows[0].id });
         }));
         
-        app.post('/api/enrollments/bulk', authenticateToken, asyncHandler(async (req, res) => {
+        app.post('/api/enrollments/bulk', authenticateToken, requirePermission('enrollment:create'), asyncHandler(async (req, res) => {
             const { student_ids, year_id, className, mppa } = req.body;
             if (!student_ids || !Array.isArray(student_ids) || student_ids.length === 0 || !year_id || !className || mppa === undefined) {
                 return res.status(400).json({ message: "Données d'inscription en masse invalides." });
@@ -2165,7 +2415,7 @@ async function startServer() {
             }
         }));
 
-        app.put('/api/enrollments/:id/payments', authenticateToken, asyncHandler(async (req, res) => {
+        app.put('/api/enrollments/:id/payments', authenticateToken, requirePermission('enrollment:update_payment'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { payments, mppa } = req.body;
             
@@ -2189,7 +2439,7 @@ async function startServer() {
             res.json({ message: 'Paiements mis à jour.' });
         }));
         
-        app.put('/api/enrollments/:id/toggle-grades-access', authenticateToken, isStandardOrAdmin, asyncHandler(async (req, res) => {
+        app.put('/api/enrollments/:id/toggle-grades-access', authenticateToken, requirePermission('student_portal:manage_access'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { enabled } = req.body;
             
@@ -2212,7 +2462,7 @@ async function startServer() {
             res.json({ message: 'Accès aux notes mis à jour.' });
         }));
 
-        app.put('/api/classes/:className/toggle-grades-access', authenticateToken, isStandardOrAdmin, asyncHandler(async (req, res) => {
+        app.put('/api/classes/:className/toggle-grades-access', authenticateToken, requirePermission('student_portal:manage_access'), asyncHandler(async (req, res) => {
             const { className } = req.params;
             const { yearId, enabled } = req.body;
 
@@ -2230,7 +2480,7 @@ async function startServer() {
         }));
 
 
-        app.post('/api/enrollments/bulk-change-class', authenticateToken, isStandardOrAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/enrollments/bulk-change-class', authenticateToken, requirePermission('enrollment:update_class'), asyncHandler(async (req, res) => {
             const { enrollmentIds, targetClassName } = req.body;
             if (!enrollmentIds || !Array.isArray(enrollmentIds) || enrollmentIds.length === 0 || !targetClassName) {
                 return res.status(400).json({ message: "Données invalides." });
@@ -2249,7 +2499,7 @@ async function startServer() {
             res.json({ message: `${rowCount} élève(s) déplacé(s) vers la classe ${targetClassName}.` });
         }));
 
-        app.post('/api/promotions', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/promotions', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { sourceYearId, promotionMap } = req.body;
             const { preview } = req.query;
         
@@ -2337,7 +2587,7 @@ async function startServer() {
         }));
 
         // --- REPORT CARD ROUTES ---
-        app.post('/api/appreciations', authenticateToken, asyncHandler(async (req, res) => {
+        app.post('/api/appreciations', authenticateToken, requirePermission('appreciation:create'), asyncHandler(async (req, res) => {
             const { enrollment_id, subject_id, period_id, text } = req.body;
             // Security check
             const { rows } = await req.db.query('SELECT s.instance_id FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.id = $1', [enrollment_id]);
@@ -2350,7 +2600,7 @@ async function startServer() {
             res.status(200).json({ message: 'Appréciation enregistrée.' });
         }));
 
-        app.post('/api/general-appreciations', authenticateToken, isStandardOrAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/general-appreciations', authenticateToken, requirePermission('appreciation:create'), asyncHandler(async (req, res) => {
             const { enrollment_id, period_id, text } = req.body;
              // Security check
             const { rows } = await req.db.query('SELECT s.instance_id FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.id = $1', [enrollment_id]);
@@ -2363,7 +2613,7 @@ async function startServer() {
             res.status(200).json({ message: 'Appréciation générale enregistrée.' });
         }));
 
-        app.get('/api/bulk-report-data', authenticateToken, asyncHandler(async (req, res) => {
+        app.get('/api/bulk-report-data', authenticateToken, requirePermission('report_card:generate'), asyncHandler(async (req, res) => {
             const { yearId, className, periodId } = req.query;
             if (!yearId || !className || !periodId) return res.status(400).json({ message: "Année, Classe et Période sont requises." });
 
@@ -2543,12 +2793,12 @@ async function startServer() {
         // --- NEW TIMETABLE ROUTES ---
 
         // Locations (Classrooms)
-        app.get('/api/locations', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.get('/api/locations', authenticateToken, requirePermission('settings:manage_timetable'), asyncHandler(async (req, res) => {
             const { rows } = await req.db.query('SELECT * FROM locations WHERE instance_id = $1 ORDER BY name', [req.user.instance_id]);
             res.json(rows);
         }));
 
-        app.post('/api/locations', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/locations', authenticateToken, requirePermission('settings:manage_timetable'), asyncHandler(async (req, res) => {
             const { name, capacity } = req.body;
             const { rows } = await req.db.query(
                 'INSERT INTO locations (name, capacity, instance_id) VALUES ($1, $2, $3) RETURNING *',
@@ -2557,7 +2807,7 @@ async function startServer() {
             res.status(201).json(rows[0]);
         }));
 
-        app.put('/api/locations/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.put('/api/locations/:id', authenticateToken, requirePermission('settings:manage_timetable'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { name } = req.body;
             if (!name || !name.trim()) {
@@ -2570,7 +2820,7 @@ async function startServer() {
             res.json(rows[0]);
         }));
 
-        app.delete('/api/locations/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.delete('/api/locations/:id', authenticateToken, requirePermission('settings:manage_timetable'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { rowCount } = await req.db.query('DELETE FROM locations WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
             if(rowCount === 0) return res.status(404).json({ message: 'Salle non trouvée.' });
@@ -2578,7 +2828,7 @@ async function startServer() {
         }));
         
         // Full teacher assignments for a year
-        app.get('/api/full-assignments', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.get('/api/full-assignments', authenticateToken, requirePermission('settings:manage_timetable'), asyncHandler(async (req, res) => {
             const { yearId } = req.query;
             const query = `
                 SELECT ta.*, s.name as subject_name, t.prenom as teacher_prenom, t.nom as teacher_nom
@@ -2593,7 +2843,7 @@ async function startServer() {
         }));
 
         // Schedule Slots (Timetable)
-        app.get('/api/timetable', authenticateToken, isTeacher, asyncHandler(async (req, res) => {
+        app.get('/api/timetable', authenticateToken, isStaff, asyncHandler(async (req, res) => {
             const { yearId } = req.query;
             const query = `
                 SELECT
@@ -2637,7 +2887,7 @@ async function startServer() {
             res.json(rows);
         }));
 
-        app.post('/api/timetable', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.post('/api/timetable', authenticateToken, requirePermission('settings:manage_timetable'), asyncHandler(async (req, res) => {
             const { assignment_id, day_of_week, start_time, end_time, location_id } = req.body;
             
             if (start_time >= end_time) {
@@ -2674,7 +2924,7 @@ async function startServer() {
             res.status(201).json(rows[0]);
         }));
         
-        app.put('/api/timetable/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.put('/api/timetable/:id', authenticateToken, requirePermission('settings:manage_timetable'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { assignment_id, start_time, end_time, location_id } = req.body;
             
@@ -2722,7 +2972,7 @@ async function startServer() {
             res.json(rows[0]);
         }));
         
-        app.delete('/api/timetable/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+        app.delete('/api/timetable/:id', authenticateToken, requirePermission('settings:manage_timetable'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { rowCount } = await req.db.query(
                 `DELETE FROM schedule_slots ss USING teacher_assignments ta, teachers t WHERE ss.assignment_id = ta.id AND ta.teacher_id = t.id AND ss.id = $1 AND t.instance_id = $2`,

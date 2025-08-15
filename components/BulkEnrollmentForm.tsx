@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import type { SchoolYear } from '../types';
-import { CLASSES } from '../constants';
+import type { SchoolYear, ClassDefinition } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 
 interface BulkEnrollmentFormProps {
@@ -9,10 +8,11 @@ interface BulkEnrollmentFormProps {
   onSubmit: (className: string, mppa: number) => void;
   schoolYear: SchoolYear;
   studentCount: number;
+  classes: ClassDefinition[];
 }
 
-const BulkEnrollmentForm: React.FC<BulkEnrollmentFormProps> = ({ isOpen, onClose, onSubmit, schoolYear, studentCount }) => {
-  const [className, setClassName] = useState(CLASSES[0]);
+const BulkEnrollmentForm: React.FC<BulkEnrollmentFormProps> = ({ isOpen, onClose, onSubmit, schoolYear, studentCount, classes }) => {
+  const [className, setClassName] = useState(classes[0]?.name || '');
   const [mppa, setMppa] = useState(0);
   const { addNotification } = useNotification();
 
@@ -44,7 +44,7 @@ const BulkEnrollmentForm: React.FC<BulkEnrollmentFormProps> = ({ isOpen, onClose
               onChange={(e) => setClassName(e.target.value)}
               className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
             >
-              {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+              {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
             </select>
           </div>
           <div>

@@ -2,7 +2,6 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
-import { CLASSES } from '../constants';
 import ConfirmationModal from './ConfirmationModal';
 import type { SchoolYear } from '../types';
 
@@ -15,7 +14,7 @@ interface PromotionPreview {
 }
 
 const PromotionManager: React.FC = () => {
-    const { schoolYears } = useSchoolYear();
+    const { schoolYears, classes } = useSchoolYear();
     const { addNotification } = useNotification();
 
     const [sourceYear, setSourceYear] = useState<SchoolYear | null>(null);
@@ -26,9 +25,10 @@ const PromotionManager: React.FC = () => {
 
     // Auto-generate promotion map when source year changes
     useMemo(() => {
+        const classNames = classes.map(c => c.name);
         const newMap: Record<string, string | null> = {};
-        CLASSES.forEach((c, index) => {
-            newMap[c] = index + 1 < CLASSES.length ? CLASSES[index + 1] : null;
+        classNames.forEach((c, index) => {
+            newMap[c] = index + 1 < classNames.length ? classNames[index + 1] : null;
         });
         setPromotionMap(newMap);
 
@@ -38,7 +38,7 @@ const PromotionManager: React.FC = () => {
         } else if (schoolYears.length > 0) {
             setSourceYear(schoolYears[0]);
         }
-    }, [schoolYears]);
+    }, [schoolYears, classes]);
 
     const handlePreview = async () => {
         if (!sourceYear) {

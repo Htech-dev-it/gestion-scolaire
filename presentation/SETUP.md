@@ -2,65 +2,50 @@
 
 Ce guide vous accompagne dans les premières étapes cruciales de la configuration de l'application pour une nouvelle année scolaire. Il est recommandé de suivre ces étapes dans l'ordre pour une mise en place cohérente.
 
-Toutes ces actions se déroulent dans le **Tableau de Bord Admin**.
-
 ---
 
-## Étape 1 : Créer la Nouvelle Année Scolaire
+## Étape 1 : Gérer les Paramètres Académiques (Panneau d'Administration)
 
-C'est la toute première chose à faire.
-1.  Allez dans l'onglet **"Années"**.
-2.  Dans le champ "Ajouter une année scolaire", entrez la nouvelle année au format `AAAA-AAAA` (par exemple, `2024-2025`).
-3.  Cliquez sur **"Ajouter"**.
-4.  La nouvelle année apparaît dans la liste. Cliquez sur **"Définir comme actuelle"** à côté d'elle. Le bandeau vert "Actuelle" confirme votre choix.
+Cliquez sur le lien **"Administration"** dans la barre de navigation pour accéder aux paramètres de base.
 
+### a) Créer la Nouvelle Année Scolaire (Onglet "Années")
+1.  Entrez la nouvelle année au format `AAAA-AAAA` (ex: `2024-2025`) et cliquez sur **"Ajouter"**.
+2.  Cliquez sur **"Définir comme actuelle"** à côté de la nouvelle année. Le bandeau vert "Actuelle" confirme votre choix.
 > **Pourquoi c'est important ?** Toutes les données (inscriptions, notes, etc.) sont liées à l'année scolaire "actuelle".
 
----
+### b) Définir les Périodes Académiques (Onglet "Périodes")
+1.  Assurez-vous que la nouvelle année scolaire est bien sélectionnée dans la liste déroulante.
+2.  Ajoutez toutes les périodes de l'année (ex: `Trimestre 1`, `Trimestre 2`, `Trimestre 3`).
 
-## Étape 2 : Définir les Périodes Académiques
+### c) Gérer la Liste des Matières (Onglet "Matières")
+Assurez-vous que toutes les matières enseignées dans l'école sont présentes dans le système. Ajoutez, modifiez ou supprimez des matières si nécessaire.
 
-Une fois l'année créée, vous devez la diviser en périodes (trimestres, semestres, etc.).
-1.  Allez dans l'onglet **"Périodes"**.
-2.  Assurez-vous que la nouvelle année scolaire est bien sélectionnée dans la liste déroulante.
-3.  Dans le champ "Ajouter une période", entrez le nom de la première période (par exemple, `Trimestre 1`).
-4.  Cliquez sur **"Ajouter"**.
-5.  Répétez l'opération pour toutes les périodes de l'année (ex: `Trimestre 2`, `Trimestre 3`).
-
----
-
-## Étape 3 : Gérer la Liste des Matières
-
-Assurez-vous que toutes les matières enseignées dans l'école sont présentes dans le système.
-1.  Allez dans l'onglet **"Matières"**.
-2.  Consultez la liste. Si une matière manque, ajoutez-la en utilisant le formulaire en haut.
-3.  Vous pouvez également corriger ou supprimer des matières existantes.
-
-> **Conseil** : Faites cette vérification une fois par an pour vous assurer que la liste est à jour.
-
----
-
-## Étape 4 : Définir le Programme Scolaire
-
+### d) Définir le Programme Scolaire (Onglet "Programme")
 C'est une étape cruciale où vous liez les matières aux classes.
-1.  Allez dans l'onglet **"Programme"**.
-2.  Sélectionnez une classe dans la liste déroulante (par exemple, `7AF`).
-3.  La vue est divisée en deux : "Matières Assignées" et "Matières Disponibles".
-4.  Pour chaque matière enseignée dans cette classe, trouvez-la dans la liste de droite et cliquez sur le bouton `+` pour l'assigner.
-5.  Une fois une matière assignée, définissez sa **note maximale** pour la période (généralement `100`). C'est le total de points que les professeurs pourront distribuer dans leurs évaluations.
-6.  Répétez l'opération pour **chaque classe**.
+1.  Sélectionnez une classe.
+2.  Assignez les matières enseignées dans cette classe pour l'année en cours.
+3.  Définissez la **note maximale** pour chaque matière (généralement `100`). C'est le total de points que les professeurs pourront distribuer sur leurs évaluations.
+4.  Répétez l'opération pour **chaque classe**.
 
 ---
 
-## Étape 5 : Gérer les Professeurs et leurs Assignations
+## Étape 2 : Gérer les Professeurs (Page Dédiée)
 
-Maintenant que le programme est défini, vous pouvez assigner les professeurs.
-1.  Allez dans l'onglet **"Professeurs"**.
-2.  Créez les profils pour tous les professeurs si ce n'est pas déjà fait.
-3.  Pour chaque professeur, cliquez sur **"Gérer les assignations"**.
-4.  Une fenêtre s'ouvre avec la liste de tous les cours (Classe + Matière) de l'école.
-5.  Cochez simplement les cases correspondant aux cours que ce professeur enseignera pour l'année en cours.
-6.  Cliquez sur **"Sauvegarder"**.
+Retournez au **Tableau de Bord** et cliquez sur la carte **"Gestion des Professeurs"**.
+
+1.  **Créez les profils** pour tous les professeurs. Le système générera des identifiants temporaires que vous devrez leur communiquer.
+2.  Pour chaque professeur, cliquez sur **"Gérer les assignations"**.
+3.  Cochez les cases correspondant aux cours (Classe + Matière) que ce professeur enseignera pour l'année en cours.
+4.  Cliquez sur **"Sauvegarder"**.
+
+---
+
+## Étape 3 : Construire l'Emploi du Temps (Page Dédiée)
+
+Retournez au **Tableau de Bord** et cliquez sur la carte **"Gestion Emploi du temps"**.
+
+1.  **Gérez les Salles** : Ajoutez toutes les salles de classe disponibles.
+2.  **Construisez l'horaire** en cliquant sur les cases de la grille pour créer des créneaux et les assigner aux professeurs/matières/classes.
 
 ---
 

@@ -1,55 +1,85 @@
-# Guide pour le Personnel Administratif (Standard)
+# Guide Personnalisé pour le Personnel Administratif
 
-Bienvenue dans votre guide d'utilisation. Ce document décrit les fonctionnalités auxquelles vous avez accès.
+Bienvenue dans votre guide d'utilisation. Ce document s'adapte automatiquement pour ne vous montrer que les fonctionnalités auxquelles vous avez accès, en fonction des rôles qui vous ont été assignés par l'administrateur de votre école.
 
-## Page d'Accueil
+Si une fonctionnalité que vous vous attendiez à voir n'apparaît pas ici, cela signifie probablement que vous n'avez pas la permission nécessaire pour l'utiliser. Dans ce cas, veuillez contacter l'administrateur de votre établissement.
 
-La page d'accueil est votre point de départ. Elle vous donne un accès rapide aux sections les plus importantes.
+---
 
-### Actions Principales
-- **Gestion des Élèves**: Le centre névralgique pour gérer tous les dossiers des élèves.
-- **Gestion des Bulletins**: Outil pour générer les bulletins de notes.
-- **Rapports Financiers**: Section pour consulter l'historique financier.
-- **Suivi des Présences**: Pour consulter les registres d'absences et de retards.
-
-### Accès Rapide aux Paiements
-Cliquez directement sur une classe pour accéder à la gestion des paiements de ses élèves.
-
+<!-- permission: student:update -->
 ## Gestion des Élèves
-Cette page vous permet de gérer l'ensemble des élèves de l'établissement.
-1.  **Ajouter un élève**: Utilisez le formulaire sur la gauche pour créer un profil pour un nouvel élève. Il doit avoir un nom et un prénom. Les autres informations sont optionnelles mais recommandées.
-2.  **Modifier un élève**: Pour corriger une information, double-cliquez sur un élève dans la liste. Ses informations s'afficheront dans le formulaire pour que vous puissiez les modifier.
-3.  **Inscrire un élève**: Un élève doit être inscrit pour l'année scolaire en cours pour apparaître dans une classe.
-    - Pour un élève non-inscrit, cliquez sur le bouton "Inscrire".
-    - Choisissez sa classe et définissez son "Montant à Payer Pour l'Année" (MPPA).
-4.  **Inscrire en masse**: Pour gagner du temps, vous pouvez inscrire plusieurs élèves en une seule fois.
-    - Cochez la case à côté de chaque élève non-inscrit que vous voulez inscrire.
-    - Un bouton "Inscrire en masse" apparaîtra en haut. Cliquez dessus.
-    - Choisissez la classe et le MPPA qui seront appliqués à tous les élèves sélectionnés.
-5.  **Supprimer des élèves**: Cochez les élèves que vous souhaitez supprimer, puis cliquez sur le bouton "Supprimer" qui apparaît en haut. **Attention, cette action est irréversible.**
 
+Ce module vous permet de gérer l'ensemble des dossiers des élèves.
+
+1.  **Accès** : Depuis le **Tableau de Bord**, cliquez sur la carte **Gestion des Élèves**.
+2.  **Ajouter un élève** : Utilisez le formulaire sur la gauche pour créer un profil.
+3.  **Modifier un élève** : Pour corriger ou compléter une information, double-cliquez sur un élève dans la liste pour ouvrir son profil dans le formulaire.
+4.  **Inscrire un élève** : Pour un élève non-inscrit, utilisez le bouton **"Inscrire"**.
+5.  **Actions en masse** : Cochez les cases à côté des noms pour sélectionner plusieurs élèves, puis utilisez les boutons qui apparaissent en haut du tableau pour **inscrire**, **changer de classe**, **archiver** ou **supprimer** en masse.
+<!-- /permission -->
+
+---
+
+<!-- permission: enrollment:update_payment -->
 ## Gestion des Paiements
-Cette page est accessible en cliquant sur une classe depuis l'accueil. Elle vous permet de gérer les frais de scolarité.
-1.  **Ouvrir une fiche**: Double-cliquez sur un élève dans la liste. Sa fiche de paiement s'ouvrira sur la gauche.
-2.  **Saisir un paiement**: Entrez le montant payé dans l'un des quatre champs "Versement".
-3.  **Mettre à jour**: Cliquez sur "Mettre à jour" pour sauvegarder. La balance se calcule automatiquement.
-4.  **Imprimer un reçu**: Utilisez le bouton d'imprimante en haut à droite de la fiche de paiement pour générer un reçu détaillé pour l'élève.
 
-## Suivi des Présences
-Cette page vous permet de consulter les absences et retards saisis par les professeurs.
-1.  Sélectionnez une classe.
-2.  Choisissez une plage de dates (par défaut, la semaine en cours).
-3.  Le tableau affiche le statut de chaque élève pour chaque jour, avec un code couleur :
-    - **Vert**: Présent
-    - **Rouge**: Absent
-    - **Jaune**: En Retard
-4.  Cliquez sur une cellule colorée pour voir le détail des matières concernées pour ce jour.
-5.  Vous pouvez imprimer le rapport pour vos archives.
+Ce module vous permet de gérer les frais de scolarité pour chaque élève.
 
+1.  **Accès** : Depuis le **Tableau de Bord**, cliquez sur le nom d'une classe dans la section **"Accès Rapide aux Paiements"**.
+2.  **Ouvrir une fiche** : Double-cliquez sur un élève dans la liste. Sa fiche de paiement s'ouvrira sur la gauche.
+3.  **Saisir un paiement** : Entrez le montant payé dans l'un des quatre champs "Versement".
+4.  **Mettre à jour** : Cliquez sur **"Mettre à jour"** pour sauvegarder les changements.
+5.  **Imprimer un reçu** : Utilisez l'icône d'imprimante sur la fiche de paiement pour générer un reçu détaillé.
+<!-- /permission -->
+
+---
+
+<!-- permission: report_card:generate -->
 ## Génération des Bulletins
-La page "Gestion des Bulletins" vous permet de générer les bulletins officiels.
-1.  Sélectionnez une classe et une période (ex: Trimestre 1).
-2.  Choisissez un modèle de bulletin.
-3.  Cliquez sur "Générer les Bulletins".
-4.  L'écran suivant vous montre une prévisualisation de tous les bulletins. Vous pouvez ajuster les appréciations pour chaque matière si nécessaire.
-5.  Cliquez sur "Imprimer les Bulletins" pour obtenir la version papier.
+
+Cet outil vous permet de générer les bulletins officiels.
+
+1.  **Accès** : Depuis le **Tableau de Bord**, cliquez sur la carte **Gestion des Bulletins**.
+2.  **Sélectionnez** une classe et une période.
+3.  **Cochez** les élèves pour lesquels vous souhaitez générer un bulletin.
+4.  Choisissez un modèle et cliquez sur **"Générer les Bulletins"**.
+5.  Dans l'aperçu, vous pouvez modifier les appréciations avant d'**imprimer** la version finale.
+<!-- /permission -->
+
+---
+
+<!-- permission: settings:manage_teachers -->
+## Gestion des Professeurs
+
+Ce module vous permet de gérer les profils et les assignations de cours des professeurs.
+
+1.  **Accès** : Depuis le **Tableau de Bord**, cliquez sur la carte **Gestion des Professeurs**.
+2.  **Ajouter un Professeur** : Créez un profil en fournissant ses informations. Le système générera un nom d'utilisateur et un mot de passe temporaire à lui communiquer.
+3.  **Gérer les assignations** : Cliquez sur le bouton **"Gérer les assignations"** pour un professeur. Dans la fenêtre qui s'ouvre, cochez toutes les matières qu'il enseignera dans chaque classe pour l'année en cours.
+<!-- /permission -->
+
+---
+
+<!-- permission: settings:manage_timetable -->
+## Gestion de l'Emploi du Temps
+
+Cet outil vous permet de construire l'horaire de toute l'école.
+
+1.  **Accès** : Depuis le **Tableau de Bord**, cliquez sur la carte **Gestion Emploi du temps**.
+2.  **Gérer les Salles** : Utilisez le panneau de gauche pour ajouter ou modifier les salles de classe.
+3.  **Créer un créneau** : Cliquez sur une case vide de la grille.
+4.  **Configurer le créneau** : Choisissez le cours (professeur-matière-classe), ajustez les heures et sélectionnez une salle.
+5.  **Sauvegardez**. Le créneau apparaîtra sur la grille.
+<!-- /permission -->
+
+---
+
+<!-- permission: student_portal:manage_accounts -->
+## Gestion du Portail Élève
+
+Ce module vous permet de gérer les comptes de connexion des élèves.
+
+1.  **Accès** : Cliquez sur **"Portail Élève"** dans le menu du haut.
+2.  **Création en Masse** : Sélectionnez une classe, puis cliquez sur **"Créer les comptes..."**. Une fiche d'identifiants sera générée, prête à être imprimée et distribuée.
+3.  **Gestion Individuelle** : Utilisez la liste en bas pour **réinitialiser un mot de passe** ou **supprimer** un compte pour un élève spécifique.
+<!-- /permission -->

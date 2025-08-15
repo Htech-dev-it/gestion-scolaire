@@ -9,7 +9,7 @@ const NavLink: React.FC<{ to: string, children: React.ReactNode, isDisabled?: bo
     const location = ReactRouterDOM.useLocation();
     const isActive = location.pathname === to;
     
-    const commonClasses = `px-3 py-2 text-sm font-medium rounded-lg transition-colors`;
+    const commonClasses = `px-2.5 py-2 text-sm font-medium rounded-lg transition-colors`;
     
     const activeClasses = 'bg-[#4A90E2] text-white';
     const normalClasses = 'text-slate-600 hover:bg-slate-100 hover:text-slate-900';
@@ -44,7 +44,7 @@ const StudentNavLinks: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
 };
 
 const Header: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const { schoolYears, selectedYear, setSelectedYearById, isLoading } = useSchoolYear();
   const navigate = ReactRouterDOM.useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -64,16 +64,18 @@ const Header: React.FC = () => {
         <>
             {user?.role === 'student' ? (
                 <StudentNavLinks {...commonProps} />
-            ) : user?.role === 'admin' ? (
+            ) : hasPermission('user:manage') ? ( // This is typically a full admin
                  <>
-                    <NavLink to="/dashboard" {...commonProps}>Tableau de bord</NavLink>
                     <NavLink to="/admin" {...commonProps}>Administration</NavLink>
-                    <NavLink to="/admin/contact" {...commonProps}>Contact & Support</NavLink>
+                    <NavLink to="/dashboard" {...commonProps}>Tableau de bord</NavLink>
+                    {hasPermission('student_portal:manage_accounts') && <NavLink to="/student-portal" {...commonProps}>Portail Élève</NavLink>}
+                    <NavLink to="/admin/contact" {...commonProps}>Support</NavLink>
                     <NavLink to="/docs" {...commonProps}>Documentation</NavLink>
                  </>
             ) : user?.role === 'standard' ? (
                 <>
                     <NavLink to="/dashboard" {...commonProps}>Tableau de bord</NavLink>
+                    {hasPermission('student_portal:manage_accounts') && <NavLink to="/student-portal" {...commonProps}>Portail Élève</NavLink>}
                     <NavLink to="/docs" {...commonProps}>Documentation</NavLink>
                 </>
             ) : user?.role === 'superadmin' || user?.role === 'superadmin_delegate' ? (

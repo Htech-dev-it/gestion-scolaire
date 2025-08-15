@@ -143,8 +143,44 @@ async function setup() {
                 created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 is_read_by_superadmin BOOLEAN NOT NULL DEFAULT false
             );
+            CREATE TABLE IF NOT EXISTS classes (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                order_index INTEGER NOT NULL,
+                instance_id INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+                UNIQUE(name, instance_id)
+            );
         `);
+        
+        // --- Step 3.5: Create RBAC Tables ---
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS permissions (
+                id SERIAL PRIMARY KEY,
+                key VARCHAR(255) NOT NULL UNIQUE,
+                description TEXT NOT NULL,
+                category VARCHAR(50) NOT NULL
+            );
 
+            CREATE TABLE IF NOT EXISTS roles (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                instance_id INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+                UNIQUE(name, instance_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS role_permissions (
+                role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+                permission_id INTEGER NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
+                PRIMARY KEY(role_id, permission_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS user_roles (
+                user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+                PRIMARY KEY(user_id, role_id)
+            );
+        `);
+        
         // --- Specific migration for 'announcements' table to ensure instance_id exists ---
         if (await tableExists(client, 'announcements') && !await columnExists(client, 'announcements', 'instance_id')) {
             console.log("Migration: Ajout de 'instance_id' à la table 'announcements'.");
@@ -202,6 +238,7 @@ async function setup() {
         await client.query('CREATE INDEX IF NOT EXISTS locations_instance_id_idx ON locations (instance_id);');
         await client.query('CREATE INDEX IF NOT EXISTS audit_logs_instance_id_idx ON audit_logs (instance_id);');
         await client.query('CREATE INDEX IF NOT EXISTS messages_instance_id_idx ON messages (instance_id);');
+        await client.query('CREATE INDEX IF NOT EXISTS classes_instance_id_idx ON classes (instance_id);');
 
         // Original indexes
         await client.query('CREATE INDEX IF NOT EXISTS students_nom_idx ON students (nom);');
@@ -219,6 +256,38 @@ async function setup() {
 
         // --- Step 6: Seeding Data ---
         
+        // Seed Permissions
+        const permissionsToSeed = [
+            { key: 'student:read', description: 'Voir la liste des élèves', category: 'students' },
+            { key: 'student:create', description: 'Créer un nouvel élève', category: 'students' },
+            { key: 'student:update', description: 'Modifier le profil d\'un élève', category: 'students' },
+            { key: 'student:delete', description: 'Supprimer un élève', category: 'students' },
+            { key: 'student:archive', description: 'Archiver/Réactiver un élève', category: 'students' },
+            { key: 'enrollment:create', description: 'Inscrire un élève à une année', category: 'enrollments' },
+            { key: 'enrollment:update_class', description: 'Changer la classe d\'un élève inscrit', category: 'enrollments' },
+            { key: 'enrollment:update_payment', description: 'Mettre à jour les paiements', category: 'enrollments' },
+            { key: 'report:financial', description: 'Voir les rapports financiers', category: 'reports' },
+            { key: 'report:attendance', description: 'Voir les rapports de présence', category: 'reports' },
+            { key: 'report_card:generate', description: 'Générer les bulletins de notes', category: 'reports' },
+            { key: 'grade:read', description: 'Consulter les notes des élèves', category: 'academics' },
+            { key: 'grade:create', description: 'Ajouter/Modifier/Supprimer des notes', category: 'academics' },
+            { key: 'appreciation:create', description: 'Ajouter/Modifier des appréciations', category: 'academics' },
+            { key: 'student_portal:manage_access', description: 'Activer/Restreindre l\'accès aux notes', category: 'student_portal' },
+            { key: 'student_portal:manage_accounts', description: 'Créer/Gérer les comptes élèves', category: 'student_portal' },
+            { key: 'settings:manage_academic', description: 'Gérer années, périodes, classes, matières', category: 'administration' },
+            { key: 'settings:manage_teachers', description: 'Gérer les professeurs et leurs assignations', category: 'administration' },
+            { key: 'settings:manage_timetable', description: 'Gérer l\'emploi du temps', category: 'administration' },
+            { key: 'user:manage', description: 'Gérer les comptes utilisateurs (non-prof)', category: 'administration' },
+            { key: 'role:manage', description: 'Gérer les rôles et permissions', category: 'administration' },
+        ];
+
+        for (const p of permissionsToSeed) {
+            await client.query(
+                'INSERT INTO permissions (key, description, category) VALUES ($1, $2, $3) ON CONFLICT (key) DO NOTHING',
+                [p.key, p.description, p.category]
+            );
+        }
+
         const { rows: superAdminRows } = await client.query("SELECT * FROM users WHERE username = 'superadmin'");
         if (superAdminRows.length === 0) {
             const salt = await bcrypt.genSalt(10);
@@ -257,6 +326,19 @@ async function setup() {
             console.log(`Année scolaire par défaut '${currentYearName}' et 3 trimestres créés pour l'instance ${instanceId}.`);
         }
         
+        // Seed default classes for existing instances if they don't have any
+        const { rows: classCountRows } = await client.query('SELECT COUNT(*) as count FROM classes WHERE instance_id = $1', [instanceId]);
+        if (parseInt(classCountRows[0].count, 10) === 0) {
+            console.log(`Peuplement des classes par défaut pour l'instance ${instanceId}...`);
+            const defaultClasses = ['7AF', '8AF', '9AF', 'NSI', 'NSII', 'NSIII', 'NSIV'];
+            for (let i = 0; i < defaultClasses.length; i++) {
+                await client.query(
+                    'INSERT INTO classes (name, order_index, instance_id) VALUES ($1, $2, $3) ON CONFLICT (name, instance_id) DO NOTHING',
+                    [defaultClasses[i], i + 1, instanceId]
+                );
+            }
+        }
+
         // Seed platform settings
         await client.query(`INSERT INTO platform_settings (key, value) VALUES ('contact_email', '') ON CONFLICT (key) DO NOTHING;`);
         await client.query(`INSERT INTO platform_settings (key, value) VALUES ('contact_phone', '') ON CONFLICT (key) DO NOTHING;`);

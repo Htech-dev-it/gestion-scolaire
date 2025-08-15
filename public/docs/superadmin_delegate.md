@@ -1,74 +1,55 @@
 # Guide pour l'Administrateur Délégué
 
-Bienvenue dans le guide du portail de supervision. Ce document vous explique comment utiliser les fonctionnalités qui vous sont accessibles en tant qu'administrateur délégué pour gérer la plateforme.
+Bienvenue dans le guide du portail de supervision. Ce document vous explique, étape par étape, comment utiliser les fonctionnalités qui vous sont accessibles.
+
+## Rôle et Limitations
+
+Votre rôle de "Super Admin Délégué" vous donne des permissions étendues pour gérer la plateforme, mais avec certaines restrictions pour protéger les opérations critiques.
+
+-   **Vous POUVEZ** : Créer/gérer les écoles, gérer les annonces, assurer le support, effectuer des sauvegardes et changer votre mot de passe.
+-   **Vous NE POUVEZ PAS** : **Supprimer une école**, gérer les autres comptes Super Admin, ou supprimer les journaux d'activité.
 
 ---
 
-## Tableau de Bord et Statistiques
-À votre arrivée, vous voyez des statistiques clés qui vous donnent une vue d'ensemble de l'activité sur votre plateforme :
-- **Instances Totales** : Le nombre total d'écoles créées.
-- **Instances Actives** : Le nombre d'écoles actuellement actives.
-- **Utilisateurs** : Le nombre total de comptes (admins, professeurs, etc.) sur la plateforme.
-- **Élèves Actifs** : Le nombre total d'élèves actifs dans toutes les écoles.
+## `Onglet Instances` : Gérer les Écoles
+
+1.  **Créer une Nouvelle Instance** : Utilisez le formulaire de droite pour créer une nouvelle école. Une fenêtre apparaîtra avec les **identifiants temporaires** à communiquer à l'administrateur de l'école.
+2.  **Gérer une Instance Existante** : Dans la liste, vous pouvez :
+    -   **Modifier** ses informations.
+    -   **Changer son Statut** (Actif/Suspendu).
+    -   **Planifier** une date d'expiration.
+    -   **Réinitialiser le MDP** de ses administrateurs.
+
+> **Attention** : Le bouton "Supprimer" n'apparaîtra pas pour vous. Seul le Super Administrateur principal peut effectuer cette action.
 
 ---
 
-## Onglet Instances
+## `Onglet Annonces` : Communiquer
 
-C'est ici que vous gérez le cycle de vie de chaque établissement scolaire.
-
-### Créer une Nouvelle Instance
-1.  Sur la droite, remplissez le formulaire "Créer une Nouvelle Instance".
-2.  Indiquez le **Nom de l'école**, l'**Email de l'Admin Principal**, et optionnellement l'adresse et le téléphone.
-3.  Cliquez sur **"Créer l'Instance"**.
-4.  Une fenêtre apparaîtra avec le **nom d'utilisateur (`admin`)** et un **mot de passe temporaire**. Vous devez communiquer ces identifiants de manière sécurisée à l'administrateur de la nouvelle école.
-
-### Gérer une Instance Existante
-Pour chaque instance listée, vous disposez de plusieurs outils :
-- **Statut (Actif/Suspendu)** : Le bouton à bascule vous permet d'activer ou de suspendre manuellement l'accès à une école.
-- **Planifier** : Ouvre une fenêtre où vous pouvez définir une date et une heure d'expiration précises. Une fois cette date passée, l'instance sera automatiquement suspendue.
-- **Modifier** : Permet de mettre à jour les informations de contact de l'instance.
-- **Réinitialiser MDP** : Pour chaque administrateur listé, ce bouton vous permet de générer un nouveau mot de passe temporaire en cas d'oubli de leur part.
+1.  **Créez une annonce** en remplissant le formulaire.
+2.  **Ciblez l'annonce** : Rendez-la **globale** (pour tous) ou sélectionnez une école spécifique.
+3.  Gérez les annonces existantes en utilisant les boutons pour activer/désactiver, modifier ou supprimer.
 
 ---
 
-## Onglet Annonces
+## `Onglet Support` : Assurer le Suivi
 
-Cet outil vous permet de communiquer des informations importantes.
-1.  **Créer une Annonce** : Utilisez le formulaire pour rédiger un titre et un contenu.
-2.  **Cibler l'Annonce** :
-    - Laissez le champ "Cibler une instance" sur **"Annonce Globale"** pour que le message soit visible par les administrateurs de **toutes les écoles**.
-    - Sélectionnez une école spécifique dans la liste pour que l'annonce ne soit visible que par les administrateurs de cette école.
-3.  **Gérer les Annonces** : Vous pouvez activer, désactiver, modifier ou supprimer les annonces existantes à tout moment.
+1.  **Définissez les infos de contact** du support.
+2.  **Consultez les messages** : Un badge rouge indique un message non lu.
+3.  **Répondez** : Cliquez sur une instance pour ouvrir la conversation et répondre.
 
 ---
 
-## Onglet Support
+## `Onglet Sauvegarde` : Sécuriser les Données
 
-C'est votre centre de communication intégré pour le support technique.
-- **Informations de Contact** : Définissez ici l'email et le téléphone que les administrateurs d'école verront sur leur page "Contact & Support".
-- **Messages des Instances** :
-  - La liste de toutes les écoles s'affiche.
-  - Un **badge rouge** vous indique le nombre de messages non lus pour chaque école.
-  - Cliquez sur une école pour ouvrir une **fenêtre de discussion**. Vous pouvez y lire l'historique et répondre directement.
+Utilisez les boutons pour télécharger une sauvegarde :
+-   **SQL** (base de données seule).
+-   **Fichiers** (archive `.zip` des fichiers).
+-   **Complète** (base de données + fichiers, recommandé).
 
 ---
 
-## Onglet Sauvegarde
+## Autres Onglets
 
-Cet onglet vous permet de sécuriser les données de toute la plateforme.
-- **Sauvegarde SQL** : Télécharge un fichier `.sql` contenant les données pour **toutes les instances**.
-- **Sauvegarde des Fichiers** : Télécharge une archive `.zip` contenant les fichiers téléversés de **toutes les instances**.
-- **Sauvegarde Complète** : L'option recommandée. Elle combine la base de données et les fichiers dans une seule archive `.zip`.
-
----
-
-## Onglet Journal
-
-Cet onglet vous permet de consulter le journal d'activité de tous les administrateurs de la plateforme. Vous avez un accès en lecture seule à ces informations pour garantir la traçabilité des actions.
-
----
-
-## Onglet Sécurité
-
-Utilisez cet onglet pour changer votre propre mot de passe. Il est recommandé de le faire régulièrement pour maintenir la sécurité de votre compte.
+-   **Journal** : Consultez le journal d'activité en **lecture seule**.
+-   **Sécurité** : Changez votre propre mot de passe.

@@ -1,21 +1,19 @@
-import React, { useState, useEffect, useCallback, ChangeEvent } from 'react';
+import React, { useState, useEffect, useCallback, ChangeEvent, useRef } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
 import ChangePasswordForm from './ChangePasswordForm';
-import { Instance, SchoolYear, Subject, ClassSubject, AcademicPeriod, Teacher, FullTeacherAssignment, Announcement } from '../types';
+import { Instance, SchoolYear, Subject, ClassSubject, AcademicPeriod, Teacher, FullTeacherAssignment, Announcement, ClassDefinition } from '../types';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import ConfirmationModal from './ConfirmationModal';
 import Tooltip from './Tooltip';
-import { CLASSES } from '../constants';
-import TeacherAssignmentModal from './TeacherAssignmentModal';
 import AuditLogViewer from './AuditLogViewer';
 import PromotionManager from './PromotionManager';
 import TimetableManager from './TimetableManager';
-import StudentPortalManager from './StudentPortalManager';
 import ResourceManager from './ResourceManager';
 import PhoneInput from 'react-phone-input-2';
+import RolesManager from './RolesManager'; // Import the new component
 
 const SuspensionWarningBanner: React.FC<{ instance: Instance | null }> = ({ instance }) => {
     const [timeRemaining, setTimeRemaining] = useState('');
@@ -420,12 +418,161 @@ const SubjectManager: React.FC = () => {
     );
 };
 
-const CurriculumManager: React.FC = () => {
+const ClassManager: React.FC = () => {
+    const { classes, refreshYears } = useSchoolYear();
+    const { addNotification } = useNotification();
+    const [classItems, setClassItems] = useState<ClassDefinition[]>([]);
+    const [newClassName, setNewClassName] = useState('');
+    const [editingClass, setEditingClass] = useState<{ id: number; name: string } | null>(null);
+    const [classToDelete, setClassToDelete] = useState<ClassDefinition | null>(null);
+    const dragItem = useRef<number | null>(null);
+    const dragOverItem = useRef<number | null>(null);
+
+    useEffect(() => {
+        setClassItems(classes);
+    }, [classes]);
+
+    const handleAddClass = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newClassName.trim()) return;
+        try {
+            await apiFetch('/classes', { method: 'POST', body: JSON.stringify({ name: newClassName.trim() }) });
+            addNotification({ type: 'success', message: 'Classe ajoutée.' });
+            setNewClassName('');
+            refreshYears();
+        } catch (error) {
+            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+        }
+    };
+
+    const handleUpdateClass = async () => {
+        if (!editingClass || !editingClass.name.trim()) return;
+        try {
+            await apiFetch(`/classes/${editingClass.id}`, { method: 'PUT', body: JSON.stringify({ name: editingClass.name.trim() }) });
+            addNotification({ type: 'success', message: 'Classe mise à jour.' });
+            setEditingClass(null);
+            refreshYears();
+        } catch (error) {
+            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+        }
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!classToDelete) return;
+        try {
+            await apiFetch(`/classes/${classToDelete.id}`, { method: 'DELETE' });
+            addNotification({ type: 'success', message: `Classe '${classToDelete.name}' supprimée.` });
+            setClassToDelete(null);
+            refreshYears();
+        } catch (error) {
+            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+            setClassToDelete(null);
+        }
+    };
+
+    const handleDragStart = (e: React.DragEvent<HTMLLIElement>, index: number) => {
+        dragItem.current = index;
+        e.currentTarget.style.opacity = '0.5';
+    };
+
+    const handleDragEnter = (index: number) => {
+        dragOverItem.current = index;
+    };
+
+    const handleDragEnd = (e: React.DragEvent<HTMLLIElement>) => {
+        e.currentTarget.style.opacity = '1';
+        if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
+            const newClassItems = [...classItems];
+            const draggedItemContent = newClassItems.splice(dragItem.current, 1)[0];
+            newClassItems.splice(dragOverItem.current, 0, draggedItemContent);
+            setClassItems(newClassItems); // Optimistic update for UI feel
+
+            const newOrderedIds = newClassItems.map(c => c.id);
+            apiFetch('/classes/order', { method: 'PUT', body: JSON.stringify({ orderedIds: newOrderedIds }) })
+                .then(() => {
+                    addNotification({ type: 'success', message: 'Ordre des classes mis à jour.' });
+                    refreshYears(); // Re-fetch from server to ensure consistency
+                })
+                .catch(error => {
+                    if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+                    setClassItems(classes); // Revert on error
+                });
+        }
+        dragItem.current = null;
+        dragOverItem.current = null;
+    };
+
+    return (
+        <div>
+            <h2 className="text-xl font-semibold text-slate-700 font-display">Gestion des Classes</h2>
+            <p className="text-sm text-slate-500 mt-1 mb-4">Ajoutez, modifiez, supprimez et réorganisez les classes de votre établissement. L'ordre défini ici sera utilisé dans toute l'application.</p>
+            <div className="my-4 p-4 border rounded-lg">
+                <h3 className="font-semibold mb-2">Ajouter une classe</h3>
+                <form onSubmit={handleAddClass} className="flex gap-2">
+                    <input type="text" value={newClassName} onChange={e => setNewClassName(e.target.value)} placeholder="Ex: NSI" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md" />
+                    <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 whitespace-nowrap">Ajouter</button>
+                </form>
+            </div>
+            <ul className="space-y-2">
+                {classItems.map((c, index) => (
+                    <li
+                        key={c.id}
+                        className="flex justify-between items-center p-3 bg-slate-50 rounded-lg group"
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragEnter={() => handleDragEnter(index)}
+                        onDragEnd={handleDragEnd}
+                        onDragOver={e => e.preventDefault()}
+                    >
+                        <div className="flex items-center gap-3">
+                            <Tooltip text="Glisser-déposer pour réorganiser">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400 cursor-grab" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
+                            </Tooltip>
+                            {editingClass?.id === c.id ? (
+                                <input
+                                    type="text"
+                                    value={editingClass.name}
+                                    onChange={e => setEditingClass({ ...editingClass, name: e.target.value })}
+                                    className="px-2 py-1 border rounded-md"
+                                    autoFocus
+                                    onBlur={handleUpdateClass}
+                                    onKeyDown={e => e.key === 'Enter' && handleUpdateClass()}
+                                />
+                            ) : (
+                                <span className="font-medium">{c.name}</span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {editingClass?.id === c.id ? (
+                                <>
+                                    <button onClick={handleUpdateClass} className="p-2 text-green-500 hover:bg-green-100 rounded-full" title="Sauvegarder"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg></button>
+                                    <button onClick={() => setEditingClass(null)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full" title="Annuler"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg></button>
+                                </>
+                            ) : (
+                                <button onClick={() => setEditingClass({ id: c.id, name: c.name })} className="p-2 text-blue-500 hover:bg-blue-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" title="Modifier"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button>
+                            )}
+                            <button onClick={() => setClassToDelete(c)} className="p-2 text-red-500 hover:bg-red-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" title="Supprimer"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+            {classToDelete && <ConfirmationModal isOpen={!!classToDelete} onClose={() => setClassToDelete(null)} onConfirm={handleConfirmDelete} title="Supprimer la Classe" message={`Confirmez-vous la suppression de '${classToDelete.name}' ? Cette action est irréversible et ne fonctionnera que si aucun élève n'est ou n'a été inscrit dans cette classe.`} />}
+        </div>
+    );
+};
+
+const CurriculumManager: React.FC<{ classes: ClassDefinition[] }> = ({ classes }) => {
     const { addNotification } = useNotification();
     const { selectedYear } = useSchoolYear();
-    const [selectedClass, setSelectedClass] = useState(CLASSES[0]);
+    const [selectedClass, setSelectedClass] = useState('');
     const [curriculum, setCurriculum] = useState<{ assigned: ClassSubject[], available: Subject[] }>({ assigned: [], available: [] });
     const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        if (classes.length > 0 && !selectedClass) {
+            setSelectedClass(classes[0].name);
+        }
+    }, [classes, selectedClass]);
 
     const fetchCurriculum = useCallback(async () => {
         if (!selectedYear || !selectedClass) return;
@@ -486,7 +633,7 @@ const CurriculumManager: React.FC = () => {
                 <label htmlFor="class-selector" className="block text-sm font-medium text-gray-700 mb-1">Sélectionner une classe</label>
                 <select id="class-selector" value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
                     className="mt-1 block w-full px-3 py-2 bg-slate-100 border-2 border-slate-200 rounded-lg text-base text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm">
-                    {CLASSES.map(c => <option key={c} value={c}>{c}</option>)}
+                    {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                 </select>
             </div>
 
@@ -536,451 +683,169 @@ const CurriculumManager: React.FC = () => {
     );
 };
 
-const CredentialsModal: React.FC<{
-    credentials: { username: string; tempPassword: string };
-    onClose: () => void;
-}> = ({ credentials, onClose }) => {
-    const { addNotification } = useNotification();
-    const copyToClipboard = () => {
-        navigator.clipboard.writeText(credentials.tempPassword);
-        addNotification({ type: 'info', message: 'Mot de passe copié !' });
-    };
-
+const ResourceAdminManager: React.FC = () => {
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl">
-                <h2 className="text-lg font-bold mb-4">Identifiants du Professeur</h2>
-                <p className="text-sm text-slate-600 mb-4">Veuillez noter ces informations et les transmettre au professeur. Le mot de passe est temporaire.</p>
-                <div className="space-y-3">
-                    <div>
-                        <label className="text-xs font-semibold text-slate-500">Nom d'utilisateur</label>
-                        <p className="p-2 bg-slate-100 rounded font-mono">{credentials.username}</p>
-                    </div>
-                    <div>
-                        <label className="text-xs font-semibold text-slate-500">Mot de passe temporaire</label>
-                        <div className="flex items-center gap-2">
-                             <p className="flex-grow p-2 bg-slate-100 rounded font-mono">{credentials.tempPassword}</p>
-                             <button onClick={copyToClipboard} className="p-2 text-slate-500 hover:bg-slate-200 rounded">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2-2H9a2 2 0 01-2-2V9z" /><path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V5a2 2 0 00-2-2H4z" /></svg>
-                             </button>
-                        </div>
-                    </div>
-                </div>
-                <div className="mt-6 text-right">
-                    <button onClick={onClose} className="px-4 py-2 bg-blue-600 text-white rounded-md">J'ai noté</button>
-                </div>
-            </div>
+        <div>
+            <h2 className="text-xl font-semibold text-slate-700 font-display">Gestion des Ressources</h2>
+            <p className="text-sm text-slate-500 mt-1 mb-4">Cette fonctionnalité est en cours de développement.</p>
         </div>
     );
 };
 
-
-const TeacherManager: React.FC<{
-    onAssign: (teacher: Teacher) => void;
-}> = ({ onAssign }) => {
+const AdminPage: React.FC = () => {
+    const { user, hasPermission } = useAuth();
     const { addNotification } = useNotification();
-    const [teachers, setTeachers] = useState<Teacher[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [showForm, setShowForm] = useState(false);
-    const [formState, setFormState] = useState({ nom: '', prenom: '', email: '', phone: '' });
-    const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
-    const [credentials, setCredentials] = useState<{ username: string, tempPassword: string } | null>(null);
-
-
-    const fetchTeachers = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            const data = await apiFetch('/teachers');
-            setTeachers(data);
-        } catch (error) {
-            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-        } finally {
-            setIsLoading(false);
-        }
-    }, [addNotification]);
+    const [instanceInfo, setInstanceInfo] = useState<Instance | null>(null);
+    const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+    const [formState, setFormState] = useState<Instance | null>(null);
+    const { classes } = useSchoolYear();
+    
+    type AdminTab = 'general' | 'years' | 'classes' | 'periods' | 'subjects' | 'curriculum' | 'roles' | 'promotions' | 'resources' | 'journal' | 'security';
+    const [activeTab, setActiveTab] = useState<AdminTab>('general');
 
     useEffect(() => {
-        fetchTeachers();
-    }, [fetchTeachers]);
+        const fetchInitialData = async () => {
+            try {
+                const [instanceData, announcementsData] = await Promise.all([
+                    apiFetch('/instance/current'),
+                    apiFetch('/announcements/active')
+                ]);
+                setInstanceInfo(instanceData);
+                setFormState(instanceData);
+                setAnnouncements(announcementsData);
+            } catch (error) {
+                if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+            }
+        };
+        fetchInitialData();
+    }, [addNotification]);
 
-    const resetForm = () => {
-        setFormState({ nom: '', prenom: '', email: '', phone: '' });
-        setShowForm(false);
+    const handleFormChange = (e: ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setFormState(prev => prev ? { ...prev, [name]: value } : null);
     };
 
-    const handleFormSubmit = async (e: React.FormEvent) => {
+    const handlePhotoChange = (e: ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setFormState(prev => prev ? { ...prev, logo_url: reader.result as string } : null);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (!formState) return;
         try {
-            const data = await apiFetch('/teachers', { method: 'POST', body: JSON.stringify(formState) });
-            addNotification({ type: 'success', message: `Le professeur ${data.teacher.prenom} a été ajouté.` });
-            setCredentials({ username: data.username, tempPassword: data.tempPassword });
-            resetForm();
-            await fetchTeachers();
+            await apiFetch('/instance/current', {
+                method: 'PUT',
+                body: JSON.stringify(formState)
+            });
+            addNotification({ type: 'success', message: "Informations de l'école mises à jour." });
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
     };
     
-    const handleResetPassword = async (teacher: Teacher) => {
-        try {
-            const data = await apiFetch(`/teachers/${teacher.id}/reset-password`, { method: 'PUT' });
-            addNotification({ type: 'success', message: `Le mot de passe pour ${teacher.prenom} a été réinitialisé.` });
-            setCredentials({ username: teacher.username, tempPassword: data.tempPassword });
-        } catch (error) {
-            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-        }
-    };
-
-    const handleDeleteConfirm = async () => {
-        if (!teacherToDelete) return;
-        try {
-            await apiFetch(`/teachers/${teacherToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: 'Professeur supprimé.' });
-            setTeacherToDelete(null);
-            await fetchTeachers();
-        } catch (error) {
-            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-        }
-    };
+    const TabButton: React.FC<{ tabId: AdminTab; children: React.ReactNode }> = ({ tabId, children }) => (
+        <button
+          onClick={() => setActiveTab(tabId)}
+          className={`w-full text-left px-4 py-2.5 font-medium text-sm rounded-lg transition-all duration-200 ${activeTab === tabId ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-blue-100 hover:text-blue-700'}`}
+        >
+          {children}
+        </button>
+    );
 
     return (
-        <div>
-            <h2 className="text-xl font-semibold text-slate-700 font-display">Gestion des Professeurs</h2>
+        <div className="p-4 md:p-8 max-w-7xl mx-auto">
+            <header className="mb-8">
+                <h1 className="text-4xl font-bold text-gray-800 font-display">Panneau d'Administration</h1>
+                <p className="text-lg text-slate-500 mt-2">Gérez les paramètres de l'application et les données académiques.</p>
+            </header>
             
-            {showForm ? (
-                <div className="my-4 p-4 border rounded-lg">
-                    <h3 className="font-semibold mb-2">Ajouter un nouveau professeur</h3>
-                    <form onSubmit={handleFormSubmit} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <input type="text" value={formState.prenom} onChange={e => setFormState(s => ({...s, prenom: e.target.value}))} placeholder="Prénom" required className="px-3 py-2 border rounded-md" />
-                            <input type="text" value={formState.nom} onChange={e => setFormState(s => ({...s, nom: e.target.value}))} placeholder="Nom" required className="px-3 py-2 border rounded-md" />
-                            <input type="email" value={formState.email} onChange={e => setFormState(s => ({...s, email: e.target.value}))} placeholder="Email (optionnel)" className="px-3 py-2 border rounded-md" />
-                            <PhoneInput
-                                country={'ht'}
-                                value={formState.phone}
-                                onChange={phone => setFormState(s => ({...s, phone}))}
-                                containerClass="mt-0"
-                                inputProps={{
-                                    name: 'phone',
-                                    placeholder: 'Téléphone (optionnel)'
-                                }}
-                            />
-                        </div>
-                        <div className="flex justify-end gap-2">
-                            <button type="button" onClick={resetForm} className="px-4 py-2 bg-slate-100 rounded-md">Annuler</button>
-                            <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded-md">Enregistrer</button>
-                        </div>
-                    </form>
+            <SuspensionWarningBanner instance={instanceInfo} />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                <div className="bg-white p-4 rounded-xl shadow-md">
+                    <h3 className="text-lg font-semibold text-slate-800 font-display mb-3 px-2">Configuration Académique</h3>
+                    <div className="space-y-1">
+                        <TabButton tabId="years">Années</TabButton>
+                        <TabButton tabId="periods">Périodes</TabButton>
+                        <TabButton tabId="classes">Classes</TabButton>
+                        <TabButton tabId="subjects">Matières</TabButton>
+                        <TabButton tabId="curriculum">Programme</TabButton>
+                    </div>
                 </div>
-            ) : (
-                <div className="my-4"><button onClick={() => setShowForm(true)} className="w-full py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700">Ajouter un Professeur</button></div>
-            )}
 
-            {isLoading ? <p>Chargement...</p> : (
-                <ul className="space-y-2">
-                    {teachers.map(teacher => (
-                        <li key={teacher.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg flex-wrap gap-2">
-                           <div>
-                             <p className="font-medium">{teacher.prenom} {teacher.nom}</p>
-                             <p className="text-sm text-slate-500">{teacher.email || 'Pas d\'email'}</p>
-                           </div>
-                            <div className="flex gap-2 flex-wrap">
-                                <button onClick={() => handleResetPassword(teacher)} className="px-3 py-1 text-xs font-medium text-yellow-800 bg-yellow-200 rounded-full hover:bg-yellow-300">Réinitialiser MDP</button>
-                                <button onClick={() => onAssign(teacher)} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-full hover:bg-indigo-200">Gérer les assignations</button>
-                                <button onClick={() => setTeacherToDelete(teacher)} className="p-2 text-red-500 hover:bg-red-100 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
-                            </div>
-                        </li>
-                    ))}
-                </ul>
-            )}
-            {teacherToDelete && <ConfirmationModal isOpen={!!teacherToDelete} onClose={() => setTeacherToDelete(null)} onConfirm={handleDeleteConfirm} title="Supprimer Professeur" message={`Confirmez-vous la suppression de ${teacherToDelete.prenom} ${teacherToDelete.nom} ? Le compte utilisateur associé sera aussi supprimé.`} />}
-            {credentials && <CredentialsModal credentials={credentials} onClose={() => setCredentials(null)} />}
-        </div>
-    );
-};
+                <div className="bg-white p-4 rounded-xl shadow-md">
+                    <h3 className="text-lg font-semibold text-slate-800 font-display mb-3 px-2">Gestion des Opérations</h3>
+                    <div className="space-y-1">
+                        <TabButton tabId="promotions">Promotions</TabButton>
+                        <TabButton tabId="resources">Ressources</TabButton>
+                    </div>
+                </div>
 
-const ResourceAdminManager: React.FC = () => {
-    const { addNotification } = useNotification();
-    const { selectedYear } = useSchoolYear();
-    const [assignments, setAssignments] = useState<FullTeacherAssignment[]>([]);
-    const [selectedAssignmentId, setSelectedAssignmentId] = useState<string>('');
-
-    useEffect(() => {
-        if (!selectedYear) return;
-        apiFetch(`/full-assignments?yearId=${selectedYear.id}`)
-            .then(data => {
-                setAssignments(data);
-                if (data.length > 0) {
-                    setSelectedAssignmentId(data[0].id.toString());
-                }
-            })
-            .catch(err => addNotification({ type: 'error', message: err.message }));
-    }, [selectedYear, addNotification]);
-
-    return (
-        <div>
-             <h2 className="text-xl font-semibold text-slate-700 font-display">Gestion des Ressources Pédagogiques</h2>
-             <p className="text-sm text-slate-500 mt-1 mb-4">Ajoutez des documents, liens ou vidéos pour n'importe quel cours de l'année scolaire en cours.</p>
-             <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sélectionner un cours</label>
-                <select 
-                    value={selectedAssignmentId} 
-                    onChange={e => setSelectedAssignmentId(e.target.value)} 
-                    className="w-full p-2 border rounded-md bg-slate-50"
-                >
-                    {assignments.map(a => (
-                        <option key={a.id} value={a.id}>
-                            {a.class_name} - {a.subject_name} ({a.teacher_prenom} {a.teacher_nom})
-                        </option>
-                    ))}
-                </select>
-             </div>
-             {selectedAssignmentId && <ResourceManager assignmentId={parseInt(selectedAssignmentId, 10)} />}
-        </div>
-    );
-};
-
-
-const InputField: React.FC<{ label: string; name: keyof Omit<Instance, 'id' | 'status' | 'passing_grade' | 'expires_at' | 'phone'>; value: string | null; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; }> = ({ label, name, value, onChange, type = 'text' }) => (
-    <div>
-      <label htmlFor={name} className="block text-sm font-medium text-slate-700">{label}</label>
-      <input type={type} id={name} name={name} value={value || ''} onChange={onChange} className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm" />
-    </div>
-);
-
-type AdminTab = 'general' | 'student_portal' | 'teachers' | 'resources' | 'timetable' | 'years' | 'periods' | 'subjects' | 'curriculum' | 'promotions' | 'security' | 'audit' | 'support';
-
-const AdminPage: React.FC = () => {
-  const { addNotification } = useNotification();
-  const { selectedYear } = useSchoolYear();
-  const [info, setInfo] = useState<Omit<Instance, 'id' | 'status' | 'expires_at'>>({ name: '', address: '', phone: '', email: '', logo_url: null, passing_grade: null });
-  const [isInfoLoading, setIsInfoLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<AdminTab>('general');
-  const [teacherToAssign, setTeacherToAssign] = useState<Teacher | null>(null);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-
-  const fetchInfo = useCallback(async () => {
-    setIsInfoLoading(true);
-    try {
-      const data = await apiFetch('/instance/current');
-      setInfo(data);
-    } catch (error) {
-      if (error instanceof Error) addNotification({ type: 'error', message: `Impossible de charger les informations: ${error.message}` });
-    } finally {
-      setIsInfoLoading(false);
-    }
-  }, [addNotification]);
-
-  useEffect(() => {
-    const fetchAnnouncements = async () => {
-        try {
-            const data = await apiFetch('/announcements/active');
-            setAnnouncements(data);
-        } catch (error) {
-            console.error("Failed to fetch announcements:", error);
-        }
-    };
-    fetchAnnouncements();
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === 'general') {
-      fetchInfo();
-    }
-  }, [activeTab, fetchInfo]);
-  
-   const handleInfoChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type } = e.target;
-    setInfo(prev => ({ ...prev, [name]: type === 'number' ? (value === '' ? null : Number(value)) : value }));
-  };
-
-  const handleLogoChange = (e: ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files && e.target.files[0]) {
-          const file = e.target.files[0];
-          if (file.size > 2 * 1024 * 1024) { // 2MB limit
-              addNotification({ type: 'error', message: 'Le logo ne doit pas dépasser 2 Mo.' });
-              return;
-          }
-          const reader = new FileReader();
-          reader.onloadend = () => {
-              setInfo(prev => ({ ...prev, logo_url: reader.result as string }));
-          };
-          reader.readAsDataURL(file);
-      }
-  };
-
-  const handleSubmitInfo = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const { message } = await apiFetch('/instance/current', { method: 'PUT', body: JSON.stringify(info) });
-      addNotification({ type: 'success', message: message });
-    } catch (error) {
-      if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-    }
-  };
-  
-  const TabButton: React.FC<{ tabId: AdminTab; children: React.ReactNode }> = ({ tabId, children }) => (
-    <button
-      onClick={() => setActiveTab(tabId)}
-      className={`px-4 py-2 font-medium text-sm rounded-md transition-colors whitespace-nowrap ${activeTab === tabId ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-100'}`}
-    >
-      {children}
-    </button>
-  );
-
-  const AnnouncementsSection: React.FC<{ announcements: Announcement[] }> = ({ announcements }) => {
-    if (announcements.length === 0) {
-      return null;
-    }
-    return (
-        <div className="mb-8 space-y-4">
-            {announcements.map(announcement => (
-                <div key={announcement.id} className="p-4 bg-blue-50 border-l-4 border-blue-500 rounded-r-lg shadow">
-                    <div className="flex">
-                        <div className="flex-shrink-0">
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                            </svg>
-                        </div>
-                        <div className="ml-3">
-                            <p className="text-sm font-bold text-blue-800">{announcement.title}</p>
-                            <p className="mt-1 text-sm text-blue-700">{announcement.content}</p>
-                            <p className="mt-2 text-xs text-blue-600">
-                                Publié le {new Date(announcement.created_at).toLocaleDateString('fr-FR', { year: 'numeric', month: 'long', day: 'numeric' })}
-                            </p>
+                <div className="bg-white p-4 rounded-xl shadow-md">
+                    <h3 className="text-lg font-semibold text-slate-800 font-display mb-3 px-2">Administration & Sécurité</h3>
+                    <div className="space-y-1">
+                        <TabButton tabId="general">Général</TabButton>
+                        <TabButton tabId="journal">Journal</TabButton>
+                        <TabButton tabId="security">Sécurité</TabButton>
+                    </div>
+                    <div className="pt-3 mt-3 border-t">
+                        <h4 className="text-base font-semibold text-slate-700 font-display mb-2 px-2">Gestion des Utilisateurs</h4>
+                        <div className="space-y-1">
+                            {hasPermission('user:manage') &&
+                                <ReactRouterDOM.Link
+                                    to="/admin/users"
+                                    className="w-full text-left block p-3 rounded-lg transition-all duration-200 text-slate-600 hover:bg-slate-100"
+                                >
+                                    <span className="font-medium text-sm">Gérer les utilisateurs</span>
+                                    <span className="block text-xs text-slate-500">Comptes et rôles du personnel</span>
+                                </ReactRouterDOM.Link>
+                            }
+                            {hasPermission('role:manage') && <TabButton tabId="roles">Rôles & Permissions</TabButton> }
                         </div>
                     </div>
                 </div>
-            ))}
+            </div>
+
+            <main>
+                {activeTab === 'general' && formState && (
+                    <div className="bg-white p-6 rounded-xl shadow-md">
+                        <h2 className="text-xl font-semibold text-slate-700 font-display mb-4">Informations sur l'établissement</h2>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <input name="name" value={formState.name} onChange={handleFormChange} placeholder="Nom de l'école" className="w-full p-2 border rounded" />
+                            <input name="address" value={formState.address || ''} onChange={handleFormChange} placeholder="Adresse" className="w-full p-2 border rounded" />
+                            <PhoneInput country={'ht'} value={formState.phone || ''} onChange={phone => setFormState(s => s ? {...s, phone} : null)} />
+                            <input type="email" name="email" value={formState.email || ''} onChange={handleFormChange} placeholder="Email" className="w-full p-2 border rounded" />
+                            <input type="number" name="passing_grade" value={formState.passing_grade || ''} onChange={handleFormChange} placeholder="Moyenne de passage (ex: 60)" className="w-full p-2 border rounded" />
+                            <div className="flex items-center gap-4">{formState.logo_url && <img src={formState.logo_url} alt="Logo" className="h-16 w-16 object-contain rounded-full" />}<input type="file" accept="image/*" onChange={handlePhotoChange} /></div>
+                            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">Sauvegarder les informations</button>
+                        </form>
+                    </div>
+                )}
+                {activeTab === 'years' && <div className="bg-white p-6 rounded-xl shadow-md"><SchoolYearManager /></div>}
+                {activeTab === 'classes' && <div className="bg-white p-6 rounded-xl shadow-md"><ClassManager /></div>}
+                {activeTab === 'periods' && <div className="bg-white p-6 rounded-xl shadow-md"><PeriodManager /></div>}
+                {activeTab === 'subjects' && <div className="bg-white p-6 rounded-xl shadow-md"><SubjectManager /></div>}
+                {activeTab === 'curriculum' && <div className="bg-white p-6 rounded-xl shadow-md"><CurriculumManager classes={classes} /></div>}
+                {activeTab === 'roles' && hasPermission('role:manage') && <div className="bg-white p-6 rounded-xl shadow-md"><RolesManager /></div>}
+                {activeTab === 'promotions' && <div className="bg-white p-6 rounded-xl shadow-md"><PromotionManager /></div>}
+                {activeTab === 'resources' && <div className="bg-white p-6 rounded-xl shadow-md"><ResourceAdminManager /></div>}
+                {activeTab === 'journal' && <div className="bg-white p-6 rounded-xl shadow-md"><AuditLogViewer scope="admin" /></div>}
+                {activeTab === 'security' && (
+                    <div className="bg-white p-6 rounded-xl shadow-md">
+                        <h2 className="text-xl font-semibold text-slate-700 font-display mb-4">Changer mon mot de passe</h2>
+                        <ChangePasswordForm />
+                    </div>
+                )}
+            </main>
         </div>
     );
-  };
-  
-
-  return (
-    <div className="p-4 md:p-8 max-w-7xl mx-auto">
-      <header className="mb-8 flex justify-between items-start">
-          <div>
-            <ReactRouterDOM.Link to="/dashboard" className="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors mb-4 group font-medium no-print">
-               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" /></svg>
-              Retour à l'accueil
-            </ReactRouterDOM.Link>
-            <h1 className="text-4xl font-bold text-gray-800 font-display">Tableau de Bord Admin</h1>
-          </div>
-      </header>
-      
-      <SuspensionWarningBanner instance={info as Instance} />
-      <AnnouncementsSection announcements={announcements} />
-      
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-          <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-lg">
-              <div className="border-b border-slate-200 mb-6">
-                  <div className="flex items-center flex-wrap gap-2 p-1 bg-slate-50 rounded-lg">
-                      <TabButton tabId="general">Général</TabButton>
-                      <TabButton tabId="student_portal">Portail Élève</TabButton>
-                      <TabButton tabId="teachers">Professeurs</TabButton>
-                      <TabButton tabId="resources">Ressources</TabButton>
-                      <TabButton tabId="timetable">Emploi du temps</TabButton>
-                      <TabButton tabId="years">Années</TabButton>
-                      <TabButton tabId="periods">Périodes</TabButton>
-                      <TabButton tabId="subjects">Matières</TabButton>
-                      <TabButton tabId="curriculum">Programme</TabButton>
-                      <TabButton tabId="promotions">Promotions</TabButton>
-                      <TabButton tabId="security">Sécurité</TabButton>
-                      <TabButton tabId="audit">Journal</TabButton>
-                  </div>
-              </div>
-
-              {activeTab === 'general' && (
-                isInfoLoading ? <p>Chargement des informations...</p> : 
-                <form onSubmit={handleSubmitInfo} className="space-y-6">
-                  <h2 className="text-xl font-semibold text-slate-700 font-display">Informations de l'Établissement</h2>
-                   <InputField label="Nom de l'établissement" name="name" value={info.name} onChange={handleInfoChange} />
-                   <InputField label="Adresse" name="address" value={info.address} onChange={handleInfoChange} />
-                   <div>
-                        <label htmlFor="phone" className="block text-sm font-medium text-slate-700">Téléphone</label>
-                        <PhoneInput
-                            country={'ht'}
-                            value={info.phone || ''}
-                            onChange={(phone) => setInfo(prev => ({ ...prev, phone }))}
-                            containerClass="mt-1"
-                            inputProps={{
-                                id: 'phone',
-                                name: 'phone',
-                            }}
-                        />
-                    </div>
-                   <InputField label="Email" name="email" value={info.email} onChange={handleInfoChange} type="email" />
-                   
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700">Moyenne Générale de Passage (%)</label>
-                        <input
-                            type="number"
-                            name="passing_grade"
-                            value={info.passing_grade || ''}
-                            onChange={handleInfoChange}
-                            className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm"
-                            placeholder="Ex: 60"
-                        />
-                        <p className="text-xs text-slate-500 mt-1">La moyenne minimale pour être admis en classe supérieure.</p>
-                    </div>
-
-                   <div>
-                        <label htmlFor="logo_url" className="block text-sm font-medium text-slate-700">Logo de l'école</label>
-                        <div className="mt-2 flex items-center gap-4">
-                           {info.logo_url && <img src={info.logo_url} alt="Logo" className="h-16 w-16 rounded-lg object-contain bg-slate-100 p-1"/>}
-                           <input type="file" id="logo_url" accept="image/png, image/jpeg, image/svg+xml" onChange={handleLogoChange}
-                            className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
-                        </div>
-                   </div>
-
-                  <div className="flex justify-end pt-2 border-t">
-                    <button type="submit" className="px-6 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700">Sauvegarder</button>
-                  </div>
-                </form>
-              )}
-              {activeTab === 'student_portal' && <StudentPortalManager />}
-              {activeTab === 'teachers' && <TeacherManager onAssign={setTeacherToAssign} />}
-              {activeTab === 'resources' && <ResourceAdminManager />}
-              {activeTab === 'timetable' && <TimetableManager />}
-              {activeTab === 'years' && <SchoolYearManager />}
-              {activeTab === 'periods' && <PeriodManager />}
-              {activeTab === 'subjects' && <SubjectManager />}
-              {activeTab === 'curriculum' && <CurriculumManager />}
-              {activeTab === 'promotions' && <PromotionManager />}
-              {activeTab === 'security' && ( <div><h2 className="text-xl font-semibold mb-4">Sécurité du Compte</h2><ChangePasswordForm /></div> )}
-              {activeTab === 'audit' && <AuditLogViewer scope="admin" />}
-          </div>
-
-          <div className="lg:col-span-1 space-y-6">
-              <div className="bg-white p-6 rounded-xl shadow-lg">
-                  <h2 className="text-xl font-semibold text-slate-700 border-b pb-3 mb-4 font-display">Gestion des Utilisateurs</h2>
-                  <div className="space-y-3">
-                        <ReactRouterDOM.Link to="/admin/users" className="group flex items-center w-full p-4 text-left bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
-                           <div className="ml-4">
-                             <p className="font-semibold text-slate-800">Gérer les utilisateurs</p>
-                             <p className="text-sm text-slate-500">Afficher et supprimer</p>
-                           </div>
-                        </ReactRouterDOM.Link>
-                        <ReactRouterDOM.Link to="/admin/add-user" className="group flex items-center w-full p-4 text-left bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors">
-                           <div className="ml-4">
-                             <p className="font-semibold text-slate-800">Ajouter un utilisateur</p>
-                             <p className="text-sm text-slate-500">Créer un nouveau compte</p>
-                           </div>
-                        </ReactRouterDOM.Link>
-                  </div>
-              </div>
-          </div>
-      </div>
-       {teacherToAssign && selectedYear && (
-          <TeacherAssignmentModal 
-              isOpen={!!teacherToAssign}
-              onClose={() => setTeacherToAssign(null)}
-              teacher={teacherToAssign}
-              year={selectedYear}
-          />
-       )}
-    </div>
-  );
 };
+
 export default AdminPage;
