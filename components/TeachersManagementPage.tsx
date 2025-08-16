@@ -55,6 +55,7 @@ const TeacherManager: React.FC<{
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
+    const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
     const [formState, setFormState] = useState({ nom: '', prenom: '', email: '', phone: '', nif: '' });
     const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
     const [credentials, setCredentials] = useState<{ username: string, tempPassword: string } | null>(null);
@@ -79,14 +80,33 @@ const TeacherManager: React.FC<{
     const resetForm = () => {
         setFormState({ nom: '', prenom: '', email: '', phone: '', nif: '' });
         setShowForm(false);
+        setEditingTeacher(null);
+    };
+
+    const handleEditRequest = (teacher: Teacher) => {
+        setEditingTeacher(teacher);
+        setFormState({
+            prenom: teacher.prenom,
+            nom: teacher.nom,
+            email: teacher.email || '',
+            phone: teacher.phone || '',
+            nif: teacher.nif || ''
+        });
+        setShowForm(true);
     };
 
     const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        const isEditing = !!editingTeacher;
+        const url = isEditing ? `/teachers/${editingTeacher!.id}` : '/teachers';
+        const method = isEditing ? 'PUT' : 'POST';
+
         try {
-            const data = await apiFetch('/teachers', { method: 'POST', body: JSON.stringify(formState) });
-            addNotification({ type: 'success', message: `Le professeur ${data.teacher.prenom} a été ajouté.` });
-            setCredentials({ username: data.username, tempPassword: data.tempPassword });
+            const data = await apiFetch(url, { method, body: JSON.stringify(formState) });
+            addNotification({ type: 'success', message: `Le professeur ${formState.prenom} a été ${isEditing ? 'mis à jour' : 'ajouté'}.` });
+            if (!isEditing && data.username && data.tempPassword) {
+                setCredentials({ username: data.username, tempPassword: data.tempPassword });
+            }
             resetForm();
             await fetchTeachers();
         } catch (error) {
@@ -120,7 +140,7 @@ const TeacherManager: React.FC<{
         <div>
             {showForm ? (
                 <div className="my-4 p-4 border rounded-lg bg-slate-50">
-                    <h3 className="font-semibold mb-2">Ajouter un nouveau professeur</h3>
+                    <h3 className="font-semibold mb-2">{editingTeacher ? `Modifier le profil de ${editingTeacher.prenom} ${editingTeacher.nom}` : 'Ajouter un nouveau professeur'}</h3>
                     <form onSubmit={handleFormSubmit} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <input type="text" value={formState.prenom} onChange={e => setFormState(s => ({...s, prenom: e.target.value}))} placeholder="Prénom" required className="px-3 py-2 border rounded-md" />
@@ -159,7 +179,7 @@ const TeacherManager: React.FC<{
                         </div>
                         <div className="flex justify-end gap-2">
                             <button type="button" onClick={resetForm} className="px-4 py-2 bg-slate-100 rounded-md">Annuler</button>
-                            <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded-md">Enregistrer</button>
+                            <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded-md">{editingTeacher ? 'Mettre à jour' : 'Enregistrer'}</button>
                         </div>
                     </form>
                 </div>
@@ -175,7 +195,8 @@ const TeacherManager: React.FC<{
                              <p className="font-medium">{teacher.prenom} {teacher.nom}</p>
                              <p className="text-sm text-slate-500">{teacher.email || 'Pas d\'email'}</p>
                            </div>
-                            <div className="flex gap-2 flex-wrap">
+                            <div className="flex gap-2 flex-wrap items-center">
+                                <button onClick={() => handleEditRequest(teacher)} className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-full hover:bg-blue-200">Modifier</button>
                                 <button onClick={() => handleResetPassword(teacher)} className="px-3 py-1 text-xs font-medium text-yellow-800 bg-yellow-200 rounded-full hover:bg-yellow-300">Réinitialiser MDP</button>
                                 <button onClick={() => onAssign(teacher)} className="px-3 py-1 text-xs font-medium text-indigo-700 bg-indigo-100 rounded-full hover:bg-indigo-200">Gérer les assignations</button>
                                 <button onClick={() => setTeacherToDelete(teacher)} className="p-2 text-red-500 hover:bg-red-100 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>

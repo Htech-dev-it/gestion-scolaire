@@ -1053,6 +1053,42 @@ async function startServer() {
             }
         }));
 
+        app.put('/api/teachers/:id', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
+            const { id } = req.params;
+            const { nom, prenom, email, phone, nif } = req.body;
+            const instanceId = req.user.instance_id;
+        
+            if (!nom || !prenom || !email || !phone || !nif) {
+                return res.status(400).json({ message: 'Tous les champs sont obligatoires.' });
+            }
+        
+            const { rows: existingTeacherRows } = await req.db.query('SELECT * FROM teachers WHERE id = $1 AND instance_id = $2', [id, instanceId]);
+            if (existingTeacherRows.length === 0) {
+                return res.status(404).json({ message: 'Professeur non trouvé.' });
+            }
+            const existingTeacher = existingTeacherRows[0];
+        
+            if (email.toLowerCase() !== existingTeacher.email.toLowerCase()) {
+                const { rows: emailConflictRows } = await req.db.query('SELECT id FROM teachers WHERE email = $1 AND instance_id = $2 AND id != $3', [email, instanceId, id]);
+                if (emailConflictRows.length > 0) {
+                    return res.status(409).json({ message: `L'email '${email}' est déjà utilisé par un autre professeur.` });
+                }
+            }
+        
+            const { rows: updatedTeacherRows } = await req.db.query(
+                'UPDATE teachers SET nom = $1, prenom = $2, email = $3, phone = $4, nif = $5 WHERE id = $6 RETURNING *',
+                [formatLastName(nom), formatName(prenom), email, phone, nif, id]
+            );
+            const updatedTeacher = updatedTeacherRows[0];
+            
+            const { rows: userRows } = await req.db.query('SELECT username FROM users WHERE id = $1', [updatedTeacher.user_id]);
+            updatedTeacher.username = userRows[0]?.username || '';
+        
+            await logActivity(req, 'TEACHER_UPDATED', id, `${updatedTeacher.prenom} ${updatedTeacher.nom}`, `Profil de l'enseignant ${updatedTeacher.prenom} ${updatedTeacher.nom} (ID: ${id}) mis à jour.`);
+        
+            res.json(updatedTeacher);
+        }));
+
         app.put('/api/teachers/:id/reset-password', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { rows } = await req.db.query('SELECT * FROM teachers WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
