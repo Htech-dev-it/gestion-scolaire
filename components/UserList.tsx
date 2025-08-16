@@ -46,10 +46,11 @@ const CredentialsModal: React.FC<{
 
 const PRINCIPAL_ADMIN_ROLE = 'Administrateur Principal';
 const DIRECTOR_ROLE = 'Directeur des Opérations';
+const SECRETARY_ROLE = 'Secrétaire Pédagogique';
+
 const INFERIOR_ROLES = new Set([
     'Comptable / Gestionnaire des Paiements',
     'Responsable des Bulletins',
-    'Secrétaire Pédagogique',
     'Responsable Vie Scolaire',
     'Gestionnaire des Professeurs',
     'Gestionnaire d\'Emploi du Temps',
@@ -82,29 +83,44 @@ const ManageRolesModal: React.FC<{
         const directorRole = roles.find(r => r.name === DIRECTOR_ROLE);
         return directorRole ? selectedRoleIds.has(directorRole.id) : false;
     }, [roles, selectedRoleIds]);
+    
+    const isSecretarySelected = useMemo(() => {
+        const secretaryRole = roles.find(r => r.name === SECRETARY_ROLE);
+        return secretaryRole ? selectedRoleIds.has(secretaryRole.id) : false;
+    }, [roles, selectedRoleIds]);
 
     const handleToggleRole = (roleId: number) => {
         const clickedRole = roles.find(r => r.id === roleId)!;
-
+        
         setSelectedRoleIds(prev => {
             const newSet = new Set(prev);
             const isAdding = !newSet.has(roleId);
 
-            if (isAdding) newSet.add(roleId);
-            else newSet.delete(roleId);
-
-            // Cleanup rules if ADDING a higher role
             if (isAdding) {
+                newSet.add(roleId);
+
                 if (clickedRole.name === PRINCIPAL_ADMIN_ROLE) {
                     return new Set([roleId]);
                 }
+                
+                const directorRole = roles.find(r => r.name === DIRECTOR_ROLE);
+                const secretaryRole = roles.find(r => r.name === SECRETARY_ROLE);
+
                 if (clickedRole.name === DIRECTOR_ROLE) {
-                    roles.forEach(r => {
-                        if (INFERIOR_ROLES.has(r.name)) {
-                            newSet.delete(r.id);
-                        }
-                    });
+                    if (secretaryRole) newSet.delete(secretaryRole.id);
+                    roles.forEach(r => { if (INFERIOR_ROLES.has(r.name)) newSet.delete(r.id); });
+                } else if (clickedRole.name === SECRETARY_ROLE) {
+                    if (directorRole) newSet.delete(directorRole.id);
+                    roles.forEach(r => { if (INFERIOR_ROLES.has(r.name)) newSet.delete(r.id); });
                 }
+                
+                if (INFERIOR_ROLES.has(clickedRole.name)) {
+                    if (directorRole) newSet.delete(directorRole.id);
+                    if (secretaryRole) newSet.delete(secretaryRole.id);
+                }
+
+            } else {
+                newSet.delete(roleId);
             }
             
             return newSet;
@@ -124,6 +140,8 @@ const ManageRolesModal: React.FC<{
                 <div className="space-y-2">
                     {roles.map(role => {
                         const isThisPrincipalAdminRole = role.name === PRINCIPAL_ADMIN_ROLE;
+                        const isThisDirectorRole = role.name === DIRECTOR_ROLE;
+                        const isThisSecretaryRole = role.name === SECRETARY_ROLE;
                         const isThisInferiorRole = INFERIOR_ROLES.has(role.name);
                         
                         let isDisabled = false;
@@ -135,9 +153,15 @@ const ManageRolesModal: React.FC<{
                         } else if (isPrincipalAdminSelected && !isThisPrincipalAdminRole) {
                             isDisabled = true;
                             disabledReason = 'Le rôle Administrateur Principal inclut déjà cette permission.';
-                        } else if (isDirectorSelected && isThisInferiorRole) {
+                        } else if (isDirectorSelected && isThisSecretaryRole) {
                             isDisabled = true;
-                            disabledReason = 'Le rôle Directeur des Opérations inclut déjà cette permission.';
+                            disabledReason = 'Les rôles de Directeur et Secrétaire sont mutuellement exclusifs.';
+                        } else if (isSecretarySelected && isThisDirectorRole) {
+                            isDisabled = true;
+                            disabledReason = 'Les rôles de Directeur et Secrétaire sont mutuellement exclusifs.';
+                        } else if ((isDirectorSelected || isSecretarySelected) && isThisInferiorRole) {
+                            isDisabled = true;
+                            disabledReason = 'Un rôle supérieur inclut déjà cette permission.';
                         }
 
                         return (
@@ -161,6 +185,7 @@ const ManageRolesModal: React.FC<{
                  <div className="mt-4 pt-4 border-t text-xs text-slate-500 space-y-1">
                     {isPrincipalAdminSelected && <p className="p-2 bg-blue-50 text-blue-700 rounded-md">Le rôle "Administrateur Principal" a accès à toutes les fonctionnalités de l'instance.</p>}
                     {isDirectorSelected && <p className="p-2 bg-yellow-50 text-yellow-700 rounded-md">Le rôle "Directeur des Opérations" inclut la gestion des élèves, finances, et bulletins.</p>}
+                    {isSecretarySelected && <p className="p-2 bg-yellow-50 text-yellow-700 rounded-md">Le rôle "Secrétaire Pédagogique" inclut la gestion des élèves, finances, et bulletins.</p>}
                 </div>
                 <div className="flex justify-end space-x-3 pt-4 mt-2">
                     <button onClick={onClose} className="px-4 py-2 bg-slate-100 rounded-md">Annuler</button>

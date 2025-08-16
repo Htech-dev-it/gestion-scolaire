@@ -26,8 +26,8 @@ const GradeRow: React.FC<{
     return isEditing ? (
         <tr className="bg-blue-50">
             <td className="p-2"><input type="text" value={form.evaluation_name} onChange={e => setForm({...form, evaluation_name: e.target.value})} className="w-full p-1 border rounded" /></td>
-            <td className="p-2"><input type="number" value={form.score} onChange={e => setForm({...form, score: Number(e.target.value)})} className="w-16 p-1 border rounded" /></td>
-            <td className="p-2"><input type="number" value={form.max_score} onChange={e => setForm({...form, max_score: Number(e.target.value)})} className="w-16 p-1 border rounded" /></td>
+            <td className="p-2"><input type="number" value={form.score || ''} onChange={e => setForm({...form, score: Number(e.target.value)})} className="w-16 p-1 border rounded" /></td>
+            <td className="p-2"><input type="number" value={form.max_score || ''} onChange={e => setForm({...form, max_score: Number(e.target.value)})} className="w-16 p-1 border rounded" /></td>
             <td className="p-2 text-center">{(form.max_score > 0 ? (form.score / form.max_score * 100) : 0).toFixed(1)}%</td>
             <td className="p-2 text-right space-x-2">
                 <button onClick={handleUpdate} className="text-green-600 hover:text-green-800">Sauver</button>
@@ -82,8 +82,8 @@ const AddGradeForm: React.FC<{
     return (
         <form onSubmit={handleSubmit} className="mt-4 p-3 bg-slate-100 rounded-md grid grid-cols-5 gap-3 items-end">
             <div className="col-span-2"><label className="text-xs font-medium text-slate-600">Nom de l'évaluation</label><input type="text" value={form.evaluation_name} onChange={e => setForm({...form, evaluation_name: e.target.value})} placeholder="Ex: Devoir 1" className="w-full p-2 border rounded-md text-sm" /></div>
-            <div><label className="text-xs font-medium text-slate-600">Note</label><input type="number" value={form.score} onChange={e => setForm({...form, score: Number(e.target.value)})} className="w-full p-2 border rounded-md text-sm" /></div>
-            <div><label className="text-xs font-medium text-slate-600">Sur</label><input type="number" value={form.max_score} onChange={e => setForm({...form, max_score: Number(e.target.value)})} className="w-full p-2 border rounded-md text-sm" /></div>
+            <div><label className="text-xs font-medium text-slate-600">Note</label><input type="number" value={form.score || ''} onChange={e => setForm({...form, score: Number(e.target.value)})} className="w-full p-2 border rounded-md text-sm" /></div>
+            <div><label className="text-xs font-medium text-slate-600">Sur</label><input type="number" value={form.max_score || ''} onChange={e => setForm({...form, max_score: Number(e.target.value)})} className="w-full p-2 border rounded-md text-sm" /></div>
             <button type="submit" disabled={isSubmitting} className="col-span-1 bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 disabled:bg-slate-400">{isSubmitting ? '...' : 'Ajouter'}</button>
         </form>
     );

@@ -13,22 +13,22 @@ const ROLE_TEMPLATES = [
     {
         name: 'Directeur des Opérations',
         description: 'Peut tout gérer (élèves, paiements, bulletins) mais n\'a pas accès à l\'onglet Administration. Idéal pour un directeur pédagogique.',
-        permissionKeys: ['student:read', 'student:create', 'student:update', 'student:delete', 'student:archive', 'enrollment:create', 'enrollment:update_class', 'enrollment:update_payment', 'report:financial', 'report:attendance', 'report_card:generate', 'grade:read', 'grade:create', 'appreciation:create', 'student_portal:manage_access', 'student_portal:manage_accounts']
+        permissionKeys: ['student:read', 'student:create', 'student:update', 'student:delete', 'student:archive', 'enrollment:create', 'enrollment:update_class', 'enrollment:update_payment', 'report:financial', 'report:attendance', 'report_card:generate', 'grade:read', 'grade:create', 'appreciation:create', 'student_portal:manage_access', 'student_portal:manage_accounts', 'settings:manage_teachers']
+    },
+    {
+        name: 'Secrétaire Pédagogique',
+        description: 'Rôle puissant pour la gestion quotidienne. Accès identique au Directeur des Opérations, sans accès à l\'onglet Administration.',
+        permissionKeys: ['student:read', 'student:create', 'student:update', 'student:delete', 'student:archive', 'enrollment:create', 'enrollment:update_class', 'enrollment:update_payment', 'report:financial', 'report:attendance', 'report_card:generate', 'grade:read', 'grade:create', 'appreciation:create', 'student_portal:manage_access', 'student_portal:manage_accounts', 'settings:manage_teachers']
     },
     {
         name: 'Comptable / Gestionnaire des Paiements',
-        description: 'Peut consulter la liste des élèves, gérer les fiches de paiement et consulter les rapports financiers. N\'a pas accès à la gestion des notes.',
-        permissionKeys: ['student:read', 'enrollment:update_payment', 'report:financial']
+        description: 'Peut gérer les fiches de paiement, consulter les rapports financiers, et restreindre l\'accès des élèves aux notes en cas de non-paiement.',
+        permissionKeys: ['student:read', 'enrollment:update_payment', 'report:financial', 'student_portal:manage_access']
     },
     {
         name: 'Responsable des Bulletins',
         description: 'Peut consulter les élèves, gérer toutes les notes, les appréciations et générer les bulletins. Contrôle aussi l\'accès des élèves à leurs notes.',
         permissionKeys: ['student:read', 'grade:read', 'grade:create', 'appreciation:create', 'report_card:generate', 'student_portal:manage_access']
-    },
-    {
-        name: 'Secrétaire Pédagogique',
-        description: 'Rôle puissant pour la gestion quotidienne. Peut créer, modifier, inscrire et changer la classe des élèves. Gère aussi l\'emploi du temps.',
-        permissionKeys: ['student:read', 'student:create', 'student:update', 'student:archive', 'enrollment:create', 'enrollment:update_class', 'grade:read', 'report:attendance', 'settings:manage_timetable']
     },
     {
         name: 'Responsable Vie Scolaire',

@@ -10,8 +10,7 @@ import ConfirmationModal from './ConfirmationModal';
 import Tooltip from './Tooltip';
 import AuditLogViewer from './AuditLogViewer';
 import PromotionManager from './PromotionManager';
-import TimetableManager from './TimetableManager';
-import ResourceManager from './ResourceManager';
+import AdminResourceManager from './AdminResourceManager';
 import PhoneInput from 'react-phone-input-2';
 import RolesManager from './RolesManager'; // Import the new component
 
@@ -683,15 +682,6 @@ const CurriculumManager: React.FC<{ classes: ClassDefinition[] }> = ({ classes }
     );
 };
 
-const ResourceAdminManager: React.FC = () => {
-    return (
-        <div>
-            <h2 className="text-xl font-semibold text-slate-700 font-display">Gestion des Ressources</h2>
-            <p className="text-sm text-slate-500 mt-1 mb-4">Cette fonctionnalité est en cours de développement.</p>
-        </div>
-    );
-};
-
 const AdminPage: React.FC = () => {
     const { user, hasPermission } = useAuth();
     const { addNotification } = useNotification();
@@ -835,7 +825,7 @@ const AdminPage: React.FC = () => {
                 {activeTab === 'curriculum' && <div className="bg-white p-6 rounded-xl shadow-md"><CurriculumManager classes={classes} /></div>}
                 {activeTab === 'roles' && hasPermission('role:manage') && <div className="bg-white p-6 rounded-xl shadow-md"><RolesManager /></div>}
                 {activeTab === 'promotions' && <div className="bg-white p-6 rounded-xl shadow-md"><PromotionManager /></div>}
-                {activeTab === 'resources' && <div className="bg-white p-6 rounded-xl shadow-md"><ResourceAdminManager /></div>}
+                {activeTab === 'resources' && <div className="bg-white p-6 rounded-xl shadow-md"><AdminResourceManager /></div>}
                 {activeTab === 'journal' && <div className="bg-white p-6 rounded-xl shadow-md"><AuditLogViewer scope="admin" /></div>}
                 {activeTab === 'security' && (
                     <div className="bg-white p-6 rounded-xl shadow-md">

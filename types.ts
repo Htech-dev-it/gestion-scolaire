@@ -114,7 +114,9 @@ export interface StudentFormState {
   tutor_name: string | null;
   tutor_phone: string | null;
   tutor_email: string | null;
-  medical_notes: string | null;
+  blood_group: string | null;
+  allergies: string | null;
+  illnesses: string | null;
   classe_ref?: string | null;
   
   enrollNow: boolean;
@@ -131,6 +133,7 @@ export interface Teacher {
   prenom: string;
   email: string | null;
   phone: string | null;
+  nif?: string | null;
   user_id: number;
   username: string;
   instance_id: number;
@@ -327,8 +330,13 @@ export interface Resource {
     mime_type?: string | null;
     file_content?: string | null; // Base64 content for viewing/downloading
     created_at: string;
-    subject_id?: number; // From join for student view
-    subject_name?: string; // From join for student view
+    
+    // Joined fields for different views
+    subject_id?: number;
+    subject_name?: string;
+    class_name?: string;
+    teacher_prenom?: string;
+    teacher_nom?: string;
 }
 
 // --- SUPER ADMIN & ANNOUNCEMENT TYPES ---

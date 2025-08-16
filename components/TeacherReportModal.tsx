@@ -26,8 +26,8 @@ const GradeRow: React.FC<{
     return isEditing ? (
         <tr className="bg-blue-50">
             <td className="p-2"><input type="text" value={form.evaluation_name} onChange={e => setForm({...form, evaluation_name: e.target.value})} className="w-full p-1 border rounded" /></td>
-            <td className="p-2"><input type="number" value={form.score} onChange={e => setForm({...form, score: Number(e.target.value)})} className="w-16 p-1 border rounded" /></td>
-            <td className="p-2"><input type="number" value={form.max_score} onChange={e => setForm({...form, max_score: Number(e.target.value)})} className="w-16 p-1 border rounded" /></td>
+            <td className="p-2"><input type="number" value={form.score || ''} onChange={e => setForm({...form, score: Number(e.target.value)})} className="w-16 p-1 border rounded" /></td>
+            <td className="p-2"><input type="number" value={form.max_score || ''} onChange={e => setForm({...form, max_score: Number(e.target.value)})} className="w-16 p-1 border rounded" /></td>
             <td className="p-2 text-right">
                 <button onClick={handleUpdate} className="text-green-600 hover:text-green-800 text-xs font-semibold">Sauver</button>
                 <button onClick={() => setIsEditing(false)} className="text-slate-500 hover:text-slate-700 text-xs ml-2">Annuler</button>
@@ -287,19 +287,19 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
          <div>
             <div className="text-center mb-4 border-b-2 border-gray-800 pb-2">
                 {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="Logo" className="h-16 mx-auto mb-2" />}
-                <h1 className="text-xl font-bold font-display">{schoolInfo?.name}</h1>
-                <p className="text-xs text-slate-600">{schoolInfo?.address}</p>
-                <p className="text-xs text-slate-600">{schoolInfo?.phone} | {schoolInfo?.email}</p>
+                <h1 className="text-xl font-bold font-display">${schoolInfo?.name}</h1>
+                <p className="text-xs text-slate-600">${schoolInfo?.address}</p>
+                <p className="text-xs text-slate-600">${schoolInfo?.phone} | ${schoolInfo?.email}</p>
             </div>
             <h2 className="text-center text-lg font-semibold my-2 font-display uppercase">{`RAPPORT DE NOTES : ${subjectName} - ${selectedPeriod?.name}`}</h2>
             <div className="grid grid-cols-2 gap-x-4 text-sm bg-gray-50 p-3 rounded-lg border my-2">
-                <p><strong>Élève:</strong> {currentEnrollment.student?.prenom} {currentEnrollment.student?.nom}</p>
-                <p><strong>Classe:</strong> {currentEnrollment.className}</p>
-                <p><strong>Année Scolaire:</strong> {year.name}</p>
+                <p><strong>Élève:</strong> ${currentEnrollment.student?.prenom} ${currentEnrollment.student?.nom}</p>
+                <p><strong>Classe:</strong> ${currentEnrollment.className}</p>
+                <p><strong>Année Scolaire:</strong> ${year.name}</p>
             </div>
             <table className="w-full text-sm my-4">
                 <thead className="border-b-2 border-slate-300"><tr><th className="p-1 text-left font-semibold">Évaluation</th><th className="p-1 w-20 text-center font-semibold">Note</th><th className="p-1 w-20 text-center font-semibold">Sur</th></tr></thead>
-                <tbody>{currentGrades.map(g => (<tr key={g.id} className="border-b border-slate-100"><td className="p-1">{g.evaluation_name}</td><td className="p-1 text-center font-mono">{g.score}</td><td className="p-1 text-center font-mono">{g.max_score}</td></tr>))}</tbody>
+                <tbody>{currentGrades.map(g => (<tr key={g.id} className="border-b border-slate-100"><td className="p-1">${g.evaluation_name}</td><td className="p-1 text-center font-mono">${g.score}</td><td className="p-1 text-center font-mono">${g.max_score}</td></tr>))}</tbody>
             </table>
             <div className="text-right font-bold text-lg mt-4">{`Note Finale: ${totalScore.toFixed(2)} / ${totalMaxScore.toFixed(2)} (${average.toFixed(2)}%)`}</div>
             <div className="mt-4">
@@ -356,8 +356,8 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
                         
                         <form onSubmit={handleAddGrade} className="mt-4 p-3 bg-white border rounded-md grid grid-cols-5 gap-3 items-end">
                             <div className="col-span-2"><label className="text-xs font-medium text-slate-600">Nom</label><input type="text" value={addForm.evaluation_name} onChange={e => setAddForm({...addForm, evaluation_name: e.target.value})} className="w-full p-2 border rounded-md text-sm" /></div>
-                            <div><label className="text-xs font-medium text-slate-600">Note</label><input type="number" value={addForm.score} onChange={e => setAddForm({...addForm, score: Number(e.target.value)})} className="w-full p-2 border rounded-md text-sm" /></div>
-                            <div><label className="text-xs font-medium text-slate-600">Sur</label><input type="number" value={addForm.max_score} onChange={e => setAddForm({...addForm, max_score: Number(e.target.value)})} className="w-full p-2 border rounded-md text-sm" /></div>
+                            <div><label className="text-xs font-medium text-slate-600">Note</label><input type="number" value={addForm.score || ''} onChange={e => setAddForm({...addForm, score: Number(e.target.value)})} className="w-full p-2 border rounded-md text-sm" /></div>
+                            <div><label className="text-xs font-medium text-slate-600">Sur</label><input type="number" value={addForm.max_score || ''} onChange={e => setAddForm({...addForm, max_score: Number(e.target.value)})} className="w-full p-2 border rounded-md text-sm" /></div>
                             <button type="submit" className="col-span-1 bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700">Ajouter</button>
                         </form>
                          {subjectDetails?.maxGrade && totalMaxScore >= subjectDetails.maxGrade && (

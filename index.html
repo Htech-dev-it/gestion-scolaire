@@ -49,6 +49,16 @@
         box-sizing: border-box;
       }
 
+      /* Hide number input arrows */
+      input[type=number]::-webkit-inner-spin-button, 
+      input[type=number]::-webkit-outer-spin-button { 
+        -webkit-appearance: none; 
+        margin: 0; 
+      }
+      input[type=number] {
+        -moz-appearance: textfield;
+      }
+
       input::placeholder,
       textarea::placeholder {
         color: rgb(148 163 184); /* placeholder-slate-400 */
@@ -188,7 +198,6 @@
   }
 }
 </script>
-<link rel="stylesheet" href="/index.css">
 </head>
   <body>
     <div id="root"></div>

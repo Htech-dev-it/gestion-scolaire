@@ -188,6 +188,13 @@ async function setup() {
             // Existing announcements are considered global, so their instance_id will be NULL by default, which is correct.
             console.log("Colonne 'instance_id' ajoutée à 'announcements'.");
         }
+        
+        // --- Specific migration for 'teachers' table to add 'nif' ---
+        if (await tableExists(client, 'teachers') && !await columnExists(client, 'teachers', 'nif')) {
+            console.log("Migration: Ajout de 'nif' à la table 'teachers'.");
+            await client.query('ALTER TABLE teachers ADD COLUMN nif TEXT');
+            console.log("Colonne 'nif' ajoutée à 'teachers'.");
+        }
 
         // --- Step 4: Schema Migration - Add 'instance_id' to all relevant tables ---
         const tablesToMigrate = [
@@ -342,6 +349,49 @@ async function setup() {
         // Seed platform settings
         await client.query(`INSERT INTO platform_settings (key, value) VALUES ('contact_email', '') ON CONFLICT (key) DO NOTHING;`);
         await client.query(`INSERT INTO platform_settings (key, value) VALUES ('contact_phone', '') ON CONFLICT (key) DO NOTHING;`);
+
+        // --- Data Migration for Roles (v2.1 - ensure critical permissions) ---
+        console.log("Migration: Vérification des permissions pour les rôles par défaut (v2.1)...");
+        
+        // 1. Ensure 'Comptable' has access management permission
+        const { rows: accessPermRows } = await client.query("SELECT id FROM permissions WHERE key = 'student_portal:manage_access'");
+        if (accessPermRows.length > 0) {
+            const accessPermId = accessPermRows[0].id;
+            const { rows: comptableRoles } = await client.query("SELECT id FROM roles WHERE name = 'Comptable / Gestionnaire des Paiements'");
+            for (const role of comptableRoles) {
+                await client.query(`INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [role.id, accessPermId]);
+            }
+            if (comptableRoles.length > 0) console.log("  -> Rôle 'Comptable' mis à jour avec la permission de gestion d'accès.");
+        }
+        
+        // 2. Ensure 'Secrétaire Pédagogique' has the same permissions as 'Directeur des Opérations'
+        const { rows: directorRoles } = await client.query("SELECT id FROM roles WHERE name = 'Directeur des Opérations'");
+        if (directorRoles.length > 0) {
+            const directorRoleId = directorRoles[0].id;
+            const { rows: directorPerms } = await client.query("SELECT permission_id FROM role_permissions WHERE role_id = $1", [directorRoleId]);
+            const directorPermissionIds = directorPerms.map(p => p.permission_id);
+        
+            const { rows: secretaryRoles } = await client.query("SELECT id FROM roles WHERE name = 'Secrétaire Pédagogique'");
+            for (const secretaryRole of secretaryRoles) {
+                for (const permId of directorPermissionIds) {
+                    await client.query(`INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [secretaryRole.id, permId]);
+                }
+            }
+            if (secretaryRoles.length > 0) console.log("  -> Rôle 'Secrétaire Pédagogique' mis à jour pour correspondre aux permissions du 'Directeur'.");
+        }
+
+        // 3. Ensure 'Directeur' and 'Secrétaire' have teacher management permission
+        const { rows: teacherPermRows } = await client.query("SELECT id FROM permissions WHERE key = 'settings:manage_teachers'");
+        if (teacherPermRows.length > 0) {
+            const teacherPermId = teacherPermRows[0].id;
+            const { rows: targetRoles } = await client.query("SELECT id FROM roles WHERE name IN ('Directeur des Opérations', 'Secrétaire Pédagogique')");
+            for (const role of targetRoles) {
+                await client.query(`INSERT INTO role_permissions (role_id, permission_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [role.id, teacherPermId]);
+            }
+            if (targetRoles.length > 0) console.log("  -> Rôles 'Directeur' et 'Secrétaire' mis à jour avec la permission de gestion des professeurs.");
+        }
+        
+        console.log("Migration des rôles terminée.");
 
         await client.query('COMMIT');
         

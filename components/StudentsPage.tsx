@@ -109,12 +109,31 @@ const StudentsPage: React.FC = () => {
 
   const handleEditRequest = (student: StudentWithEnrollment) => {
     setEditingStudent(student);
+
+    let medicalData: { blood_group: string | null, allergies: string | null, illnesses: string | null } = { blood_group: null, allergies: null, illnesses: null };
+    if (student.medical_notes) {
+      try {
+        const parsedNotes = JSON.parse(student.medical_notes);
+        if (typeof parsedNotes === 'object' && parsedNotes !== null) {
+          medicalData = {
+            blood_group: parsedNotes.blood_group || null,
+            allergies: parsedNotes.allergies || null,
+            illnesses: parsedNotes.illnesses || null,
+          };
+        }
+      } catch (e) {
+        // Not JSON, do nothing. It will be overwritten on next save.
+        console.warn("Could not parse medical_notes JSON, it might be old data.");
+      }
+    }
+
     const studentFormData: StudentFormState = {
-        ...EMPTY_STUDENT_FORM,
-        ...student,
-        date_of_birth: student.date_of_birth ? student.date_of_birth.split('T')[0] : null,
-        enrollmentId: student.enrollment?.id ?? null,
-        enrollmentMppa: student.enrollment?.mppa ?? 0,
+      ...EMPTY_STUDENT_FORM,
+      ...student,
+      date_of_birth: student.date_of_birth ? student.date_of_birth.split('T')[0] : null,
+      enrollmentId: student.enrollment?.id ?? null,
+      enrollmentMppa: student.enrollment?.mppa ?? 0,
+      ...medicalData,
     };
     setFormState(studentFormData);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -132,6 +151,13 @@ const StudentsPage: React.FC = () => {
   const handleSubmitProfile = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     
+    const { blood_group, allergies, illnesses, ...restOfFormState } = formState;
+    const medical_notes = JSON.stringify({
+      blood_group: blood_group || '',
+      allergies: allergies || '',
+      illnesses: illnesses || ''
+    });
+
     let apiEndpoint = '/students';
     let apiMethod = 'POST';
     let body: any;
@@ -139,24 +165,21 @@ const StudentsPage: React.FC = () => {
     if (editingStudent) {
         apiEndpoint = `/students/${editingStudent.id}`;
         apiMethod = 'PUT';
-        const { enrollNow, enrollmentClassName, ...profileData } = formState;
+        const { enrollNow, enrollmentClassName, ...profileData } = restOfFormState;
         body = {
           ...profileData,
+          medical_notes,
           mppa: formState.enrollmentMppa,
           enrollmentId: formState.enrollmentId,
         };
     } else {
         // Creating a new student
-        const profileData = { ...formState, id: crypto.randomUUID() };
-        // Clean up form-only state before sending
-        delete (profileData as Partial<typeof profileData>).enrollNow;
-        delete (profileData as Partial<typeof profileData>).enrollmentClassName;
-        delete (profileData as Partial<typeof profileData>).enrollmentMppa;
-        delete (profileData as Partial<typeof profileData>).enrollmentId;
+        const { enrollNow, enrollmentClassName, enrollmentMppa, enrollmentId, ...profileData } = { ...restOfFormState, id: crypto.randomUUID() };
 
         if (formState.enrollNow && selectedYear) {
             body = {
                 ...profileData,
+                medical_notes,
                 enrollment: {
                     year_id: selectedYear.id,
                     className: formState.enrollmentClassName,
@@ -164,7 +187,7 @@ const StudentsPage: React.FC = () => {
                 }
             };
         } else {
-            body = profileData;
+            body = { ...profileData, medical_notes };
         }
     }
 

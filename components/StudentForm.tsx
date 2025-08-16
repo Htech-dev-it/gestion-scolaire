@@ -13,7 +13,7 @@ interface StudentFormProps {
   selectedYear: SchoolYear | null;
 }
 
-const InputField: React.FC<{ label: string; name: keyof Omit<StudentFormState, 'photo_url' | 'classe_ref' | 'enrollNow' | 'enrollmentClassName' | 'enrollmentMppa' | 'enrollmentId' | 'medical_notes' | 'date_of_birth' | 'tutor_phone'>; value: string | number | null; onChange: (e: ChangeEvent<HTMLInputElement>) => void; type?: string; placeholder?: string; }> = 
+const InputField: React.FC<{ label: string; name: keyof Omit<StudentFormState, 'photo_url' | 'classe_ref' | 'enrollNow' | 'enrollmentClassName' | 'enrollmentMppa' | 'enrollmentId' | 'date_of_birth' | 'tutor_phone' | 'blood_group' | 'allergies' | 'illnesses'>; value: string | number | null; onChange: (e: ChangeEvent<HTMLInputElement>) => void; type?: string; placeholder?: string; }> = 
   ({ label, name, value, onChange, type = 'text', placeholder }) => (
   <div>
     <label htmlFor={name} className="block text-sm font-medium text-slate-700">{label}</label>
@@ -40,6 +40,8 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
     if (type === 'checkbox') {
         const { checked } = e.target as HTMLInputElement;
         setFormState(prev => ({ ...prev, [name]: checked }));
+    } else if (type === 'number') {
+        setFormState(prev => ({ ...prev, [name]: Number(value) }));
     } else {
         setFormState(prev => ({ ...prev, [name]: value }));
     }
@@ -103,10 +105,9 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
                         type="number"
                         id="enrollmentMppa"
                         name="enrollmentMppa"
-                        value={formState.enrollmentMppa}
+                        value={formState.enrollmentMppa || ''}
                         onChange={handleChange}
                         className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm"
-                        step="0.01"
                     />
                 </div>
             </fieldset>
@@ -148,10 +149,9 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
                                 type="number"
                                 id="enrollmentMppa"
                                 name="enrollmentMppa"
-                                value={formState.enrollmentMppa}
+                                value={formState.enrollmentMppa || ''}
                                 onChange={handleChange}
                                 className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm"
-                                step="0.01"
                             />
                         </div>
                     </div>
@@ -195,11 +195,20 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
 
         <fieldset className="space-y-4">
           <legend className="text-base font-semibold text-slate-500 mb-2 -ml-1">Notes Médicales</legend>
+           <div>
+            <label htmlFor="blood_group" className="block text-sm font-medium text-slate-700">Groupe Sanguin</label>
+            <input type="text" id="blood_group" name="blood_group" value={formState.blood_group || ''} onChange={handleChange} placeholder="Ex: O+" 
+              className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition" />
+          </div>
           <div>
-            <textarea id="medical_notes" name="medical_notes" value={formState.medical_notes || ''} onChange={handleChange} rows={3}
-              placeholder="Allergies, conditions particulières..."
-              className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-            ></textarea>
+              <label htmlFor="allergies" className="block text-sm font-medium text-slate-700">Allergies</label>
+              <input type="text" id="allergies" name="allergies" value={formState.allergies || ''} onChange={handleChange} placeholder="Ex: Pollen, arachides"
+                className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition" />
+          </div>
+          <div>
+              <label htmlFor="illnesses" className="block text-sm font-medium text-slate-700">Maladies Connues</label>
+              <input type="text" id="illnesses" name="illnesses" value={formState.illnesses || ''} onChange={handleChange} placeholder="Ex: Asthme"
+                className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition" />
           </div>
         </fieldset>
         

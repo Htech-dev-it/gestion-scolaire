@@ -55,7 +55,7 @@ const TeacherManager: React.FC<{
     const [teachers, setTeachers] = useState<Teacher[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
-    const [formState, setFormState] = useState({ nom: '', prenom: '', email: '', phone: '' });
+    const [formState, setFormState] = useState({ nom: '', prenom: '', email: '', phone: '', nif: '' });
     const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
     const [credentials, setCredentials] = useState<{ username: string, tempPassword: string } | null>(null);
 
@@ -77,7 +77,7 @@ const TeacherManager: React.FC<{
     }, [fetchTeachers]);
 
     const resetForm = () => {
-        setFormState({ nom: '', prenom: '', email: '', phone: '' });
+        setFormState({ nom: '', prenom: '', email: '', phone: '', nif: '' });
         setShowForm(false);
     };
 
@@ -125,16 +125,36 @@ const TeacherManager: React.FC<{
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <input type="text" value={formState.prenom} onChange={e => setFormState(s => ({...s, prenom: e.target.value}))} placeholder="Prénom" required className="px-3 py-2 border rounded-md" />
                             <input type="text" value={formState.nom} onChange={e => setFormState(s => ({...s, nom: e.target.value}))} placeholder="Nom" required className="px-3 py-2 border rounded-md" />
-                            <input type="email" value={formState.email} onChange={e => setFormState(s => ({...s, email: e.target.value}))} placeholder="Email (optionnel)" className="px-3 py-2 border rounded-md" />
-                            <PhoneInput
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <input type="email" value={formState.email} onChange={e => setFormState(s => ({...s, email: e.target.value}))} placeholder="Email" required className="px-3 py-2 border rounded-md" />
+                             <PhoneInput
                                 country={'ht'}
                                 value={formState.phone}
                                 onChange={phone => setFormState(s => ({...s, phone}))}
                                 containerClass="mt-0"
                                 inputProps={{
                                     name: 'phone',
-                                    placeholder: 'Téléphone (optionnel)'
+                                    placeholder: 'Téléphone',
+                                    required: true,
                                 }}
+                            />
+                        </div>
+                         <div>
+                            <input 
+                                type="text" 
+                                inputMode="numeric" 
+                                value={formState.nif} 
+                                onChange={e => {
+                                    const value = e.target.value;
+                                    // Allow only numeric input by stripping non-digit characters
+                                    if (/^\d*$/.test(value)) {
+                                        setFormState(s => ({...s, nif: value}));
+                                    }
+                                }}
+                                placeholder="Numéro Identification Unique / NIF" 
+                                required 
+                                className="px-3 py-2 border rounded-md w-full" 
                             />
                         </div>
                         <div className="flex justify-end gap-2">

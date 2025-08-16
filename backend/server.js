@@ -1007,7 +1007,12 @@ async function startServer() {
         }));
 
         app.post('/api/teachers', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
-            const { nom, prenom, email, phone } = req.body;
+            const { nom, prenom, email, phone, nif } = req.body;
+
+            if (!nom || !prenom || !email || !phone || !nif) {
+                return res.status(400).json({ message: 'Tous les champs (Prénom, Nom, Email, Téléphone, NIF) sont obligatoires.' });
+            }
+
             const username = (prenom.charAt(0) + nom).toLowerCase().replace(/\s+/g, '');
             const tempPassword = generateTempPassword();
             const hashedPassword = bcrypt.hashSync(tempPassword, 10);
@@ -1015,10 +1020,8 @@ async function startServer() {
             const { rows: existingUserRows } = await req.db.query('SELECT * FROM users WHERE username = $1 AND instance_id = $2', [username, req.user.instance_id]);
             if (existingUserRows.length > 0) return res.status(409).json({ message: `Le nom d'utilisateur '${username}' existe déjà. Essayez avec un autre nom.` });
             
-            if (email) {
-                const { rows: existingTeacherRows } = await req.db.query('SELECT * FROM teachers WHERE email = $1 AND instance_id = $2', [email, req.user.instance_id]);
-                if (existingTeacherRows.length > 0) return res.status(409).json({ message: `L'email '${email}' est déjà utilisé.` });
-            }
+            const { rows: existingTeacherRows } = await req.db.query('SELECT * FROM teachers WHERE email = $1 AND instance_id = $2', [email, req.user.instance_id]);
+            if (existingTeacherRows.length > 0) return res.status(409).json({ message: `L'email '${email}' est déjà utilisé.` });
             
             const client = await req.db.connect();
             try {
@@ -1027,7 +1030,7 @@ async function startServer() {
                 const userResult = await client.query('INSERT INTO users (username, password_hash, role, instance_id) VALUES ($1, $2, $3, $4) RETURNING id', [username, hashedPassword, 'teacher', req.user.instance_id]);
                 const userId = userResult.rows[0].id;
                 
-                const teacherResult = await client.query('INSERT INTO teachers (nom, prenom, email, phone, user_id, instance_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id', [formatLastName(nom), formatName(prenom), email, phone, userId, req.user.instance_id]);
+                const teacherResult = await client.query('INSERT INTO teachers (nom, prenom, email, phone, nif, user_id, instance_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id', [formatLastName(nom), formatName(prenom), email, phone, nif, userId, req.user.instance_id]);
                 const teacherId = teacherResult.rows[0].id;
 
                 await client.query('UPDATE users SET teacher_id = $1 WHERE id = $2', [teacherId, userId]);
@@ -1216,21 +1219,56 @@ async function startServer() {
         }));
 
         app.post('/api/teacher-assignments/bulk-update', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
-            const { teacherId, yearId, assignments } = req.body;
-            
-            // Security Check: ensure the teacher belongs to the admin's instance
+            const { teacherId, yearId, assignments } = req.body; // assignments is [{ className, subjectId }]
+
+            // Security Check
             const { rowCount } = await req.db.query('SELECT 1 FROM teachers WHERE id = $1 AND instance_id = $2', [teacherId, req.user.instance_id]);
             if (rowCount === 0) return res.status(403).json({ message: 'Accès refusé.' });
 
             const client = await req.db.connect();
             try {
                 await client.query('BEGIN');
-                await client.query('DELETE FROM teacher_assignments WHERE teacher_id = $1 AND year_id = $2', [teacherId, yearId]);
-                for (const ass of assignments) {
-                    await client.query('INSERT INTO teacher_assignments (teacher_id, year_id, class_name, subject_id) VALUES ($1, $2, $3, $4)', [teacherId, yearId, ass.className, ass.subjectId]);
+
+                // 1. Get current assignments from DB
+                const { rows: currentAssignments } = await client.query(
+                    'SELECT id, class_name, subject_id FROM teacher_assignments WHERE teacher_id = $1 AND year_id = $2',
+                    [teacherId, yearId]
+                );
+
+                // 2. Create sets for easy comparison
+                const currentAssignmentKeys = new Set(currentAssignments.map(a => `${a.class_name}:${a.subject_id}`));
+                const newAssignmentKeys = new Set(assignments.map((a) => `${a.className}:${a.subjectId}`));
+
+                // 3. Find assignments to delete (present in old, not in new)
+                const assignmentsToDelete = currentAssignments.filter(a => !newAssignmentKeys.has(`${a.class_name}:${a.subject_id}`));
+                const idsToDelete = assignmentsToDelete.map(a => a.id);
+
+                // 4. Find assignments to add (present in new, not in old)
+                const assignmentsToAdd = assignments.filter((a) => !currentAssignmentKeys.has(`${a.className}:${a.subjectId}`));
+
+                // 5. Execute DELETE operations
+                if (idsToDelete.length > 0) {
+                    const placeholders = idsToDelete.map((_, i) => `$${i + 1}`).join(',');
+                    await client.query(`DELETE FROM teacher_assignments WHERE id IN (${placeholders})`, idsToDelete);
                 }
+
+                // 6. Execute INSERT operations
+                if (assignmentsToAdd.length > 0) {
+                    const values = [];
+                    let paramIndex = 1;
+                    const valueStrings = assignmentsToAdd.map((a) => {
+                        values.push(teacherId, yearId, a.className, a.subjectId);
+                        const placeholder = `($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`;
+                        return placeholder;
+                    });
+
+                    const insertQuery = `INSERT INTO teacher_assignments (teacher_id, year_id, class_name, subject_id) VALUES ${valueStrings.join(',')}`;
+                    await client.query(insertQuery, values);
+                }
+
                 await client.query('COMMIT');
                 res.status(200).json({ message: 'Assignations mises à jour avec succès.' });
+
             } catch (error) {
                 await client.query('ROLLBACK');
                 throw error;
@@ -1408,14 +1446,21 @@ async function startServer() {
             const { name } = req.body;
             if (!name) return res.status(400).json({ message: 'Le nom de la classe est requis.' });
 
-            const { rows: maxOrder } = await req.db.query('SELECT MAX(order_index) as max_idx FROM classes WHERE instance_id = $1', [req.user.instance_id]);
-            const nextOrderIndex = (maxOrder[0].max_idx || 0) + 1;
+            try {
+                const { rows: maxOrder } = await req.db.query('SELECT MAX(order_index) as max_idx FROM classes WHERE instance_id = $1', [req.user.instance_id]);
+                const nextOrderIndex = (maxOrder[0].max_idx || 0) + 1;
 
-            const { rows } = await req.db.query(
-                'INSERT INTO classes (name, order_index, instance_id) VALUES ($1, $2, $3) RETURNING *',
-                [name, nextOrderIndex, req.user.instance_id]
-            );
-            res.status(201).json(rows[0]);
+                const { rows } = await req.db.query(
+                    'INSERT INTO classes (name, order_index, instance_id) VALUES ($1, $2, $3) RETURNING *',
+                    [name, nextOrderIndex, req.user.instance_id]
+                );
+                res.status(201).json(rows[0]);
+            } catch (error) {
+                if (error.code === '23505') { // unique_violation
+                    return res.status(409).json({ message: `Une classe avec le nom '${name}' existe déjà.` });
+                }
+                throw error;
+            }
         }));
 
         // Specific route for ordering must come BEFORE the parameterized route
@@ -1808,13 +1853,20 @@ async function startServer() {
             const { rows: csRows } = await req.db.query('SELECT max_grade FROM class_subjects WHERE year_id = $1 AND class_name = $2 AND subject_id = $3', [enrollment.year_id, enrollment.className, currentGrade.subject_id]);
             const classSubject = csRows[0];
             if (!classSubject) return res.status(404).json({ message: "Matière non assignée à cette classe." });
-            const subjectMaxGrade = parseFloat(classSubject.max_grade);
+            const subjectMaxGrade = Number(classSubject.max_grade);
             
-            const { rows: otherGrades } = await req.db.query('SELECT max_score FROM grades WHERE enrollment_id = $1 AND subject_id = $2 AND period_id = $3 AND id != $4', [currentGrade.enrollment_id, currentGrade.subject_id, currentGrade.period_id, id]);
-            const totalUsedByOthers = otherGrades.reduce((sum, g) => sum + parseFloat(g.max_score), 0);
-            
-            if (totalUsedByOthers + max_score > subjectMaxGrade) {
-                return res.status(400).json({ message: `La modification de cette évaluation dépasse la note maximale de ${subjectMaxGrade} pour cette matière. Il ne reste que ${subjectMaxGrade - totalUsedByOthers} points disponibles.` });
+            const newMaxScore = Number(max_score);
+            const oldMaxScore = Number(currentGrade.max_score);
+
+            // Only perform the max score check if the max_score is being increased.
+            // This allows editing the name or score of a grade even if the total is already at the limit.
+            if (newMaxScore > oldMaxScore) {
+                const { rows: otherGrades } = await req.db.query('SELECT max_score FROM grades WHERE enrollment_id = $1 AND subject_id = $2 AND period_id = $3 AND id != $4', [currentGrade.enrollment_id, currentGrade.subject_id, currentGrade.period_id, id]);
+                const totalUsedByOthers = otherGrades.reduce((sum, g) => sum + Number(g.max_score), 0);
+
+                if ((totalUsedByOthers + newMaxScore) > (subjectMaxGrade + 0.001)) { // Use an epsilon for float comparison
+                    return res.status(400).json({ message: `La modification de cette évaluation dépasse la note maximale de ${subjectMaxGrade} pour cette matière. Il ne reste que ${subjectMaxGrade - totalUsedByOthers} points disponibles.` });
+                }
             }
             
             const { rows: updatedRows } = await req.db.query('UPDATE grades SET evaluation_name = $1, score = $2, max_score = $3 WHERE id = $4 RETURNING *', [evaluation_name, score, max_score, id]);
@@ -2587,7 +2639,38 @@ async function startServer() {
         }));
 
         // --- REPORT CARD ROUTES ---
-        app.post('/api/appreciations', authenticateToken, requirePermission('appreciation:create'), asyncHandler(async (req, res) => {
+        const canManageAppreciations = asyncHandler(async (req, res, next) => {
+            if (req.user.role === 'admin' || (req.user.permissions && req.user.permissions.includes('appreciation:create'))) {
+                return next();
+            }
+            if (req.user.role !== 'teacher') return res.status(403).json({ message: 'Accès non autorisé.' });
+
+            const { enrollment_id, subject_id } = req.body;
+            if (!enrollment_id) return res.status(400).json({ message: 'ID d\'inscription manquant.' });
+            
+            const { rows: teacherRows } = await req.db.query('SELECT id FROM teachers WHERE user_id = $1', [req.user.id]);
+            const teacher = teacherRows[0];
+            if (!teacher) return res.status(403).json({ message: 'Profil professeur non trouvé.' });
+            
+            const { rows: enrollmentRows } = await req.db.query('SELECT "className", year_id FROM enrollments WHERE id = $1', [enrollment_id]);
+            const enrollment = enrollmentRows[0];
+            if (!enrollment) return res.status(404).json({ message: 'Inscription non trouvée.' });
+            
+            let hasAssignment = false;
+            if (subject_id) { // This is for /api/appreciations
+                const { rows: assignmentRows } = await req.db.query('SELECT id FROM teacher_assignments WHERE teacher_id = $1 AND class_name = $2 AND subject_id = $3 AND year_id = $4', [teacher.id, enrollment.className, subject_id, enrollment.year_id]);
+                if (assignmentRows.length > 0) hasAssignment = true;
+            } else { // This is for /api/general-appreciations
+                const { rows: assignmentRows } = await req.db.query('SELECT id FROM teacher_assignments WHERE teacher_id = $1 AND class_name = $2 AND year_id = $3 LIMIT 1', [teacher.id, enrollment.className, enrollment.year_id]);
+                if (assignmentRows.length > 0) hasAssignment = true;
+            }
+
+            if (hasAssignment) return next();
+
+            return res.status(403).json({ message: 'Accès refusé. Vous n\'êtes pas assigné à cette classe.' });
+        });
+
+        app.post('/api/appreciations', authenticateToken, canManageAppreciations, asyncHandler(async (req, res) => {
             const { enrollment_id, subject_id, period_id, text } = req.body;
             // Security check
             const { rows } = await req.db.query('SELECT s.instance_id FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.id = $1', [enrollment_id]);
@@ -2600,7 +2683,7 @@ async function startServer() {
             res.status(200).json({ message: 'Appréciation enregistrée.' });
         }));
 
-        app.post('/api/general-appreciations', authenticateToken, requirePermission('appreciation:create'), asyncHandler(async (req, res) => {
+        app.post('/api/general-appreciations', authenticateToken, canManageAppreciations, asyncHandler(async (req, res) => {
             const { enrollment_id, period_id, text } = req.body;
              // Security check
             const { rows } = await req.db.query('SELECT s.instance_id FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.id = $1', [enrollment_id]);
@@ -2984,6 +3067,32 @@ async function startServer() {
 
         // --- RESOURCE ROUTES ---
 
+        app.get('/api/admin/resources', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
+            const { yearId } = req.query;
+            if (!yearId) {
+                return res.status(400).json({ message: "L'année scolaire est requise." });
+            }
+
+            const query = `
+                SELECT
+                    r.*,
+                    ta.subject_id,
+                    s.name as subject_name,
+                    ta.class_name,
+                    t.prenom as teacher_prenom,
+                    t.nom as teacher_nom
+                FROM resources r
+                JOIN teacher_assignments ta ON r.assignment_id = ta.id
+                JOIN subjects s ON ta.subject_id = s.id
+                JOIN teachers t ON ta.teacher_id = t.id
+                WHERE ta.year_id = $1 AND t.instance_id = $2
+                ORDER BY ta.class_name, s.name, r.created_at DESC
+            `;
+
+            const { rows } = await req.db.query(query, [yearId, req.user.instance_id]);
+            res.json(rows);
+        }));
+
         app.get('/api/resources', authenticateToken, asyncHandler(async (req, res) => {
             const { assignmentId, yearId, studentId } = req.query;
 
@@ -3057,6 +3166,26 @@ async function startServer() {
                 [assignment_id, resource_type, title, url, file_name, mime_type, file_content]
             );
             res.status(201).json(rows[0]);
+        }));
+
+        app.put('/api/resources/:id', authenticateToken, isStaff, asyncHandler(async (req, res) => {
+            const { id } = req.params;
+            const { title, url } = req.body;
+        
+            const { rowCount } = await req.db.query(
+                `UPDATE resources r SET title = $1, url = $2
+                 FROM teacher_assignments ta, teachers t 
+                 WHERE r.assignment_id = ta.id AND ta.teacher_id = t.id 
+                 AND r.id = $3 AND t.instance_id = $4`,
+                [title, url, id, req.user.instance_id]
+            );
+        
+            if (rowCount === 0) {
+                return res.status(404).json({ message: 'Ressource non trouvée ou non autorisée.' });
+            }
+            
+            const { rows } = await req.db.query('SELECT * FROM resources WHERE id = $1', [id]);
+            res.json(rows[0]);
         }));
 
         app.delete('/api/resources/:id', authenticateToken, isStaff, asyncHandler(async (req, res) => {
