@@ -196,6 +196,16 @@ async function setup() {
             console.log("Colonne 'nif' ajoutée à 'teachers'.");
         }
 
+        // --- Specific migration for 'students' table to add 'sexe' and 'nisu' ---
+        if (await tableExists(client, 'students') && !await columnExists(client, 'students', 'sexe')) {
+            console.log("Migration: Ajout de 'sexe' à la table 'students'.");
+            await client.query('ALTER TABLE students ADD COLUMN sexe VARCHAR(1)');
+        }
+        if (await tableExists(client, 'students') && !await columnExists(client, 'students', 'nisu')) {
+            console.log("Migration: Ajout de 'nisu' à la table 'students'.");
+            await client.query('ALTER TABLE students ADD COLUMN nisu VARCHAR(255)');
+        }
+
         // --- Step 4: Schema Migration - Add 'instance_id' to all relevant tables ---
         const tablesToMigrate = [
             'users', 'students', 'school_years', 'subjects', 'teachers', 

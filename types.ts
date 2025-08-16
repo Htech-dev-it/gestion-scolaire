@@ -8,6 +8,8 @@ export interface StudentProfile {
   id: string; // Unique ID for each student
   nom: string;
   prenom: string;
+  sexe: 'M' | 'F' | null;
+  nisu: string | null;
   date_of_birth: string | null;
   address: string | null;
   photo_url: string | null;
@@ -108,6 +110,7 @@ export interface StudentWithEnrollment extends StudentProfile {
 export interface StudentFormState {
   nom: string;
   prenom: string;
+  sexe: 'M' | 'F' | '';
   date_of_birth: string | null;
   address: string | null;
   photo_url: string | null;
@@ -119,6 +122,9 @@ export interface StudentFormState {
   illnesses: string | null;
   classe_ref?: string | null;
   
+  hasNisu: boolean;
+  nisu: string;
+
   enrollNow: boolean;
   enrollmentClassName: string;
   enrollmentMppa: number;

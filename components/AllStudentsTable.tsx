@@ -75,7 +75,7 @@ const AllStudentsTable: React.FC<AllStudentsTableProps> = ({ students, selectedI
     let sortableStudents = [...students]
         // This filtering is now mostly handled by the backend. 
         // We keep a client-side search for immediate responsiveness within the current page.
-        .filter(student => `${student.prenom} ${student.nom}`.toLowerCase().includes(searchTerm.toLowerCase()));
+        .filter(student => `${student.prenom} ${student.nom} ${student.nisu}`.toLowerCase().includes(searchTerm.toLowerCase()));
 
     if (sortConfig !== null) {
         sortableStudents.sort((a, b) => {
@@ -118,8 +118,10 @@ const AllStudentsTable: React.FC<AllStudentsTableProps> = ({ students, selectedI
 
     const tableRows = filteredAndSortedStudents.map(student => `
         <tr>
+            <td>${student.nisu || ''}</td>
             <td>${student.nom}</td>
             <td>${student.prenom}</td>
+            <td>${student.sexe || ''}</td>
             <td>${student.enrollment?.className || student.classe_ref || 'N/A'}</td>
             <td>${formatDate(student.date_of_birth)}</td>
         </tr>
@@ -152,7 +154,7 @@ const AllStudentsTable: React.FC<AllStudentsTableProps> = ({ students, selectedI
                 </div>
                 <table>
                     <thead>
-                        <tr><th>Nom</th><th>Prénom</th><th>Classe</th><th>Date de Naissance</th></tr>
+                        <tr><th>NISU</th><th>Nom</th><th>Prénom</th><th>Sexe</th><th>Classe</th><th>Date de Naissance</th></tr>
                     </thead>
                     <tbody>${tableRows}</tbody>
                 </table>
@@ -208,6 +210,10 @@ const handlePrintSheets = () => {
                 <div class="section">
                     <h3>Informations Personnelles</h3>
                     <div class="detail-grid">
+                        <div class="detail-label">NISU:</div>
+                        <div class="detail-value" style="font-weight: bold;">${student.nisu || 'Non attribué'}</div>
+                        <div class="detail-label">Sexe:</div>
+                        <div class="detail-value">${student.sexe === 'M' ? 'Masculin' : student.sexe === 'F' ? 'Féminin' : 'Non renseigné'}</div>
                         <div class="detail-label">Date de Naissance:</div>
                         <div class="detail-value">${formatDate(student.date_of_birth) || 'Non renseignée'}</div>
                         <div class="detail-label">Adresse:</div>
@@ -364,7 +370,31 @@ const handlePrintSheets = () => {
               <input type="checkbox" checked={showArchived} onChange={(e) => onShowArchivedChange(e.target.checked)} className="h-4 w-4 rounded" />
               <span>Inclure les archivés</span>
             </label>
-            <button onClick={handlePrintList} className="flex items-center px-4 py-2 text-sm font-medium text-white bg-gray-600 rounded-lg shadow-sm hover:bg-gray-700">Imprimer la liste</button>
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={() => {
+                        const student = students.find(s => s.id === Array.from(selectedIds)[0]);
+                        if (student) onEditRequest(student);
+                    }}
+                    disabled={selectedIds.size !== 1}
+                    className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg shadow-sm hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    Modifier
+                </button>
+                <button
+                    onClick={() => {
+                        const student = students.find(s => s.id === Array.from(selectedIds)[0]);
+                        if (student?.enrollment) {
+                            navigate(`/class/${student.enrollment.className}`);
+                        }
+                    }}
+                    disabled={selectedIds.size !== 1 || !students.find(s => s.id === Array.from(selectedIds)[0])?.enrollment}
+                    className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    Paiements
+                </button>
+                <button onClick={handlePrintList} className="px-4 py-2 text-sm font-medium text-white bg-gray-600 rounded-lg shadow-sm hover:bg-gray-700">Imprimer la liste</button>
+            </div>
         </div>
       </div>
 
@@ -392,33 +422,36 @@ const handlePrintSheets = () => {
             <tr>
               <th scope="col" className="p-4 no-print"><input type="checkbox" onChange={handleSelectAll(filteredAndSortedStudents)} checked={filteredAndSortedStudents.length > 0 && selectedIds.size === filteredAndSortedStudents.length} className="h-4 w-4 text-blue-600 rounded" /></th>
               <th scope="col" className="px-2 py-3 text-left"></th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">NISU</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider"><button onClick={() => handleSort('nom')} className="group inline-flex items-center">Nom {sortConfig?.key === 'nom' && (sortConfig.direction === 'ascending' ? '▲' : '▼')}</button></th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider"><button onClick={() => handleSort('prenom')} className="group inline-flex">Prénom</button></th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">CLASSE</th>
+              <th scope="col" className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider">Sexe</th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Classe</th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Date de Naissance</th>
               <th scope="col" className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider">MPPA</th>
-              <th scope="col" className="px-6 py-3 text-center text-xs font-semibold uppercase tracking-wider no-print">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
             {isLoading ? (
-                <tr><td colSpan={8} className="text-center py-10 text-slate-500">Chargement...</td></tr>
+                <tr><td colSpan={9} className="text-center py-10 text-slate-500">Chargement...</td></tr>
             ) : filteredAndSortedStudents.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-10 text-slate-500">Aucun élève ne correspond à vos critères.</td></tr>
+                <tr><td colSpan={9} className="text-center py-10 text-slate-500">Aucun élève ne correspond à vos critères.</td></tr>
             ) : filteredAndSortedStudents.map((student) => (
-                <tr key={student.id} className={`hover:bg-blue-50 ${selectedIds.has(student.id) ? 'bg-blue-100' : 'even:bg-gray-50'} ${student.status === 'archived' ? 'opacity-60' : ''}`}>
+                <tr key={student.id} onDoubleClick={() => onEditRequest(student)} className={`hover:bg-blue-50 cursor-pointer ${selectedIds.has(student.id) ? 'bg-blue-100' : 'even:bg-gray-50'} ${student.status === 'archived' ? 'opacity-60' : ''}`}>
                   <td className="p-4 no-print"><input type="checkbox" checked={selectedIds.has(student.id)} onChange={() => handleSelectOne(student.id)} className="h-4 w-4 text-blue-600 rounded" /></td>
                   <td className="px-2 py-2">
                     <button 
-                        onClick={() => setLightboxStudent(student)} 
+                        onClick={(e) => { e.stopPropagation(); setLightboxStudent(student); }}
                         className="rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform duration-200 hover:scale-110"
                         aria-label={`Agrandir la photo de ${student.prenom} ${student.nom}`}
                     >
                         <Avatar student={student} />
                     </button>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-500">{student.nisu || '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{student.nom}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{student.prenom}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-center">{student.sexe || '-'}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
                     <div className="flex items-center gap-2">
                         {student.enrollment ? (
@@ -432,14 +465,6 @@ const handlePrintSheets = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{formatDate(student.date_of_birth)}</td>
                   <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right`}>{student.enrollment ? `${Number(student.enrollment?.mppa).toFixed(2)}$` : '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center no-print space-x-2">
-                     <button onClick={() => onEditRequest(student)} className="px-3 py-1 text-sm font-medium text-gray-600 bg-gray-100 rounded-md hover:bg-gray-200 transition">Modifier</button>
-                     {student.enrollment ? (
-                        <button onClick={() => navigate(`/class/${student.enrollment?.className}`)} className="px-3 py-1 text-sm font-medium text-blue-600 bg-blue-100 rounded-md hover:bg-blue-200 transition">Paiements</button>
-                     ) : (
-                        <button onClick={() => onEnrollRequest(student)} className="px-3 py-1 text-sm font-medium text-green-600 bg-green-100 rounded-md hover:bg-green-200 transition" disabled={student.status === 'archived'}>Inscrire</button>
-                     )}
-                  </td>
                 </tr>
               ))}
           </tbody>

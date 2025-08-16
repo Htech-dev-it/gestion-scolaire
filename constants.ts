@@ -5,6 +5,7 @@ export const CLASSES: string[] = [];
 export const EMPTY_STUDENT_FORM: StudentFormState = {
   nom: '',
   prenom: '',
+  sexe: '',
   date_of_birth: null,
   address: null,
   photo_url: null,
@@ -15,6 +16,10 @@ export const EMPTY_STUDENT_FORM: StudentFormState = {
   allergies: null,
   illnesses: null,
   classe_ref: '',
+  
+  hasNisu: false,
+  nisu: '',
+
   enrollNow: false,
   enrollmentClassName: '',
   enrollmentMppa: 0,

@@ -104,7 +104,7 @@ const isPrincipalSuperAdmin = (req, res, next) => {
 };
 
 const isAnySuperAdmin = (req, res, next) => {
-    if (req.user && (req.user.role === 'superadmin' || req.user.role === 'superadmin_delegate')) {
+    if (req.user && (req.user.role === 'superadmin' || user.role === 'superadmin_delegate')) {
         next();
     } else {
         res.status(403).json({ message: 'Accès refusé. Action réservée aux Super Administrateurs.' });
@@ -162,6 +162,25 @@ const isStaff = (req, res, next) => {
 const formatName = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1).toLowerCase() : '';
 const formatLastName = (str) => str ? str.toUpperCase() : '';
 const generateTempPassword = () => Math.random().toString(36).slice(-8);
+
+const generateTemporaryNISU = ({ nom, prenom, sexe, date_of_birth }) => {
+    if (!nom || !prenom || !sexe || !date_of_birth) {
+        return null; // Cannot generate without all info
+    }
+    // Parse date as UTC to avoid timezone issues with 'YYYY-MM-DD' strings
+    const birthDate = new Date(date_of_birth + 'T00:00:00Z');
+    const birthDay = birthDate.getUTCDate().toString().padStart(2, '0');
+    
+    const nomInitial = nom.charAt(0).toUpperCase();
+    const prenomInitial = prenom.charAt(0).toUpperCase();
+    const prenomLast = prenom.slice(-1).toUpperCase();
+    const sexeChar = sexe.toUpperCase();
+    
+    // Generate a random two-digit number (00-99)
+    const randomNumber = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+
+    return `${nomInitial}${prenomInitial}${sexeChar}-${birthDay}${prenomLast}${randomNumber}`;
+};
 
 const savePhotoFromBase64 = async (base64DataUrl) => {
     if (!base64DataUrl || !base64DataUrl.startsWith('data:image')) {
@@ -1998,26 +2017,34 @@ async function startServer() {
 
         app.post('/api/students', authenticateToken, requirePermission('student:create'), asyncHandler(async (req, res) => {
             const { enrollment, ...profileData } = req.body;
-            let { id, nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref } = profileData;
+            let { id, nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref, sexe, nisu } = profileData;
             const instance_id = req.user.instance_id;
-
+        
+            let finalNisu = nisu ? nisu.toUpperCase() : generateTemporaryNISU({ nom, prenom, sexe, date_of_birth });
+        
             if (photo_url) {
                 const newPath = await savePhotoFromBase64(photo_url);
                 if (newPath) photo_url = newPath;
             }
+        
+            const insertQuery = `
+                INSERT INTO students (id, instance_id, nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref, sexe, nisu) 
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            `;
+            const insertValues = [id, instance_id, formatLastName(nom), formatName(prenom), date_of_birth || null, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref || null, sexe || null, finalNisu];
 
             if (enrollment && enrollment.year_id && enrollment.className && enrollment.mppa >= 0) {
                 const client = await req.db.connect();
                 try {
                     await client.query('BEGIN');
-                    await client.query('INSERT INTO students (id, instance_id, nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)', [id, instance_id, formatLastName(nom), formatName(prenom), date_of_birth || null, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref || null]);
+                    await client.query(insertQuery, insertValues);
                     await logActivity(req, 'STUDENT_CREATED', id, `${formatName(prenom)} ${formatLastName(nom)}`, `Profil élève créé pour ${formatName(prenom)} ${formatLastName(nom)} (ID: ${id}).`);
-
+        
                     const defaultPayments = JSON.stringify(Array(4).fill({ amount: 0, date: null }));
                     const { rows } = await client.query('INSERT INTO enrollments (student_id, year_id, "className", mppa, payments) VALUES ($1, $2, $3, $4, $5) RETURNING id', [id, enrollment.year_id, enrollment.className, enrollment.mppa, defaultPayments]);
                     
                     await logActivity(req, 'STUDENT_ENROLLED', id, `${formatName(prenom)} ${formatLastName(nom)}`, `Élève ${formatName(prenom)} ${formatLastName(nom)} (ID: ${id}) inscrit(e) en classe ${enrollment.className}.`);
-
+        
                     await client.query('COMMIT');
                     res.status(201).json({ id, message: 'Élève créé et inscrit avec succès.' });
                 } catch (error) {
@@ -2027,7 +2054,7 @@ async function startServer() {
                     client.release();
                 }
             } else {
-                await req.db.query('INSERT INTO students (id, instance_id, nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)', [id, instance_id, formatLastName(nom), formatName(prenom), date_of_birth || null, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref || null]);
+                await req.db.query(insertQuery, insertValues);
                 await logActivity(req, 'STUDENT_CREATED', id, `${formatName(prenom)} ${formatLastName(nom)}`, `Profil élève créé pour ${formatName(prenom)} ${formatLastName(nom)} (ID: ${id}).`);
                 res.status(201).json({ id });
             }
@@ -2036,8 +2063,10 @@ async function startServer() {
         app.put('/api/students/:id', authenticateToken, requirePermission('student:update'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { mppa, enrollmentId, ...profileData } = req.body;
-            const { nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref } = profileData;
+            const { nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref, sexe, nisu } = profileData;
         
+            let finalNisu = nisu ? nisu.toUpperCase() : generateTemporaryNISU({ nom, prenom, sexe, date_of_birth });
+
             const client = await req.db.connect();
             try {
                 await client.query('BEGIN');
@@ -2071,12 +2100,14 @@ async function startServer() {
                 const query = `
                     UPDATE students 
                     SET nom = $1, prenom = $2, date_of_birth = $3, address = $4, photo_url = $5, 
-                        tutor_name = $6, tutor_phone = $7, tutor_email = $8, medical_notes = $9, classe_ref = $10 
-                    WHERE id = $11
+                        tutor_name = $6, tutor_phone = $7, tutor_email = $8, medical_notes = $9, classe_ref = $10,
+                        sexe = $11, nisu = $12
+                    WHERE id = $13
                 `;
                 const values = [
                     formatLastName(nom), formatName(prenom), date_of_birth || null, address, finalPhotoUrl, 
-                    tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref || null, id
+                    tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref || null, sexe || null, finalNisu,
+                    id
                 ];
                 await client.query(query, values);
         

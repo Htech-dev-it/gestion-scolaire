@@ -130,6 +130,9 @@ const StudentsPage: React.FC = () => {
     const studentFormData: StudentFormState = {
       ...EMPTY_STUDENT_FORM,
       ...student,
+      sexe: student.sexe || '',
+      nisu: student.nisu || '',
+      hasNisu: !!student.nisu,
       date_of_birth: student.date_of_birth ? student.date_of_birth.split('T')[0] : null,
       enrollmentId: student.enrollment?.id ?? null,
       enrollmentMppa: student.enrollment?.mppa ?? 0,
