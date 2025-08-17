@@ -31,6 +31,7 @@ Le **tableau de bord** est le point d'entrée principal, présentant des cartes 
 ### Fonctionnalités Clés (selon les permissions)
 - **Gestion des Élèves et des Inscriptions**.
 - **Gestion Financière et Rapports**.
+- **Génération de Bulletins Professionnels** : Accès à une riche sélection de 9 modèles de bulletins, des plus formels aux plus créatifs, pour une présentation impeccable des résultats.
 - **Pages de Gestion Dédiées** : Interfaces claires pour la **Gestion des Professeurs**, la **Gestion de l'Emploi du Temps** et la **Gestion du Portail Élève**.
 - **Panneau d'Administration** : Un lien "Administration" mène à une page de paramètres plus profonds (Années, Périodes, Matières, Rôles & Permissions).
 - **Contact & Support** : Un onglet dédié pour communiquer directement avec le Super Administrateur.

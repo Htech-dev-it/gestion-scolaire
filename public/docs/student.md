@@ -12,6 +12,7 @@ C'est ici que vous trouverez des cartes pour accéder rapidement aux différente
 -   **Mes Notes** : Cliquez ici pour consulter vos résultats.
     > **Important** : Si cette carte est grisée et non cliquable, cela signifie que l'accès à vos notes est temporairement restreint par l'administration.
 -   **Ressources** : Accédez à tous les documents et liens partagés par vos professeurs.
+-   **Mes Finances** : Consultez votre historique de paiements et la balance de vos frais de scolarité.
 -   **Documentation** : Pour consulter ce guide.
 
 ### `Onglet Sécurité`
@@ -29,8 +30,10 @@ Cet onglet est très important. Il vous permet de changer votre mot de passe.
 
 1.  Depuis le tableau de bord, cliquez sur la carte **"Mes Notes"**.
 2.  **Choisissez une période** : Utilisez les onglets en haut (ex: "Trimestre 1", "Trimestre 2") pour voir les notes de la période correspondante.
-3.  Vous verrez votre **moyenne générale** pour cette période, ainsi qu'une appréciation globale.
+3.  Vous verrez votre **moyenne générale** pour cette période, affichée sur une base de 10 ou 100 (ex: `74.00 / 100` ou `7.40 / 10`), ainsi qu'une appréciation globale.
 4.  Faites défiler vers le bas pour voir le détail de vos notes et les appréciations de vos professeurs pour chaque matière.
+
+---
 
 ## Accéder aux Ressources de Cours
 
@@ -39,3 +42,12 @@ Cet onglet est très important. Il vous permet de changer votre mot de passe.
 3.  Cliquez sur une ressource pour l'ouvrir.
     -   Un **fichier** (PDF, image) s'ouvrira dans une visionneuse. Vous pouvez le **télécharger** avec le bouton en haut à droite.
     -   Un **lien** (site web, vidéo) s'ouvrira dans un nouvel onglet de votre navigateur.
+
+---
+
+## Consulter vos Finances
+
+1.  Depuis le tableau de bord, cliquez sur la carte **"Mes Finances"**.
+2.  La page affiche un résumé de votre situation financière pour l'année scolaire en cours.
+3.  Vous y trouverez le **montant total à payer**, le **total déjà versé**, et la **balance restante**.
+4.  Un historique détaillé de tous les versements est également disponible.

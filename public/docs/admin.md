@@ -18,6 +18,7 @@ C'est le module central pour toute la gestion des dossiers élèves.
 
 1.  **Accès** : Allez sur **Tableau de Bord > Gestion des Élèves**.
 2.  **Ajouter un élève** : Utilisez le formulaire sur la gauche pour créer un profil. Si vous cochez **"Inscrire cet élève..."**, il sera immédiatement ajouté à une classe pour l'année en cours.
+    > **Note :** Le Montant à Payer (MPPA) de base est défini automatiquement selon la classe choisie. Il est géré dans l'onglet "Frais Scolaire" de l'Administration ou via la modification des paiements sur la page de la classe.
 3.  **Modifier un élève** : Double-cliquez sur un élève dans la liste pour charger ses informations dans le formulaire. Modifiez, puis cliquez sur **"Mettre à jour"**.
 4.  **Inscrire un élève existant** : Pour un élève qui a un profil mais n'est pas inscrit pour l'année en cours, trouvez-le dans la liste et cliquez sur le bouton **"Inscrire"**.
 5.  **Actions en masse (Archiver, Supprimer, Changer de classe)** : Cochez les cases à côté des noms des élèves. Des boutons d'action apparaîtront en haut du tableau pour appliquer une action à toute votre sélection.
@@ -39,6 +40,13 @@ Les paiements se gèrent par classe.
 1.  **Accès** : Allez sur **Tableau de Bord > Gestion Emploi du temps**.
 2.  **Ajouter des salles** : Utilisez le panneau de gauche pour lister toutes les salles disponibles.
 3.  **Créer un créneau** : Cliquez sur une case vide de la grille. Dans la fenêtre qui s'ouvre, choisissez l'assignation (un cours, donné par un professeur, à une classe), l'heure et la salle.
+
+### `Gérer les Bulletins`
+1.  **Accès** : Allez sur **Tableau de Bord > Gestion des Bulletins**.
+2.  **Choisissez** parmi 9 modèles de bulletins, du plus formel au plus créatif.
+3.  **Sélectionnez** une classe et une période, puis cochez les élèves concernés.
+4.  Cliquez sur **"Générer les Bulletins"** pour ouvrir l'aperçu avant impression.
+5.  **Modifiez les appréciations** directement sur l'aperçu si nécessaire, puis imprimez.
 
 ---
 

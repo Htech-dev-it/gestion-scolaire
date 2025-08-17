@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
 import ChangePasswordForm from './ChangePasswordForm';
-import { Instance, SchoolYear, Subject, ClassSubject, AcademicPeriod, Teacher, FullTeacherAssignment, Announcement, ClassDefinition } from '../types';
+import { Instance, SchoolYear, Subject, ClassSubject, AcademicPeriod, Teacher, FullTeacherAssignment, Announcement, ClassDefinition, ClassFinancials } from '../types';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import ConfirmationModal from './ConfirmationModal';
 import Tooltip from './Tooltip';
@@ -254,49 +254,86 @@ const PeriodManager: React.FC = () => {
             await fetchPeriods();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+            setPeriodToDelete(null);
         }
     };
 
     return (
         <div>
-            <h2 className="text-xl font-semibold text-slate-700 font-display">Gestion des Périodes (Trimestres, Étapes...)</h2>
-            <div className="my-4">
-                <label className="block text-sm font-medium text-gray-700">Année Scolaire</label>
-                <select onChange={e => setSelectedYearId(Number(e.target.value))} value={selectedYearId || ''} className="mt-1 block w-full pl-3 pr-10 py-2 border-slate-300 rounded-md">
-                    {schoolYears.map(y => <option key={y.id} value={y.id}>{y.name}</option>)}
+            <h2 className="text-xl font-semibold text-slate-700 font-display">Périodes Académiques</h2>
+            <div className="my-4 p-4 border rounded-lg">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Année Scolaire</label>
+                <select
+                    value={selectedYearId || ''}
+                    onChange={e => setSelectedYearId(Number(e.target.value))}
+                    className="w-full md:w-1/2 px-3 py-2 bg-white border border-slate-300 rounded-md"
+                >
+                    {schoolYears.map(year => (
+                        <option key={year.id} value={year.id}>{year.name}</option>
+                    ))}
                 </select>
             </div>
+            
             <div className="my-4 p-4 border rounded-lg">
                 <h3 className="font-semibold mb-2">{formState.id ? 'Modifier la période' : 'Ajouter une période'}</h3>
                 <form onSubmit={handleFormSubmit} className="flex gap-2">
-                    <input type="text" value={formState.name} onChange={e => setFormState(p => ({...p, name: e.target.value}))} placeholder="Ex: Trimestre 1" className="w-full px-3 py-2 border rounded-md" />
-                    <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded-md">{formState.id ? 'Mettre à jour' : 'Ajouter'}</button>
-                    {formState.id && <button type="button" onClick={() => setFormState({ id: null, name: '' })} className="px-4 py-2 bg-slate-100 rounded-md">Annuler</button>}
+                    <input
+                        type="text"
+                        value={formState.name}
+                        onChange={e => setFormState(s => ({...s, name: e.target.value}))}
+                        placeholder="Ex: Trimestre 1"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md"
+                    />
+                    <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 whitespace-nowrap">
+                        {formState.id ? 'Mettre à jour' : 'Ajouter'}
+                    </button>
+                    {formState.id && (
+                        <button type="button" onClick={() => setFormState({ id: null, name: '' })} className="px-4 py-2 bg-slate-200 rounded-md">
+                            Annuler
+                        </button>
+                    )}
                 </form>
             </div>
-            {isLoading ? <p>Chargement...</p> : (
+            
+            {isLoading ? <p>Chargement des périodes...</p> : (
                 <ul className="space-y-2">
                     {periods.map(period => (
                         <li key={period.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                            <span>{period.name}</span>
-                            <div className="flex gap-2">
-                                <button onClick={() => setFormState(period)} className="p-2 text-blue-500 hover:bg-blue-100 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button>
-                                <button onClick={() => setPeriodToDelete(period)} className="p-2 text-red-500 hover:bg-red-100 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
+                            <span className="font-medium">{period.name}</span>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setFormState({ id: period.id, name: period.name })} className="p-2 text-blue-500 hover:bg-blue-100 rounded-full" title="Modifier">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                        <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                                <button onClick={() => setPeriodToDelete(period)} className="p-2 text-red-500 hover:bg-red-100 rounded-full" title="Supprimer">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
                             </div>
                         </li>
                     ))}
                 </ul>
             )}
-            {periodToDelete && <ConfirmationModal isOpen={!!periodToDelete} onClose={() => setPeriodToDelete(null)} onConfirm={handleConfirmDelete} title="Supprimer Période" message={`Confirmez-vous la suppression de '${periodToDelete.name}' ? Toutes les notes associées seront perdues.`} />}
+
+            {periodToDelete && (
+                <ConfirmationModal
+                    isOpen={!!periodToDelete}
+                    onClose={() => setPeriodToDelete(null)}
+                    onConfirm={handleConfirmDelete}
+                    title={`Supprimer la période ${periodToDelete.name}`}
+                    message="Êtes-vous sûr ? Toutes les notes et appréciations associées à cette période seront supprimées."
+                />
+            )}
         </div>
     );
 };
 
-
 const SubjectManager: React.FC = () => {
     const { addNotification } = useNotification();
     const [subjects, setSubjects] = useState<Subject[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isLoading, setIsLoading] = useState(false);
     const [formState, setFormState] = useState<{ id: number | null, name: string }>({ id: null, name: '' });
     const [subjectToDelete, setSubjectToDelete] = useState<Subject | null>(null);
 
@@ -316,256 +353,72 @@ const SubjectManager: React.FC = () => {
         fetchSubjects();
     }, [fetchSubjects]);
 
-    const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormState(prev => ({ ...prev, name: e.target.value }));
-    };
-
-    const handleEditRequest = (subject: Subject) => {
-        setFormState({ id: subject.id, name: subject.name });
-    };
-
-    const resetForm = () => {
-        setFormState({ id: null, name: '' });
-    };
-
     const handleFormSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formState.name.trim()) {
-            addNotification({ type: 'error', message: 'Le nom de la matière ne peut pas être vide.' });
-            return;
-        }
-
+        if (!formState.name.trim()) return;
         const isEditing = formState.id !== null;
         const url = isEditing ? `/subjects/${formState.id}` : '/subjects';
         const method = isEditing ? 'PUT' : 'POST';
-
+        
         try {
             await apiFetch(url, { method, body: JSON.stringify({ name: formState.name }) });
             addNotification({ type: 'success', message: `Matière ${isEditing ? 'mise à jour' : 'ajoutée'}.` });
-            resetForm();
+            setFormState({ id: null, name: '' });
             await fetchSubjects();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
     };
     
-    const handleDeleteRequest = (subject: Subject) => {
-        setSubjectToDelete(subject);
-    };
-
     const handleConfirmDelete = async () => {
         if (!subjectToDelete) return;
         try {
             await apiFetch(`/subjects/${subjectToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: `La matière '${subjectToDelete.name}' a été supprimée.` });
+            addNotification({ type: 'success', message: 'Matière supprimée.' });
+            setSubjectToDelete(null);
             await fetchSubjects();
-            setSubjectToDelete(null);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-            setSubjectToDelete(null);
         }
     };
 
     return (
         <div>
-            <h2 className="text-xl font-semibold text-slate-700 font-display">Gestion des Matières</h2>
-            <div className="my-4 p-4 border rounded-lg">
-                <h3 className="font-semibold mb-2">{formState.id ? 'Modifier la matière' : 'Ajouter une nouvelle matière'}</h3>
+            <h2 className="text-xl font-semibold text-slate-700 font-display">Matières</h2>
+             <div className="my-4 p-4 border rounded-lg">
+                <h3 className="font-semibold mb-2">{formState.id ? 'Modifier la matière' : 'Ajouter une matière'}</h3>
                 <form onSubmit={handleFormSubmit} className="flex gap-2">
-                    <input 
-                        type="text" 
-                        value={formState.name} 
-                        onChange={handleFormChange} 
-                        placeholder="Ex: Mathématiques"
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md"
-                    />
-                    <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 whitespace-nowrap">{formState.id ? 'Mettre à jour' : 'Ajouter'}</button>
-                    {formState.id && <button type="button" onClick={resetForm} className="px-4 py-2 text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200">Annuler</button>}
+                    <input type="text" value={formState.name} onChange={e => setFormState(s => ({...s, name: e.target.value}))} placeholder="Ex: Mathématiques" className="w-full p-2 border rounded-md" />
+                    <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded-md whitespace-nowrap">{formState.id ? 'Mettre à jour' : 'Ajouter'}</button>
+                    {formState.id && <button type="button" onClick={() => setFormState({ id: null, name: '' })} className="px-4 py-2 bg-slate-200 rounded-md">Annuler</button>}
                 </form>
             </div>
-            {isLoading ? <p>Chargement des matières...</p> : (
-                <ul className="space-y-2">
-                    {subjects.map(subject => (
-                        <li key={subject.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                            <span className="font-medium">{subject.name}</span>
-                            <div className="flex items-center gap-2">
-                                <Tooltip text={`Modifier ${subject.name}`}>
-                                    <button onClick={() => handleEditRequest(subject)} className="p-2 text-blue-500 hover:bg-blue-100 rounded-full transition-colors">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
-                                    </button>
-                                </Tooltip>
-                                <Tooltip text={`Supprimer ${subject.name}`}>
-                                    <button onClick={() => handleDeleteRequest(subject)} className="p-2 text-red-500 hover:bg-red-100 rounded-full transition-colors">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
-                                    </button>
-                                </Tooltip>
-                            </div>
-                        </li>
-                    ))}
-                </ul>
+            {isLoading ? <p>Chargement...</p> : (
+                <ul className="space-y-2">{subjects.map(subject => (
+                    <li key={subject.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                        <span className="font-medium">{subject.name}</span>
+                        <div className="flex gap-2">
+                            <button onClick={() => setFormState({ id: subject.id, name: subject.name })} className="p-2 text-blue-500 hover:bg-blue-100 rounded-full" title="Modifier">
+                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg>
+                            </button>
+                             <button onClick={() => setSubjectToDelete(subject)} className="p-2 text-red-500 hover:bg-red-100 rounded-full" title="Supprimer">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                            </button>
+                        </div>
+                    </li>))}</ul>
             )}
-             {subjectToDelete && (
-                <ConfirmationModal
-                    isOpen={!!subjectToDelete}
-                    onClose={() => setSubjectToDelete(null)}
-                    onConfirm={handleConfirmDelete}
-                    title={`Supprimer la matière '${subjectToDelete.name}'`}
-                    message="Êtes-vous sûr de vouloir supprimer cette matière ? Cette action est irréversible et affectera tous les programmes scolaires."
-                />
-            )}
+             {subjectToDelete && <ConfirmationModal isOpen={!!subjectToDelete} onClose={() => setSubjectToDelete(null)} onConfirm={handleConfirmDelete} title="Supprimer la matière" message={`Confirmez-vous la suppression de "${subjectToDelete.name}" ? Toutes les données associées (notes, etc.) seront perdues.`} />}
         </div>
     );
 };
 
-const ClassManager: React.FC = () => {
-    const { classes, refreshYears } = useSchoolYear();
+const ProgrammeManager: React.FC = () => {
     const { addNotification } = useNotification();
-    const [classItems, setClassItems] = useState<ClassDefinition[]>([]);
-    const [newClassName, setNewClassName] = useState('');
-    const [editingClass, setEditingClass] = useState<{ id: number; name: string } | null>(null);
-    const [classToDelete, setClassToDelete] = useState<ClassDefinition | null>(null);
-    const dragItem = useRef<number | null>(null);
-    const dragOverItem = useRef<number | null>(null);
-
-    useEffect(() => {
-        setClassItems(classes);
-    }, [classes]);
-
-    const handleAddClass = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!newClassName.trim()) return;
-        try {
-            await apiFetch('/classes', { method: 'POST', body: JSON.stringify({ name: newClassName.trim() }) });
-            addNotification({ type: 'success', message: 'Classe ajoutée.' });
-            setNewClassName('');
-            refreshYears();
-        } catch (error) {
-            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-        }
-    };
-
-    const handleUpdateClass = async () => {
-        if (!editingClass || !editingClass.name.trim()) return;
-        try {
-            await apiFetch(`/classes/${editingClass.id}`, { method: 'PUT', body: JSON.stringify({ name: editingClass.name.trim() }) });
-            addNotification({ type: 'success', message: 'Classe mise à jour.' });
-            setEditingClass(null);
-            refreshYears();
-        } catch (error) {
-            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-        }
-    };
-
-    const handleConfirmDelete = async () => {
-        if (!classToDelete) return;
-        try {
-            await apiFetch(`/classes/${classToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: `Classe '${classToDelete.name}' supprimée.` });
-            setClassToDelete(null);
-            refreshYears();
-        } catch (error) {
-            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-            setClassToDelete(null);
-        }
-    };
-
-    const handleDragStart = (e: React.DragEvent<HTMLLIElement>, index: number) => {
-        dragItem.current = index;
-        e.currentTarget.style.opacity = '0.5';
-    };
-
-    const handleDragEnter = (index: number) => {
-        dragOverItem.current = index;
-    };
-
-    const handleDragEnd = (e: React.DragEvent<HTMLLIElement>) => {
-        e.currentTarget.style.opacity = '1';
-        if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
-            const newClassItems = [...classItems];
-            const draggedItemContent = newClassItems.splice(dragItem.current, 1)[0];
-            newClassItems.splice(dragOverItem.current, 0, draggedItemContent);
-            setClassItems(newClassItems); // Optimistic update for UI feel
-
-            const newOrderedIds = newClassItems.map(c => c.id);
-            apiFetch('/classes/order', { method: 'PUT', body: JSON.stringify({ orderedIds: newOrderedIds }) })
-                .then(() => {
-                    addNotification({ type: 'success', message: 'Ordre des classes mis à jour.' });
-                    refreshYears(); // Re-fetch from server to ensure consistency
-                })
-                .catch(error => {
-                    if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-                    setClassItems(classes); // Revert on error
-                });
-        }
-        dragItem.current = null;
-        dragOverItem.current = null;
-    };
-
-    return (
-        <div>
-            <h2 className="text-xl font-semibold text-slate-700 font-display">Gestion des Classes</h2>
-            <p className="text-sm text-slate-500 mt-1 mb-4">Ajoutez, modifiez, supprimez et réorganisez les classes de votre établissement. L'ordre défini ici sera utilisé dans toute l'application.</p>
-            <div className="my-4 p-4 border rounded-lg">
-                <h3 className="font-semibold mb-2">Ajouter une classe</h3>
-                <form onSubmit={handleAddClass} className="flex gap-2">
-                    <input type="text" value={newClassName} onChange={e => setNewClassName(e.target.value)} placeholder="Ex: NSI" className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md" />
-                    <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded-md hover:bg-blue-700 whitespace-nowrap">Ajouter</button>
-                </form>
-            </div>
-            <ul className="space-y-2">
-                {classItems.map((c, index) => (
-                    <li
-                        key={c.id}
-                        className="flex justify-between items-center p-3 bg-slate-50 rounded-lg group"
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onDragEnter={() => handleDragEnter(index)}
-                        onDragEnd={handleDragEnd}
-                        onDragOver={e => e.preventDefault()}
-                    >
-                        <div className="flex items-center gap-3">
-                            <Tooltip text="Glisser-déposer pour réorganiser">
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400 cursor-grab" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" /></svg>
-                            </Tooltip>
-                            {editingClass?.id === c.id ? (
-                                <input
-                                    type="text"
-                                    value={editingClass.name}
-                                    onChange={e => setEditingClass({ ...editingClass, name: e.target.value })}
-                                    className="px-2 py-1 border rounded-md"
-                                    autoFocus
-                                    onBlur={handleUpdateClass}
-                                    onKeyDown={e => e.key === 'Enter' && handleUpdateClass()}
-                                />
-                            ) : (
-                                <span className="font-medium">{c.name}</span>
-                            )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {editingClass?.id === c.id ? (
-                                <>
-                                    <button onClick={handleUpdateClass} className="p-2 text-green-500 hover:bg-green-100 rounded-full" title="Sauvegarder"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg></button>
-                                    <button onClick={() => setEditingClass(null)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full" title="Annuler"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg></button>
-                                </>
-                            ) : (
-                                <button onClick={() => setEditingClass({ id: c.id, name: c.name })} className="p-2 text-blue-500 hover:bg-blue-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" title="Modifier"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button>
-                            )}
-                            <button onClick={() => setClassToDelete(c)} className="p-2 text-red-500 hover:bg-red-100 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" title="Supprimer"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
-                        </div>
-                    </li>
-                ))}
-            </ul>
-            {classToDelete && <ConfirmationModal isOpen={!!classToDelete} onClose={() => setClassToDelete(null)} onConfirm={handleConfirmDelete} title="Supprimer la Classe" message={`Confirmez-vous la suppression de '${classToDelete.name}' ? Cette action est irréversible et ne fonctionnera que si aucun élève n'est ou n'a été inscrit dans cette classe.`} />}
-        </div>
-    );
-};
-
-const CurriculumManager: React.FC<{ classes: ClassDefinition[] }> = ({ classes }) => {
-    const { addNotification } = useNotification();
-    const { selectedYear } = useSchoolYear();
-    const [selectedClass, setSelectedClass] = useState('');
-    const [curriculum, setCurriculum] = useState<{ assigned: ClassSubject[], available: Subject[] }>({ assigned: [], available: [] });
-    const [isLoading, setIsLoading] = useState(true);
+    const { selectedYear, classes } = useSchoolYear();
+    const [assignedSubjects, setAssignedSubjects] = useState<ClassSubject[]>([]);
+    const [availableSubjects, setAvailableSubjects] = useState<Subject[]>([]);
+    const [selectedClass, setSelectedClass] = useState<string>('');
+    const [maxGrades, setMaxGrades] = useState<Record<number, string>>({}); // Local state for inputs
 
     useEffect(() => {
         if (classes.length > 0 && !selectedClass) {
@@ -575,158 +428,285 @@ const CurriculumManager: React.FC<{ classes: ClassDefinition[] }> = ({ classes }
 
     const fetchCurriculum = useCallback(async () => {
         if (!selectedYear || !selectedClass) return;
-        setIsLoading(true);
         try {
             const data = await apiFetch(`/curriculum?yearId=${selectedYear.id}&className=${selectedClass}`);
-            setCurriculum(data);
+            setAssignedSubjects(data.assigned);
+            setAvailableSubjects(data.available);
+
+            const gradesMap = data.assigned.reduce((acc: Record<number, string>, cs: ClassSubject) => {
+                acc[cs.id] = cs.max_grade.toString();
+                return acc;
+            }, {});
+            setMaxGrades(gradesMap);
+
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-        } finally {
-            setIsLoading(false);
         }
-    }, [addNotification, selectedYear, selectedClass]);
+    }, [selectedYear, selectedClass, addNotification]);
 
     useEffect(() => {
         fetchCurriculum();
     }, [fetchCurriculum]);
+    
+    const handleAssign = async (subjectId: number) => {
+        await apiFetch('/curriculum/assign', { method: 'POST', body: JSON.stringify({ yearId: selectedYear!.id, className: selectedClass, subjectId }) });
+        await fetchCurriculum();
+    };
+    
+    const handleUnassign = async (subjectId: number) => {
+        await apiFetch('/curriculum/unassign', { method: 'POST', body: JSON.stringify({ yearId: selectedYear!.id, className: selectedClass, subjectId }) });
+        await fetchCurriculum();
+    };
 
-    const handleMoveSubject = async (subjectId: number, direction: 'assign' | 'unassign') => {
+    const handleGradeInputChange = (classSubjectId: number, value: string) => {
+        setMaxGrades(prev => ({ ...prev, [classSubjectId]: value }));
+    };
+
+    const handleMaxGradeSave = async (classSubjectId: number) => {
+        const localValue = maxGrades[classSubjectId];
+        const originalValue = assignedSubjects.find(cs => cs.id === classSubjectId)?.max_grade.toString();
+        
+        if (localValue !== originalValue) {
+            try {
+                const maxGrade = Number(localValue);
+                if (isNaN(maxGrade) || maxGrade < 0) {
+                     addNotification({ type: 'error', message: "Veuillez entrer un nombre valide." });
+                     setMaxGrades(prev => ({...prev, [classSubjectId]: originalValue || '100'}));
+                     return;
+                }
+                await apiFetch(`/curriculum/max-grade/${classSubjectId}`, { method: 'PUT', body: JSON.stringify({ max_grade: maxGrade }) });
+                addNotification({ type: 'success', message: 'Coefficient mis à jour.'});
+                await fetchCurriculum(); // Refresh to confirm
+            } catch (error) {
+                 if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+                 setMaxGrades(prev => ({...prev, [classSubjectId]: originalValue || '100'}));
+            }
+        }
+    };
+    
+    return (
+        <div>
+            <h2 className="text-xl font-semibold text-slate-700 font-display">Gestion du Programme Scolaire</h2>
+            <div className="my-4 p-4 border rounded-lg">
+                 <label className="block text-sm font-medium text-slate-700 mb-1">Classe</label>
+                 <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="w-full md:w-1/2 p-2 border rounded-md">
+                     {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                 </select>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 className="font-semibold mb-2">Matières assignées à {selectedClass}</h3>
+                    <ul className="space-y-2">
+                        {assignedSubjects.map(cs => (
+                            <li key={cs.id} className="flex justify-between items-center p-2 bg-slate-50 rounded">
+                                <span className="font-medium">{cs.subject_name}</span>
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="number" 
+                                        value={maxGrades[cs.id] || ''} 
+                                        onChange={e => handleGradeInputChange(cs.id, e.target.value)} 
+                                        onBlur={() => handleMaxGradeSave(cs.id)}
+                                        className="w-20 p-1 border rounded text-sm" 
+                                    />
+                                    <button onClick={() => handleUnassign(cs.subject_id)} className="text-red-500 hover:text-red-700">Retirer</button>
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+                 <div>
+                    <h3 className="font-semibold mb-2">Matières disponibles</h3>
+                    <ul className="space-y-2">{availableSubjects.map(s => (<li key={s.id} className="flex justify-between items-center p-2 bg-slate-50 rounded"><span className="font-medium">{s.name}</span><button onClick={() => handleAssign(s.id)} className="text-green-600 hover:text-green-800">Assigner</button></li>))}</ul>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const ClassFinancialsManager: React.FC = () => {
+    const { addNotification } = useNotification();
+    const { selectedYear, classes } = useSchoolYear();
+    // Use undefined to represent an empty/unset field
+    const [classFinancials, setClassFinancials] = useState<Record<string, number | undefined>>({});
+
+    const fetchFinancials = useCallback(async () => {
         if (!selectedYear) return;
         try {
-            await apiFetch(`/curriculum/${direction}`, {
-                method: 'POST',
-                body: JSON.stringify({ yearId: selectedYear.id, className: selectedClass, subjectId })
-            });
-            addNotification({ type: 'success', message: `Matière ${direction === 'assign' ? 'assignée' : 'retirée'}.` });
-            await fetchCurriculum();
+            const data: ClassFinancials[] = await apiFetch(`/class-financials?yearId=${selectedYear.id}`);
+            const financialsMap = data.reduce((acc, curr) => {
+                acc[curr.class_name] = curr.mppa;
+                return acc;
+            }, {} as Record<string, number>);
+            setClassFinancials(financialsMap);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
-    };
+    }, [selectedYear, addNotification]);
 
-    const handleMaxGradeChange = async (classSubjectId: number, newMaxGrade: number) => {
-        // Optimistic UI update for responsiveness
-        setCurriculum(prev => ({
-            ...prev,
-            assigned: prev.assigned.map(s => s.id === classSubjectId ? { ...s, max_grade: newMaxGrade } : s)
+    useEffect(() => {
+        fetchFinancials();
+    }, [fetchFinancials]);
+
+    const handleSaveFinancials = async () => {
+        if (!selectedYear) return;
+        
+        const financialsPayload = classes.map(c => ({
+            class_name: c.name,
+            mppa: classFinancials[c.name] ?? null, // If undefined, send null
         }));
+        
+        const payload = {
+            yearId: selectedYear.id,
+            financials: financialsPayload
+        };
 
         try {
-            await apiFetch(`/curriculum/max-grade/${classSubjectId}`, {
-                method: 'PUT',
-                body: JSON.stringify({ max_grade: newMaxGrade })
-            });
+            await apiFetch('/class-financials', { method: 'PUT', body: JSON.stringify(payload) });
+            addNotification({ type: 'success', message: 'Frais de scolarité mis à jour.' });
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-            // Re-fetch from server on error to ensure data consistency
-            fetchCurriculum();
         }
     };
 
     return (
         <div>
-            <h2 className="text-xl font-semibold text-slate-700 font-display">Programme par Classe</h2>
-            <p className="text-sm text-slate-500 mt-1 mb-4">Assignez les matières qui seront enseignées dans chaque classe pour l'année scolaire <span className="font-semibold">{selectedYear?.name}</span>.</p>
-            
-            <div className="my-4">
-                <label htmlFor="class-selector" className="block text-sm font-medium text-gray-700 mb-1">Sélectionner une classe</label>
-                <select id="class-selector" value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 bg-slate-100 border-2 border-slate-200 rounded-lg text-base text-slate-800 font-medium focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm">
-                    {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                </select>
-            </div>
-
-            {isLoading ? <p>Chargement...</p> : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                        <h3 className="font-semibold mb-2 text-slate-800">Matières Assignées ({curriculum.assigned.length})</h3>
-                        <div className="space-y-2 p-3 border rounded-lg bg-slate-50 min-h-[200px]">
-                           {curriculum.assigned.length === 0 && <div className="text-slate-500 text-sm italic p-2">Aucune matière assignée.</div>}
-                           {curriculum.assigned.map(subject => (
-                                <div key={subject.id} className="flex justify-between items-center p-2 bg-white rounded-md shadow-sm">
-                                    <span className="font-medium text-sm text-slate-700 flex-grow">{subject.subject_name}</span>
-                                    <div className="flex items-center gap-2">
-                                        <label htmlFor={`max-grade-${subject.id}`} className="text-xs font-medium text-slate-600">Note max:</label>
-                                        <input
-                                            id={`max-grade-${subject.id}`}
-                                            type="number"
-                                            value={subject.max_grade}
-                                            onChange={e => handleMaxGradeChange(subject.id, Number(e.target.value))}
-                                            className="w-20 p-1 border rounded text-sm"
-                                        />
-                                        <button onClick={() => handleMoveSubject(subject.subject_id, 'unassign')} className="p-1.5 text-red-500 hover:bg-red-100 rounded-full transition-colors" title="Retirer">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                        </button>
-                                    </div>
-                                </div>
-                           ))}
-                        </div>
-                    </div>
-                    <div>
-                        <h3 className="font-semibold mb-2 text-slate-800">Matières Disponibles ({curriculum.available.length})</h3>
-                        <div className="space-y-2 p-3 border rounded-lg bg-slate-50 min-h-[200px]">
-                           {curriculum.available.length === 0 && <div className="text-slate-500 text-sm italic p-2">Toutes les matières sont assignées.</div>}
-                           {curriculum.available.map(subject => (
-                                <div key={subject.id} className="flex justify-between items-center p-2 bg-white rounded-md shadow-sm">
-                                    <span className="font-medium text-sm text-slate-700">{subject.name}</span>
-                                    <button onClick={() => handleMoveSubject(subject.id, 'assign')} className="p-1.5 text-green-500 hover:bg-green-100 rounded-full transition-colors" title="Assigner">
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                                    </button>
-                                </div>
-                           ))}
-                        </div>
-                    </div>
-                </div>
-            )}
+             <h2 className="text-xl font-semibold text-slate-700 font-display">Frais de Scolarité par Classe</h2>
+             <p className="text-sm text-slate-500 mt-1 mb-4">Définissez le montant à payer (MPPA) par défaut pour chaque classe pour l'année {selectedYear?.name}. Ce montant sera utilisé lors des nouvelles inscriptions.</p>
+             <div className="space-y-3">
+                 {classes.map(c => (
+                     <div key={c.id} className="grid grid-cols-2 gap-4 items-center p-2 rounded-md even:bg-slate-50">
+                         <label htmlFor={`mppa-${c.id}`} className="font-medium">{c.name}</label>
+                         <input
+                            id={`mppa-${c.id}`}
+                            type="number"
+                            value={classFinancials[c.name] ?? ''} // Show empty string if undefined
+                            placeholder="Montant"
+                            onChange={e => {
+                                const value = e.target.value;
+                                setClassFinancials(prev => ({...prev, [c.name]: value === '' ? undefined : Number(value)}));
+                            }}
+                            className="w-full p-2 border rounded-md"
+                         />
+                     </div>
+                 ))}
+             </div>
+             <div className="text-right mt-6 pt-4 border-t">
+                 <button onClick={handleSaveFinancials} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 shadow-sm transition-all">
+                     Sauvegarder les Frais
+                 </button>
+             </div>
         </div>
     );
 };
+
+
+const ClassManager: React.FC = () => {
+    const { addNotification } = useNotification();
+    const { classes, refreshYears } = useSchoolYear(); // refreshYears is a proxy for refreshing all context data
+    const [newClassName, setNewClassName] = useState('');
+    const [editingClass, setEditingClass] = useState<ClassDefinition | null>(null);
+
+    const handleAddOrUpdate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const name = editingClass ? editingClass.name : newClassName;
+        if (!name.trim()) return;
+
+        const isEditing = !!editingClass;
+        const url = isEditing ? `/classes/${editingClass!.id}` : '/classes';
+        const method = isEditing ? 'PUT' : 'POST';
+        
+        try {
+            await apiFetch(url, { method, body: JSON.stringify({ name }) });
+            addNotification({ type: 'success', message: `Classe ${isEditing ? 'mise à jour' : 'ajoutée'}.` });
+            setNewClassName('');
+            setEditingClass(null);
+            refreshYears();
+        } catch (error) {
+            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+        }
+    };
+    
+    const handleDelete = async (classId: number) => {
+        if (!window.confirm("Êtes-vous sûr ? Supprimer une classe est impossible si des élèves y sont ou ont été inscrits.")) return;
+        try {
+            await apiFetch(`/classes/${classId}`, { method: 'DELETE' });
+            addNotification({ type: 'success', message: 'Classe supprimée.' });
+            refreshYears();
+        } catch (error) {
+             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+        }
+    };
+
+    return (
+        <div>
+            <h2 className="text-xl font-semibold text-slate-700 font-display">Classes</h2>
+             <form onSubmit={handleAddOrUpdate} className="my-4 p-4 border rounded-lg flex gap-2">
+                <input type="text" value={editingClass ? editingClass.name : newClassName} onChange={e => editingClass ? setEditingClass({...editingClass, name: e.target.value}) : setNewClassName(e.target.value)} placeholder="Ex: 7AF" className="w-full p-2 border rounded-md" />
+                <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded-md whitespace-nowrap">{editingClass ? 'Mettre à jour' : 'Ajouter'}</button>
+                {editingClass && <button type="button" onClick={() => setEditingClass(null)} className="px-4 py-2 bg-slate-200 rounded-md">Annuler</button>}
+            </form>
+            <ul className="space-y-2">
+                {classes.map(c => (
+                    <li key={c.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
+                        <span className="font-medium">{c.name}</span>
+                        <div className="flex gap-2">
+                            <button onClick={() => setEditingClass(c)} className="p-2 text-blue-500 hover:bg-blue-100 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button>
+                            <button onClick={() => handleDelete(c.id)} className="p-2 text-red-500 hover:bg-red-100 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
+                        </div>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+const TabButton: React.FC<{ activeTab: string; tabId: string; onClick: (tabId: string) => void; children: React.ReactNode }> = ({ activeTab, tabId, onClick, children }) => (
+    <button
+        onClick={() => onClick(tabId)}
+        className={`w-full text-left px-4 py-2.5 font-medium text-sm rounded-lg transition-all duration-200 ${activeTab === tabId ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-blue-100 hover:text-blue-700'}`}
+    >
+        {children}
+    </button>
+);
 
 const AdminPage: React.FC = () => {
     const { user, hasPermission } = useAuth();
     const { addNotification } = useNotification();
     const [instanceInfo, setInstanceInfo] = useState<Instance | null>(null);
-    const [announcements, setAnnouncements] = useState<Announcement[]>([]);
     const [formState, setFormState] = useState<Instance | null>(null);
-    const { classes } = useSchoolYear();
-    
-    type AdminTab = 'general' | 'years' | 'classes' | 'periods' | 'subjects' | 'curriculum' | 'roles' | 'promotions' | 'resources' | 'journal' | 'security';
-    const [activeTab, setActiveTab] = useState<AdminTab>('general');
+    const [activeTab, setActiveTab] = useState('general');
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        const fetchInitialData = async () => {
+        const fetchInstanceInfo = async () => {
             try {
-                const [instanceData, announcementsData] = await Promise.all([
-                    apiFetch('/instance/current'),
-                    apiFetch('/announcements/active')
-                ]);
-                setInstanceInfo(instanceData);
-                setFormState(instanceData);
-                setAnnouncements(announcementsData);
+                const data = await apiFetch('/instance/current');
+                setInstanceInfo(data);
+                setFormState(data);
             } catch (error) {
                 if (error instanceof Error) addNotification({ type: 'error', message: error.message });
             }
         };
-        fetchInitialData();
+        fetchInstanceInfo();
     }, [addNotification]);
-
-    const handleFormChange = (e: ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setFormState(prev => prev ? { ...prev, [name]: value } : null);
+    
+    const handleInfoChange = (e: ChangeEvent<HTMLInputElement>) => {
+        const { name, value, type } = e.target;
+        setFormState(prev => prev ? ({ ...prev, [name]: type === 'number' ? Number(value) : value }) : null);
     };
 
-    const handlePhotoChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             const reader = new FileReader();
             reader.onloadend = () => {
-                setFormState(prev => prev ? { ...prev, logo_url: reader.result as string } : null);
+                setFormState(prev => prev ? ({...prev, logo_url: reader.result as string}) : null);
             };
             reader.readAsDataURL(file);
         }
     };
     
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleInfoSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!formState) return;
         try {
@@ -734,106 +714,86 @@ const AdminPage: React.FC = () => {
                 method: 'PUT',
                 body: JSON.stringify(formState)
             });
-            addNotification({ type: 'success', message: "Informations de l'école mises à jour." });
+            addNotification({ type: 'success', message: 'Informations mises à jour.' });
+            setInstanceInfo(formState);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
     };
+
+    if (!instanceInfo || !formState) return <div>Chargement...</div>;
     
-    const TabButton: React.FC<{ tabId: AdminTab; children: React.ReactNode }> = ({ tabId, children }) => (
-        <button
-          onClick={() => setActiveTab(tabId)}
-          className={`w-full text-left px-4 py-2.5 font-medium text-sm rounded-lg transition-all duration-200 ${activeTab === tabId ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-blue-100 hover:text-blue-700'}`}
-        >
-          {children}
-        </button>
-    );
+    const renderTabContent = () => {
+        switch(activeTab) {
+            case 'general':
+                return (
+                    <form onSubmit={handleInfoSubmit} className="space-y-6">
+                         <h2 className="text-xl font-semibold text-slate-700 font-display">Informations Générales</h2>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div><label className="block text-sm font-medium">Nom de l'établissement</label><input type="text" name="name" value={formState.name} onChange={handleInfoChange} className="w-full p-2 border rounded-md" /></div>
+                            <div><label className="block text-sm font-medium">Email</label><input type="email" name="email" value={formState.email || ''} onChange={handleInfoChange} className="w-full p-2 border rounded-md" /></div>
+                            <div><label className="block text-sm font-medium">Adresse</label><input type="text" name="address" value={formState.address || ''} onChange={handleInfoChange} className="w-full p-2 border rounded-md" /></div>
+                            <div><label className="block text-sm font-medium">Téléphone</label><PhoneInput country={'ht'} value={formState.phone || ''} onChange={phone => setFormState(s => s ? ({...s, phone}) : null)} /></div>
+                            <div><label className="block text-sm font-medium">Moyenne de Passage (%)</label><input type="number" name="passing_grade" value={formState.passing_grade || ''} onChange={handleInfoChange} className="w-full p-2 border rounded-md" /></div>
+                            <div className="flex items-end gap-4">
+                                {formState.logo_url && <img src={formState.logo_url} alt="Logo" className="h-16 w-16 object-contain rounded-md border p-1" />}
+                                <div className="flex-grow"><label className="block text-sm font-medium">Logo</label><input type="file" ref={fileInputRef} onChange={handlePhotoChange} accept="image/*" className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" /></div>
+                            </div>
+                         </div>
+                         <div className="text-right"><button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-md">Enregistrer</button></div>
+                    </form>
+                );
+            case 'academic_year': return <SchoolYearManager />;
+            case 'periods': return <PeriodManager />;
+            case 'classes': return <ClassManager />;
+            case 'subjects': return <SubjectManager />;
+            case 'programme': return <ProgrammeManager />;
+            case 'financials': return <ClassFinancialsManager />;
+            case 'promotion': return <PromotionManager />;
+            case 'resources': return <AdminResourceManager />;
+            case 'roles': return hasPermission('role:manage') ? <RolesManager /> : null;
+            case 'journal': return <AuditLogViewer scope="admin" />;
+            case 'security': return <ChangePasswordForm />;
+            default: return null;
+        }
+    };
 
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
             <header className="mb-8">
+                <ReactRouterDOM.Link to="/dashboard" className="inline-flex items-center text-blue-600 hover:text-blue-800 transition-colors mb-4 group font-medium"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" /></svg>Retour à l'accueil</ReactRouterDOM.Link>
                 <h1 className="text-4xl font-bold text-gray-800 font-display">Panneau d'Administration</h1>
-                <p className="text-lg text-slate-500 mt-2">Gérez les paramètres de l'application et les données académiques.</p>
+                <p className="text-lg text-slate-500 mt-2">Configuration et gestion globale de votre instance ScolaLink.</p>
             </header>
             
             <SuspensionWarningBanner instance={instanceInfo} />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                <div className="bg-white p-4 rounded-xl shadow-md">
-                    <h3 className="text-lg font-semibold text-slate-800 font-display mb-3 px-2">Configuration Académique</h3>
-                    <div className="space-y-1">
-                        <TabButton tabId="years">Années</TabButton>
-                        <TabButton tabId="periods">Périodes</TabButton>
-                        <TabButton tabId="classes">Classes</TabButton>
-                        <TabButton tabId="subjects">Matières</TabButton>
-                        <TabButton tabId="curriculum">Programme</TabButton>
-                    </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-xl shadow-md">
-                    <h3 className="text-lg font-semibold text-slate-800 font-display mb-3 px-2">Gestion des Opérations</h3>
-                    <div className="space-y-1">
-                        <TabButton tabId="promotions">Promotions</TabButton>
-                        <TabButton tabId="resources">Ressources</TabButton>
-                    </div>
-                </div>
-
-                <div className="bg-white p-4 rounded-xl shadow-md">
-                    <h3 className="text-lg font-semibold text-slate-800 font-display mb-3 px-2">Administration & Sécurité</h3>
-                    <div className="space-y-1">
-                        <TabButton tabId="general">Général</TabButton>
-                        <TabButton tabId="journal">Journal</TabButton>
-                        <TabButton tabId="security">Sécurité</TabButton>
-                    </div>
-                    <div className="pt-3 mt-3 border-t">
-                        <h4 className="text-base font-semibold text-slate-700 font-display mb-2 px-2">Gestion des Utilisateurs</h4>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <aside className="md:col-span-1">
+                    <div className="bg-white p-4 rounded-xl shadow-md sticky top-24">
+                        <h3 className="text-lg font-semibold text-slate-800 font-display mb-3 px-2">Paramètres</h3>
                         <div className="space-y-1">
-                            {hasPermission('user:manage') &&
-                                <ReactRouterDOM.Link
-                                    to="/admin/users"
-                                    className="w-full text-left block p-3 rounded-lg transition-all duration-200 text-slate-600 hover:bg-slate-100"
-                                >
-                                    <span className="font-medium text-sm">Gérer les utilisateurs</span>
-                                    <span className="block text-xs text-slate-500">Comptes et rôles du personnel</span>
-                                </ReactRouterDOM.Link>
-                            }
-                            {hasPermission('role:manage') && <TabButton tabId="roles">Rôles & Permissions</TabButton> }
+                           <TabButton activeTab={activeTab} tabId="general" onClick={setActiveTab}>Général</TabButton>
+                           <TabButton activeTab={activeTab} tabId="academic_year" onClick={setActiveTab}>Années Scolaires</TabButton>
+                           <TabButton activeTab={activeTab} tabId="periods" onClick={setActiveTab}>Périodes</TabButton>
+                           <TabButton activeTab={activeTab} tabId="classes" onClick={setActiveTab}>Classes</TabButton>
+                           <TabButton activeTab={activeTab} tabId="subjects" onClick={setActiveTab}>Matières</TabButton>
+                           <TabButton activeTab={activeTab} tabId="programme" onClick={setActiveTab}>Programme</TabButton>
+                           <TabButton activeTab={activeTab} tabId="financials" onClick={setActiveTab}>Frais Scolaire</TabButton>
+                           <TabButton activeTab={activeTab} tabId="promotion" onClick={setActiveTab}>Promotion des Élèves</TabButton>
+                           <TabButton activeTab={activeTab} tabId="resources" onClick={setActiveTab}>Ressources Pédagogiques</TabButton>
+                           {hasPermission('role:manage') && <TabButton activeTab={activeTab} tabId="roles" onClick={setActiveTab}>Rôles & Permissions</TabButton>}
+                           <TabButton activeTab={activeTab} tabId="journal" onClick={setActiveTab}>Journal d'Activité</TabButton>
+                           <TabButton activeTab={activeTab} tabId="security" onClick={setActiveTab}>Sécurité</TabButton>
                         </div>
                     </div>
-                </div>
+                </aside>
+                <main className="md:col-span-3">
+                     <div className="bg-white p-6 rounded-xl shadow-md">
+                        {renderTabContent()}
+                     </div>
+                </main>
             </div>
-
-            <main>
-                {activeTab === 'general' && formState && (
-                    <div className="bg-white p-6 rounded-xl shadow-md">
-                        <h2 className="text-xl font-semibold text-slate-700 font-display mb-4">Informations sur l'établissement</h2>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <input name="name" value={formState.name} onChange={handleFormChange} placeholder="Nom de l'école" className="w-full p-2 border rounded" />
-                            <input name="address" value={formState.address || ''} onChange={handleFormChange} placeholder="Adresse" className="w-full p-2 border rounded" />
-                            <PhoneInput country={'ht'} value={formState.phone || ''} onChange={phone => setFormState(s => s ? {...s, phone} : null)} />
-                            <input type="email" name="email" value={formState.email || ''} onChange={handleFormChange} placeholder="Email" className="w-full p-2 border rounded" />
-                            <input type="number" name="passing_grade" value={formState.passing_grade || ''} onChange={handleFormChange} placeholder="Moyenne de passage (ex: 60)" className="w-full p-2 border rounded" />
-                            <div className="flex items-center gap-4">{formState.logo_url && <img src={formState.logo_url} alt="Logo" className="h-16 w-16 object-contain rounded-full" />}<input type="file" accept="image/*" onChange={handlePhotoChange} /></div>
-                            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">Sauvegarder les informations</button>
-                        </form>
-                    </div>
-                )}
-                {activeTab === 'years' && <div className="bg-white p-6 rounded-xl shadow-md"><SchoolYearManager /></div>}
-                {activeTab === 'classes' && <div className="bg-white p-6 rounded-xl shadow-md"><ClassManager /></div>}
-                {activeTab === 'periods' && <div className="bg-white p-6 rounded-xl shadow-md"><PeriodManager /></div>}
-                {activeTab === 'subjects' && <div className="bg-white p-6 rounded-xl shadow-md"><SubjectManager /></div>}
-                {activeTab === 'curriculum' && <div className="bg-white p-6 rounded-xl shadow-md"><CurriculumManager classes={classes} /></div>}
-                {activeTab === 'roles' && hasPermission('role:manage') && <div className="bg-white p-6 rounded-xl shadow-md"><RolesManager /></div>}
-                {activeTab === 'promotions' && <div className="bg-white p-6 rounded-xl shadow-md"><PromotionManager /></div>}
-                {activeTab === 'resources' && <div className="bg-white p-6 rounded-xl shadow-md"><AdminResourceManager /></div>}
-                {activeTab === 'journal' && <div className="bg-white p-6 rounded-xl shadow-md"><AuditLogViewer scope="admin" /></div>}
-                {activeTab === 'security' && (
-                    <div className="bg-white p-6 rounded-xl shadow-md">
-                        <h2 className="text-xl font-semibold text-slate-700 font-display mb-4">Changer mon mot de passe</h2>
-                        <ChangePasswordForm />
-                    </div>
-                )}
-            </main>
         </div>
     );
 };

@@ -118,7 +118,7 @@ async function setup() {
             CREATE TABLE IF NOT EXISTS school_years ( id SERIAL PRIMARY KEY, name TEXT NOT NULL, is_current BOOLEAN NOT NULL DEFAULT false );
             CREATE TABLE IF NOT EXISTS academic_periods ( id SERIAL PRIMARY KEY, year_id INTEGER NOT NULL REFERENCES school_years(id) ON DELETE CASCADE, name TEXT NOT NULL, UNIQUE(year_id, name) );
             CREATE TABLE IF NOT EXISTS subjects ( id SERIAL PRIMARY KEY, name TEXT NOT NULL );
-            CREATE TABLE IF NOT EXISTS enrollments ( id SERIAL PRIMARY KEY, student_id VARCHAR(255) NOT NULL REFERENCES students(id) ON DELETE CASCADE, year_id INTEGER NOT NULL REFERENCES school_years(id) ON DELETE CASCADE, "className" TEXT NOT NULL, mppa NUMERIC(10, 2) NOT NULL, payments JSONB NOT NULL, grades_access_enabled BOOLEAN NOT NULL DEFAULT true, UNIQUE(student_id, year_id) );
+            CREATE TABLE IF NOT EXISTS enrollments ( id SERIAL PRIMARY KEY, student_id VARCHAR(255) NOT NULL REFERENCES students(id) ON DELETE CASCADE, year_id INTEGER NOT NULL REFERENCES school_years(id) ON DELETE CASCADE, "className" TEXT NOT NULL, mppa NUMERIC(10, 2) NOT NULL, payments JSONB NOT NULL, grades_access_enabled BOOLEAN NOT NULL DEFAULT true, adjustments JSONB NOT NULL DEFAULT '[]'::jsonb, UNIQUE(student_id, year_id) );
             CREATE TABLE IF NOT EXISTS class_subjects ( id SERIAL PRIMARY KEY, class_name TEXT NOT NULL, subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE, year_id INTEGER NOT NULL REFERENCES school_years(id) ON DELETE CASCADE, max_grade NUMERIC(10, 2) NOT NULL DEFAULT 100, UNIQUE(class_name, subject_id, year_id) );
             CREATE TABLE IF NOT EXISTS teachers ( id SERIAL PRIMARY KEY, nom TEXT NOT NULL, prenom TEXT NOT NULL, email TEXT, phone TEXT, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE );
             CREATE TABLE IF NOT EXISTS grades ( id SERIAL PRIMARY KEY, enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE, subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE, period_id INTEGER NOT NULL REFERENCES academic_periods(id) ON DELETE CASCADE, evaluation_name TEXT NOT NULL, score NUMERIC(10, 2) NOT NULL, max_score NUMERIC(10, 2) NOT NULL, date DATE NOT NULL );
@@ -150,7 +150,19 @@ async function setup() {
                 instance_id INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
                 UNIQUE(name, instance_id)
             );
+            CREATE TABLE IF NOT EXISTS class_financials (
+                class_name TEXT NOT NULL,
+                year_id INTEGER NOT NULL REFERENCES school_years(id) ON DELETE CASCADE,
+                mppa NUMERIC(10, 2) NOT NULL,
+                instance_id INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+                PRIMARY KEY (class_name, year_id, instance_id)
+            );
         `);
+
+        if (!await columnExists(client, 'enrollments', 'adjustments')) {
+            console.log("Migration: Ajout de 'adjustments' à la table 'enrollments'.");
+            await client.query(`ALTER TABLE enrollments ADD COLUMN adjustments JSONB NOT NULL DEFAULT '[]'::jsonb`);
+        }
         
         // --- Step 3.5: Create RBAC Tables ---
         await client.query(`
@@ -263,6 +275,8 @@ async function setup() {
         await client.query('CREATE INDEX IF NOT EXISTS audit_logs_instance_id_idx ON audit_logs (instance_id);');
         await client.query('CREATE INDEX IF NOT EXISTS messages_instance_id_idx ON messages (instance_id);');
         await client.query('CREATE INDEX IF NOT EXISTS classes_instance_id_idx ON classes (instance_id);');
+        await client.query('CREATE INDEX IF NOT EXISTS class_financials_instance_id_idx ON class_financials (instance_id);');
+
 
         // Original indexes
         await client.query('CREATE INDEX IF NOT EXISTS students_nom_idx ON students (nom);');

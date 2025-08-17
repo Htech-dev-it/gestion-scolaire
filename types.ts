@@ -1,4 +1,12 @@
+export interface Adjustment {
+  id: string;
+  label: string;
+  amount: number;
+}
+
 export interface Payment {
+  id: string; //
+  label: string;
   amount: number;
   date: string | null; // ISO string date when payment was made
 }
@@ -28,8 +36,9 @@ export interface Enrollment {
     student_id: string;
     year_id: number;
     className: string;
-    mppa: number;
-    payments: [Payment, Payment, Payment, Payment];
+    mppa: number; // This now represents the BASE MPPA
+    payments: Payment[];
+    adjustments: Adjustment[];
     grades_access_enabled: boolean; // NEW: Controls student access to their grades
     student?: StudentProfile; // Optional, for joined data from backend
     year_name?: string; // from join with school_years for reports
@@ -194,7 +203,7 @@ export interface AttendanceReportData {
 // Deprecated, use StudentWithEnrollment instead where possible
 export interface Student extends StudentProfile {
     mppa: number;
-    payments: [Payment, Payment, Payment, Payment];
+    payments: Payment[];
 }
 
 // --- NEW RBAC (Role-Based Access Control) TYPES ---
@@ -326,8 +335,10 @@ export interface StudentAccessStatus {
 }
 
 export interface StudentFinanceData {
-    mppa: number;
+    baseMppa: number;
+    mppa: number; // Adjusted MPPA
     payments: Payment[];
+    adjustments: Adjustment[];
     totalPaid: number;
     balance: number;
 }
@@ -389,4 +400,10 @@ export interface MessageSummary {
     instance_id: number;
     instance_name: string;
     unread_count: number;
+}
+
+export interface ClassFinancials {
+    class_name: string;
+    year_id: number;
+    mppa: number;
 }

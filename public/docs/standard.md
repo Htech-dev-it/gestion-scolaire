@@ -13,6 +13,7 @@ Ce module vous permet de gérer l'ensemble des dossiers des élèves.
 
 1.  **Accès** : Depuis le **Tableau de Bord**, cliquez sur la carte **Gestion des Élèves**.
 2.  **Ajouter un élève** : Utilisez le formulaire sur la gauche pour créer un profil.
+    > **Note :** Le Montant à Payer (MPPA) de base est défini automatiquement selon la classe choisie et n'est pas modifiable ici. Il se gère sur la page de la classe.
 3.  **Modifier un élève** : Pour corriger ou compléter une information, double-cliquez sur un élève dans la liste pour ouvrir son profil dans le formulaire.
 4.  **Inscrire un élève** : Pour un élève non-inscrit, utilisez le bouton **"Inscrire"**.
 5.  **Actions en masse** : Cochez les cases à côté des noms pour sélectionner plusieurs élèves, puis utilisez les boutons qui apparaissent en haut du tableau pour **inscrire**, **changer de classe**, **archiver** ou **supprimer** en masse.
@@ -40,10 +41,11 @@ Ce module vous permet de gérer les frais de scolarité pour chaque élève.
 Cet outil vous permet de générer les bulletins officiels.
 
 1.  **Accès** : Depuis le **Tableau de Bord**, cliquez sur la carte **Gestion des Bulletins**.
-2.  **Sélectionnez** une classe et une période.
-3.  **Cochez** les élèves pour lesquels vous souhaitez générer un bulletin.
-4.  Choisissez un modèle et cliquez sur **"Générer les Bulletins"**.
-5.  Dans l'aperçu, vous pouvez modifier les appréciations avant d'**imprimer** la version finale.
+2.  **Choisissez** parmi 9 modèles de bulletins, du plus formel au plus créatif.
+3.  **Sélectionnez** une classe et une période.
+4.  **Cochez** les élèves pour lesquels vous souhaitez générer un bulletin.
+5.  Cliquez sur **"Générer les Bulletins"**.
+6.  Dans l'aperçu, vous pouvez modifier les appréciations avant d'**imprimer** la version finale.
 <!-- /permission -->
 
 ---

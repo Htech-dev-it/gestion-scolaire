@@ -10,13 +10,14 @@ const GradeRow: React.FC<{
     grade: Grade;
     onUpdate: (id: number, data: Partial<Grade>) => void;
     onDeleteRequest: (grade: Grade) => void;
-}> = ({ grade, onUpdate, onDeleteRequest }) => {
+    addNotification: (notification: { type: 'error' | 'success' | 'info' | 'warning'; message: string; }) => void;
+}> = ({ grade, onUpdate, onDeleteRequest, addNotification }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [form, setForm] = useState({ evaluation_name: grade.evaluation_name, score: grade.score, max_score: grade.max_score });
 
     const handleUpdate = () => {
         if (form.score > form.max_score) {
-            alert("La note ne peut pas être supérieure à la note maximale.");
+            addNotification({ type: 'error', message: "La note ne peut pas être supérieure à la note maximale." });
             return;
         }
         onUpdate(grade.id, form);
@@ -100,13 +101,15 @@ const SubjectGradeSection: React.FC<{
     const [isOpen, setIsOpen] = useState(false);
     const [gradeToDelete, setGradeToDelete] = useState<Grade | null>(null);
 
-    const totalMaxScore = useMemo(() => grades.reduce((sum, g) => sum + Number(g.max_score), 0), [grades]);
-
-    const average = useMemo(() => {
-        if (grades.length === 0) return 0;
-        const totalScore = grades.reduce((sum, g) => sum + Number(g.score), 0);
-        return totalMaxScore > 0 ? (totalScore / totalMaxScore) * 100 : 0;
-    }, [grades, totalMaxScore]);
+    const { totalScore, totalMaxScore, average } = useMemo(() => {
+        if (grades.length === 0) {
+            return { totalScore: 0, totalMaxScore: 0, average: 0 };
+        }
+        const score = grades.reduce((sum, g) => sum + Number(g.score), 0);
+        const maxScore = grades.reduce((sum, g) => sum + Number(g.max_score), 0);
+        const avg = maxScore > 0 ? (score / maxScore) * 100 : 0;
+        return { totalScore: score, totalMaxScore: maxScore, average: avg };
+    }, [grades]);
     
     const handleUpdateGrade = async (id: number, data: Partial<Grade>) => {
         try {
@@ -135,8 +138,8 @@ const SubjectGradeSection: React.FC<{
         <div className="bg-white rounded-lg shadow-sm">
             <div onClick={() => setIsOpen(!isOpen)} className="p-4 flex justify-between items-center cursor-pointer">
                 <div>
-                    <span className="font-semibold text-slate-800">{subject.subject_name}</span>
-                    <div className="text-xs text-slate-500">Total des points : {totalMaxScore.toFixed(0)} / {Number(subject.max_grade).toFixed(2)}</div>
+                    <span className="font-semibold text-slate-800">{subject.subject_name} (sur {Number(subject.max_grade).toLocaleString('fr-FR')})</span>
+                    <div className="text-xs text-slate-500">Total des points : {totalScore.toFixed(2)} / {totalMaxScore.toFixed(2)}</div>
                 </div>
                 <div className="flex items-center">
                     <div className="text-right mr-4">
@@ -153,7 +156,7 @@ const SubjectGradeSection: React.FC<{
                     {grades.length > 0 ? (
                         <table className="w-full text-sm">
                             <thead className="border-b"><tr><th className="p-2 text-left font-medium text-slate-500">Évaluation</th><th className="p-2 font-medium text-slate-500">Note</th><th className="p-2 font-medium text-slate-500">Sur</th><th className="p-2 font-medium text-slate-500">%</th><th className="p-2"></th></tr></thead>
-                            <tbody>{grades.map(grade => <GradeRow key={grade.id} grade={grade} onUpdate={handleUpdateGrade} onDeleteRequest={setGradeToDelete} />)}</tbody>
+                            <tbody>{grades.map(grade => <GradeRow key={grade.id} grade={grade} onUpdate={handleUpdateGrade} onDeleteRequest={setGradeToDelete} addNotification={addNotification} />)}</tbody>
                         </table>
                     ) : <p className="text-sm text-slate-500 italic text-center py-4">Aucune note enregistrée pour cette matière.</p>}
                     <AddGradeForm subjectId={subject.subject_id} enrollmentId={enrollmentId} periodId={periodId} onAdd={onDataChange} />
@@ -201,25 +204,40 @@ const GradebookModal: React.FC<GradebookModalProps> = ({ isOpen, onClose, enroll
         }
     }, [isOpen, year.id, enrollment.className, addNotification]);
 
-    const fetchGradesForPeriod = useCallback(async () => {
-        if (!selectedPeriod) {
-            setGradesBySubject({});
-            setIsLoading(false);
-            return;
-        };
-        setIsLoading(true);
+    const handleDataChange = useCallback(async () => {
+        if (!selectedPeriod) return;
+        // This function provides a "soft" refresh without setting the global loading state
         try {
             const gradesData = await apiFetch(`/grades?enrollmentId=${enrollment.id}&periodId=${selectedPeriod.id}`);
             setGradesBySubject(gradesData);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-        } finally {
-            setIsLoading(false);
         }
     }, [selectedPeriod, enrollment.id, addNotification]);
 
+
+    useEffect(() => {
+        const fetchGradesForPeriod = async () => {
+            if (!selectedPeriod) {
+                setGradesBySubject({});
+                setIsLoading(false);
+                return;
+            };
+            setIsLoading(true);
+            try {
+                const gradesData = await apiFetch(`/grades?enrollmentId=${enrollment.id}&periodId=${selectedPeriod.id}`);
+                setGradesBySubject(gradesData);
+            } catch (error) {
+                if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchGradesForPeriod();
+    }, [selectedPeriod, enrollment.id, addNotification]);
+
     useEffect(() => { fetchInitialData(); }, [fetchInitialData]);
-    useEffect(() => { fetchGradesForPeriod(); }, [fetchGradesForPeriod]);
 
     if (!isOpen) return null;
 
@@ -251,7 +269,7 @@ const GradebookModal: React.FC<GradebookModalProps> = ({ isOpen, onClose, enroll
                                 grades={gradesBySubject[subject.subject_id] || []} 
                                 enrollmentId={enrollment.id} 
                                 periodId={selectedPeriod.id} 
-                                onDataChange={fetchGradesForPeriod}
+                                onDataChange={handleDataChange}
                             />
                         )}</div>
                     }

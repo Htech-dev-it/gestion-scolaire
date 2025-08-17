@@ -1024,26 +1024,27 @@ async function startServer() {
         app.get('/api/admin/audit-logs', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
             const { page = 1, limit = 25 } = req.query;
             const { conditions, params: filterParams } = buildFilterConditions(req.query);
-            
-            let params = [...filterParams];
-            let paramIndex = params.length + 1;
-
-            conditions.push(`al.instance_id = $${paramIndex++}`);
-            params.push(req.user.instance_id);
-
-            const whereClause = ` WHERE ${conditions.join(' AND ')}`;
-            
+        
+            let allParams = [...filterParams];
+            let queryConditions = [...conditions];
+            let paramIndex = allParams.length + 1;
+        
+            queryConditions.push(`al.instance_id = $${paramIndex++}`);
+            allParams.push(req.user.instance_id);
+        
+            const whereClause = queryConditions.length > 0 ? `WHERE ${queryConditions.join(' AND ')}` : '';
+        
             const baseQuery = `FROM audit_logs al ${whereClause}`;
             const countQuery = `SELECT COUNT(*) as total ${baseQuery}`;
             
-            const countResult = await req.db.query(countQuery, params);
+            const countResult = await req.db.query(countQuery, allParams);
             const total = parseInt(countResult.rows[0].total, 10);
             const offset = (page - 1) * limit;
-
+        
             const dataQuery = `SELECT al.* ${baseQuery} ORDER BY al.timestamp DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
-            const dataParams = [...params, limit, offset];
-
-            const { rows: logs } = await req.db.query(dataQuery, dataParams);
+            allParams.push(limit, offset);
+        
+            const { rows: logs } = await req.db.query(dataQuery, allParams);
             
             res.json({
                 logs,
@@ -1945,6 +1946,58 @@ async function startServer() {
             if (rows.length === 0) return res.status(404).json({ message: 'Programme non trouvé ou accès refusé.'});
             res.json({ message: 'Note maximale mise à jour.' });
         }));
+        
+        // --- NEW: CLASS FINANCIALS ROUTES ---
+        app.get('/api/class-financials', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
+            const { yearId } = req.query;
+            if (!yearId) return res.status(400).json({ message: "Year ID is required." });
+
+            const { rows } = await req.db.query(
+                'SELECT * FROM class_financials WHERE year_id = $1 AND instance_id = $2',
+                [yearId, req.user.instance_id]
+            );
+            res.json(rows);
+        }));
+
+        app.put('/api/class-financials', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
+            const { yearId, financials } = req.body;
+            if (!yearId || !Array.isArray(financials)) {
+                return res.status(400).json({ message: 'Year ID and financials array are required.' });
+            }
+
+            const client = await req.db.connect();
+            try {
+                await client.query('BEGIN');
+
+                // Clear all existing entries for this year and instance first
+                await client.query(
+                    'DELETE FROM class_financials WHERE year_id = $1 AND instance_id = $2',
+                    [yearId, req.user.instance_id]
+                );
+
+                const insertQuery = `
+                    INSERT INTO class_financials (class_name, year_id, mppa, instance_id)
+                    VALUES ($1, $2, $3, $4);
+                `;
+
+                // Insert new entries for classes that have a valid MPPA
+                for (const item of financials) {
+                    if (item.class_name && (item.mppa !== null && item.mppa !== undefined)) {
+                         await client.query(insertQuery, [item.class_name, yearId, item.mppa, req.user.instance_id]);
+                    }
+                }
+                
+                await client.query('COMMIT');
+                await logActivity(req, 'CLASS_FINANCIALS_UPDATED', null, null, `Frais de scolarité mis à jour pour l'année ID ${yearId}.`);
+                res.json({ message: 'Frais de scolarité mis à jour.' });
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            } finally {
+                client.release();
+            }
+        }));
+
 
         // --- GRADE ROUTES ---
         const isAssignedToSubject = asyncHandler(async (req, res, next) => {
@@ -2123,22 +2176,29 @@ async function startServer() {
             if (!yearId || !student_id) return res.status(400).json({ message: "ID de l'année et de l'étudiant requis." });
 
             const { rows } = await req.db.query(
-                'SELECT mppa, payments FROM enrollments WHERE student_id = $1 AND year_id = $2',
+                'SELECT mppa, payments, adjustments FROM enrollments WHERE student_id = $1 AND year_id = $2',
                 [student_id, yearId]
             );
 
             if (rows.length === 0) {
-                // Not enrolled this year, return a default state
-                return res.json({ mppa: 0, payments: Array(4).fill({ amount: 0, date: null }), totalPaid: 0, balance: 0 });
+                return res.json({ baseMppa: 0, mppa: 0, payments: [], adjustments: [], totalPaid: 0, balance: 0 });
             }
             
             const enrollment = rows[0];
-            const totalPaid = enrollment.payments.reduce((acc, p) => acc + Number(p.amount), 0);
-            const balance = Number(enrollment.mppa) - totalPaid;
+            const baseMppa = Number(enrollment.mppa);
+            const payments = enrollment.payments || [];
+            const adjustments = enrollment.adjustments || [];
+
+            const totalAdjustments = adjustments.reduce((acc, adj) => acc + Number(adj.amount), 0);
+            const adjustedMppa = baseMppa + totalAdjustments;
+            const totalPaid = payments.reduce((acc, p) => acc + Number(p.amount), 0);
+            const balance = adjustedMppa - totalPaid;
 
             res.json({
-                mppa: Number(enrollment.mppa),
-                payments: enrollment.payments,
+                baseMppa,
+                mppa: adjustedMppa,
+                payments,
+                adjustments,
                 totalPaid,
                 balance
             });
@@ -2235,15 +2295,20 @@ async function startServer() {
             `;
             const insertValues = [id, instance_id, formatLastName(nom), formatName(prenom), date_of_birth || null, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref || null, sexe || null, finalNisu];
 
-            if (enrollment && enrollment.year_id && enrollment.className && enrollment.mppa >= 0) {
+            if (enrollment && enrollment.year_id && enrollment.className) {
                 const client = await req.db.connect();
                 try {
                     await client.query('BEGIN');
                     await client.query(insertQuery, insertValues);
                     await logActivity(req, 'STUDENT_CREATED', id, `${formatName(prenom)} ${formatLastName(nom)}`, `Profil élève créé pour ${formatName(prenom)} ${formatLastName(nom)} (ID: ${id}).`);
-        
-                    const defaultPayments = JSON.stringify(Array(4).fill({ amount: 0, date: null }));
-                    const { rows } = await client.query('INSERT INTO enrollments (student_id, year_id, "className", mppa, payments) VALUES ($1, $2, $3, $4, $5) RETURNING id', [id, enrollment.year_id, enrollment.className, enrollment.mppa, defaultPayments]);
+                    
+                    let finalMppa = enrollment.mppa;
+                    if (finalMppa === undefined || finalMppa === null) {
+                        const { rows: financialRows } = await client.query('SELECT mppa FROM class_financials WHERE class_name = $1 AND year_id = $2 AND instance_id = $3', [enrollment.className, enrollment.year_id, instance_id]);
+                        finalMppa = financialRows[0]?.mppa || 0;
+                    }
+
+                    const { rows } = await client.query('INSERT INTO enrollments (student_id, year_id, "className", mppa, payments, adjustments) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id', [id, enrollment.year_id, enrollment.className, finalMppa, '[]', '[]']);
                     
                     await logActivity(req, 'STUDENT_ENROLLED', id, `${formatName(prenom)} ${formatLastName(nom)}`, `Élève ${formatName(prenom)} ${formatLastName(nom)} (ID: ${id}) inscrit(e) en classe ${enrollment.className}.`);
         
@@ -2660,7 +2725,13 @@ async function startServer() {
             if (!yearId || !className) return res.status(400).json({ message: "Année et classe requises." });
 
             const query = `
-                SELECT e.*, s.nom, s.prenom, s.date_of_birth, s.address, s.photo_url, s.tutor_name, s.tutor_phone, s.tutor_email, s.medical_notes
+                SELECT e.*,
+                    json_build_object(
+                        'id', s.id, 'nom', s.nom, 'prenom', s.prenom, 'date_of_birth', s.date_of_birth,
+                        'address', s.address, 'photo_url', s.photo_url, 'tutor_name', s.tutor_name,
+                        'tutor_phone', s.tutor_phone, 'tutor_email', s.tutor_email, 'medical_notes', s.medical_notes,
+                        'classe_ref', s.classe_ref, 'status', s.status, 'instance_id', s.instance_id, 'sexe', s.sexe, 'nisu', s.nisu
+                    ) as student
                 FROM enrollments e
                 JOIN students s ON e.student_id = s.id
                 WHERE e.year_id = $1 AND e."className" = $2 AND s.status = 'active' AND s.instance_id = $3
@@ -2671,7 +2742,7 @@ async function startServer() {
         }));
         
         app.get('/api/enrollments/all', authenticateToken, requirePermission('report:financial'), asyncHandler(async (req, res) => {
-            const { page = 1, limit = 25, yearId, selectedClasses, balanceFilter, installmentFilter, mppaFilter, searchTerm } = req.query;
+            const { page = 1, limit = 25, yearId, selectedClasses, balanceFilter, mppaFilter, searchTerm } = req.query;
             const offset = (page - 1) * limit;
 
             let params = [req.user.instance_id];
@@ -2696,18 +2767,14 @@ async function startServer() {
                 paramIndex++;
             }
 
-            if (balanceFilter === 'zero') { conditions.push(`e.mppa <= (SELECT COALESCE(SUM((p->>'amount')::numeric), 0) FROM jsonb_array_elements(e.payments) p)`); }
-            if (balanceFilter === 'nonzero') { conditions.push(`e.mppa > (SELECT COALESCE(SUM((p->>'amount')::numeric), 0) FROM jsonb_array_elements(e.payments) p)`); }
-            if (installmentFilter && installmentFilter !== 'all') {
-                const [version, status] = installmentFilter.split('-');
-                const index = parseInt(version.replace('v', ''), 10) - 1;
-                if (status === 'paid') {
-                    conditions.push(`(e.payments->>${index}->>'amount')::numeric > 0`);
-                } else if (status === 'unpaid') {
-                    conditions.push(`COALESCE((e.payments->>${index}->>'amount')::numeric, 0) <= 0`);
-                }
-            }
+            const paymentsSum = `(SELECT COALESCE(SUM((p->>'amount')::numeric), 0) FROM jsonb_array_elements(e.payments) p)`;
+            const adjustmentsSum = `(SELECT COALESCE(SUM((adj->>'amount')::numeric), 0) FROM jsonb_array_elements(e.adjustments) adj)`;
+            const adjustedMppa = `(e.mppa + ${adjustmentsSum})`;
+            const balanceCondition = `(${adjustedMppa} - ${paymentsSum})`;
 
+            if (balanceFilter === 'zero') { conditions.push(`${balanceCondition} <= 0`); }
+            if (balanceFilter === 'nonzero') { conditions.push(`${balanceCondition} > 0`); }
+            
             const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
             const baseQuery = `FROM enrollments e JOIN students s ON e.student_id = s.id JOIN school_years y ON e.year_id = y.id ${whereClause}`;
 
@@ -2739,14 +2806,18 @@ async function startServer() {
         }));
 
         app.post('/api/enrollments', authenticateToken, requirePermission('enrollment:create'), asyncHandler(async (req, res) => {
-            const { student_id, year_id, className, mppa } = req.body;
+            let { student_id, year_id, className, mppa } = req.body;
 
             // Security check
             const { rowCount } = await req.db.query('SELECT 1 FROM students WHERE id = $1 AND instance_id = $2', [student_id, req.user.instance_id]);
             if (rowCount === 0) return res.status(403).json({ message: 'Accès non autorisé à cet élève.' });
 
-            const defaultPayments = JSON.stringify(Array(4).fill({ amount: 0, date: null }));
-            const { rows } = await req.db.query('INSERT INTO enrollments (student_id, year_id, "className", mppa, payments) VALUES ($1, $2, $3, $4, $5) RETURNING id', [student_id, year_id, className, mppa, defaultPayments]);
+            if (mppa === undefined || mppa === null) {
+                const { rows: financialRows } = await req.db.query('SELECT mppa FROM class_financials WHERE class_name = $1 AND year_id = $2 AND instance_id = $3', [className, year_id, req.user.instance_id]);
+                mppa = financialRows[0]?.mppa || 0;
+            }
+
+            const { rows } = await req.db.query('INSERT INTO enrollments (student_id, year_id, "className", mppa, payments, adjustments) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id', [student_id, year_id, className, mppa, '[]', '[]']);
             const { rows: studentRows } = await req.db.query('SELECT prenom, nom FROM students WHERE id = $1', [student_id]);
             await logActivity(req, 'STUDENT_ENROLLED', student_id, `${studentRows[0].prenom} ${studentRows[0].nom}`, `Élève ${studentRows[0].prenom} ${studentRows[0].nom} (ID: ${student_id}) inscrit(e) en classe ${className}.`);
             res.status(201).json({ id: rows[0].id });
@@ -2758,8 +2829,7 @@ async function startServer() {
                 return res.status(400).json({ message: "Données d'inscription en masse invalides." });
             }
             
-            const defaultPayments = JSON.stringify(Array(4).fill({ amount: 0, date: null }));
-            const query = 'INSERT INTO enrollments (student_id, year_id, "className", mppa, payments) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (student_id, year_id) DO NOTHING';
+            const query = 'INSERT INTO enrollments (student_id, year_id, "className", mppa, payments, adjustments) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (student_id, year_id) DO NOTHING';
 
             const client = await req.db.connect();
             try {
@@ -2768,7 +2838,7 @@ async function startServer() {
                     // Security check for each student
                     const { rowCount } = await client.query('SELECT 1 FROM students WHERE id = $1 AND instance_id = $2', [student_id, req.user.instance_id]);
                     if (rowCount > 0) {
-                        await client.query(query, [student_id, year_id, className, mppa, defaultPayments]);
+                        await client.query(query, [student_id, year_id, className, mppa, '[]', '[]']);
                     }
                 }
                 await client.query('COMMIT');
@@ -2784,13 +2854,13 @@ async function startServer() {
 
         app.put('/api/enrollments/:id/payments', authenticateToken, requirePermission('enrollment:update_payment'), asyncHandler(async (req, res) => {
             const { id } = req.params;
-            const { payments, mppa } = req.body;
+            const { payments, adjustments } = req.body;
             
             const { rowCount } = await req.db.query(
-                `UPDATE enrollments e SET payments = $1, mppa = $2
+                `UPDATE enrollments e SET payments = $1, adjustments = $2
                  FROM students s
                  WHERE e.student_id = s.id AND e.id = $3 AND s.instance_id = $4`,
-                [JSON.stringify(payments), mppa, id, req.user.instance_id]
+                [JSON.stringify(payments || []), JSON.stringify(adjustments || []), id, req.user.instance_id]
             );
 
             if (rowCount === 0) {

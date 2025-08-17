@@ -101,10 +101,10 @@ const Header: React.FC = () => {
 
   return (
     <header className="fixed top-0 left-0 right-0 z-40 bg-white shadow-md no-print">
-      <div className="max-w-screen-2xl mx-auto px-4 md:px-6 py-3 flex justify-between items-center">
+      <div className="max-w-screen-2xl mx-auto px-4 md:px-6 py-2 flex justify-between items-center">
         <div className="flex items-center gap-4">
             <ReactRouterDOM.Link to="/" className="flex items-center gap-2 text-xl font-bold text-[#1A202C] hover:text-[#4A90E2] transition-colors">
-                <img src="/scolalink_logo.jpg" alt="ScolaLink Logo" className="h-12 w-auto" />
+                <img src="/scolalink_logo.jpg" alt="ScolaLink Logo" className="h-10 w-auto" />
                 <span className="hidden sm:inline">ScolaLink</span>
             </ReactRouterDOM.Link>
             
@@ -150,7 +150,7 @@ const Header: React.FC = () => {
       {isMobileMenuOpen && (
           <div className="fixed inset-0 z-50 bg-white/95 backdrop-blur-sm md:hidden" onClick={closeMenu}>
              <div className="bg-white shadow-lg w-full" onClick={e => e.stopPropagation()}>
-              <div className="flex justify-between items-center px-4 py-3 border-b border-slate-200">
+              <div className="flex justify-between items-center px-4 py-2 border-b border-slate-200">
                   <span className="text-lg font-bold text-slate-800">Menu</span>
                   <button onClick={closeMenu} className="p-2 text-slate-500 hover:bg-slate-100 rounded-md">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>

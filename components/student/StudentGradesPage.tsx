@@ -80,45 +80,51 @@ const StudentGradesPage: React.FC = () => {
                     </div>
                 </div>
 
-                {activePeriodData && (
-                    <div className="space-y-6">
-                         <div className="p-6 bg-white rounded-xl shadow-md">
-                             <div className="flex justify-between items-baseline">
-                                <h2 className="text-xl font-bold text-slate-800 font-display">Résumé de la Période</h2>
-                                <div>
-                                    <span className="text-slate-500">Moyenne Générale: </span>
-                                    <span className="text-2xl font-bold text-blue-700">{(typeof activePeriodData.period_average === 'number' ? activePeriodData.period_average : 0).toFixed(2)}%</span>
-                                </div>
-                             </div>
-                             {activePeriodData.general_appreciation && <blockquote className="mt-4 p-3 bg-slate-50 border-l-4 border-slate-300 text-slate-600 italic">"{activePeriodData.general_appreciation}"</blockquote>}
-                         </div>
-
-                         {activePeriodData.subjects.map(subject => (
-                            <div key={subject.subject_id} className="p-6 bg-white rounded-xl shadow-md">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="text-lg font-semibold text-slate-700">{subject.subject_name}</h3>
-                                    <div className="text-right">
-                                        <p className="text-lg font-bold text-slate-800">{(typeof subject.average === 'number' && subject.max_grade > 0 ? (subject.average / subject.max_grade * 100) : 0).toFixed(2)}%</p>
-                                        <p className="text-xs text-slate-500">Moyenne</p>
+                {activePeriodData && (() => {
+                    const averageBase = activePeriodData.subjects.some(s => Number(s.max_grade) >= 100) ? 100 : 10;
+                    const periodAverageNumber = typeof activePeriodData.period_average === 'number' ? activePeriodData.period_average : 0;
+                    const scaledAverage = (periodAverageNumber / 100) * averageBase;
+                    
+                    return (
+                        <div className="space-y-6">
+                             <div className="p-6 bg-white rounded-xl shadow-md">
+                                 <div className="flex justify-between items-baseline">
+                                    <h2 className="text-xl font-bold text-slate-800 font-display">Résumé de la Période</h2>
+                                    <div>
+                                        <span className="text-slate-500">Moyenne Période: </span>
+                                        <span className="text-2xl font-bold text-blue-700">{scaledAverage.toFixed(2)} / {averageBase}</span>
                                     </div>
+                                 </div>
+                                 {activePeriodData.general_appreciation && <blockquote className="mt-4 p-3 bg-slate-50 border-l-4 border-slate-300 text-slate-600 italic">"{activePeriodData.general_appreciation}"</blockquote>}
+                             </div>
+
+                             {activePeriodData.subjects.map(subject => (
+                                <div key={subject.subject_id} className="p-6 bg-white rounded-xl shadow-md">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h3 className="text-lg font-semibold text-slate-700">{subject.subject_name}</h3>
+                                        <div className="text-right">
+                                            <p className="text-lg font-bold text-slate-800">{(typeof subject.average === 'number' && subject.max_grade > 0 ? (subject.average / subject.max_grade * 100) : 0).toFixed(2)}%</p>
+                                            <p className="text-xs text-slate-500">Moyenne</p>
+                                        </div>
+                                    </div>
+                                    {subject.appreciation && <blockquote className="mb-4 p-2 bg-blue-50 text-blue-800 text-sm rounded-md italic">"{subject.appreciation}"</blockquote>}
+                                    {subject.grades.length > 0 ? (
+                                        <table className="w-full text-sm">
+                                            <thead><tr className="border-b"><th className="p-2 text-left font-medium text-slate-500">Évaluation</th><th className="p-2 text-center font-medium text-slate-500">Note</th></tr></thead>
+                                            <tbody>
+                                                {subject.grades.map(grade => (
+                                                    <tr key={grade.id}><td className="p-2">{grade.evaluation_name}</td><td className="p-2 text-center font-mono">{grade.score} / {grade.max_score}</td></tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    ) : (
+                                        <p className="text-center text-sm text-slate-400 italic py-4">Aucune évaluation pour cette matière.</p>
+                                    )}
                                 </div>
-                                {subject.appreciation && <blockquote className="mb-4 p-2 bg-blue-50 text-blue-800 text-sm rounded-md italic">"{subject.appreciation}"</blockquote>}
-                                {subject.grades.length > 0 ? (
-                                    <table className="w-full text-sm">
-                                        <thead><tr className="border-b"><th className="p-2 text-left font-medium text-slate-500">Évaluation</th><th className="p-2 text-center font-medium text-slate-500">Note</th></tr></thead>
-                                        <tbody>
-                                            {subject.grades.map(grade => (
-                                                <tr key={grade.id}><td className="p-2">{grade.evaluation_name}</td><td className="p-2 text-center font-mono">{grade.score} / {grade.max_score}</td></tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                ) : (
-                                    <p className="text-center text-sm text-slate-400 italic py-4">Aucune évaluation pour cette matière.</p>
-                                )}
-                            </div>
-                         ))}
-                    </div>
-                )}
+                             ))}
+                        </div>
+                    );
+                })()}
             </>
         );
     };

@@ -1,8 +1,9 @@
-import React, { ChangeEvent, useEffect } from 'react';
-import type { StudentFormState, SchoolYear } from '../types';
+import React, { ChangeEvent, useEffect, useState } from 'react';
+import type { StudentFormState, SchoolYear, ClassFinancials } from '../types';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import DateInput from './DateInput';
 import PhoneInput from 'react-phone-input-2';
+import { apiFetch } from '../utils/api';
 
 interface StudentFormProps {
   formState: StudentFormState;
@@ -25,6 +26,17 @@ const InputField: React.FC<{ label: string; name: keyof Omit<StudentFormState, '
 
 const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setFormState, onSubmit, onCancel, selectedYear }) => {
   const { classes } = useSchoolYear();
+  const [classFinancials, setClassFinancials] = useState<ClassFinancials[]>([]);
+
+  // Fetch all financials for the current year once
+  useEffect(() => {
+    if (selectedYear) {
+      apiFetch(`/class-financials?yearId=${selectedYear.id}`)
+          .then(data => setClassFinancials(data))
+          .catch(err => console.error("Failed to fetch class financials", err));
+    }
+  }, [selectedYear]);
+
 
   useEffect(() => {
     // Set a default class for enrollment if 'enrollNow' is checked and no class is selected
@@ -32,6 +44,18 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
       setFormState(prev => ({ ...prev, enrollmentClassName: classes[0].name }));
     }
   }, [classes, formState.enrollNow, formState.enrollmentClassName, setFormState]);
+
+  // When the enrollment class changes, find the default MPPA and set it
+  useEffect(() => {
+    if (formState.enrollNow && formState.enrollmentClassName && classFinancials.length > 0) {
+        const financialInfo = classFinancials.find(cf => cf.class_name === formState.enrollmentClassName);
+        if (financialInfo) {
+            setFormState(prev => ({ ...prev, enrollmentMppa: financialInfo.mppa }));
+        } else {
+            setFormState(prev => ({ ...prev, enrollmentMppa: 0 })); // Reset if no default is found
+        }
+    }
+  }, [formState.enrollmentClassName, formState.enrollNow, classFinancials, setFormState]);
 
 
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -146,15 +170,11 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
             <fieldset className="space-y-4 p-4 bg-green-50 border border-green-200 rounded-lg">
                 <legend className="text-base font-semibold text-slate-500 mb-2 -ml-1">Informations d'Inscription ({selectedYear?.name})</legend>
                 <div>
-                    <label htmlFor="enrollmentMppa" className="block text-sm font-medium text-slate-700">MPPA (Montant à Payer)</label>
-                    <input
-                        type="number"
-                        id="enrollmentMppa"
-                        name="enrollmentMppa"
-                        value={formState.enrollmentMppa || ''}
-                        onChange={handleChange}
-                        className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm"
-                    />
+                    <label className="block text-sm font-medium text-slate-700">MPPA de Base (Montant à Payer)</label>
+                    <div className="mt-1 block w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-md shadow-sm font-bold text-slate-700">
+                        {Number(formState.enrollmentMppa).toFixed(2)}$
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">Le MPPA de base est géré sur la page de la classe. Les ajustements (bourses, frais) se font aussi sur cette page.</p>
                 </div>
             </fieldset>
         )}
@@ -190,15 +210,11 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
                             </select>
                         </div>
                         <div>
-                            <label htmlFor="enrollmentMppa" className="block text-sm font-medium text-slate-700">MPPA (Montant à Payer)</label>
-                            <input
-                                type="number"
-                                id="enrollmentMppa"
-                                name="enrollmentMppa"
-                                value={formState.enrollmentMppa || ''}
-                                onChange={handleChange}
-                                className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm"
-                            />
+                            <label className="block text-sm font-medium text-slate-700">MPPA (Montant à Payer)</label>
+                            <div className="mt-1 block w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-md shadow-sm font-bold text-slate-700">
+                                {Number(formState.enrollmentMppa).toFixed(2)}$
+                            </div>
+                             <p className="text-xs text-slate-500 mt-1">Montant par défaut pour la classe. Géré dans l'onglet "Frais Scolaire" de l'administration.</p>
                         </div>
                     </div>
                 )}

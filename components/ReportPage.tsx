@@ -1,18 +1,21 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
-import type { Enrollment, Instance, SchoolYear, StudentProfile, PaginatedEnrollments, PaginationInfo } from '../types';
+import type { Enrollment, Instance, PaginationInfo } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
-import Tooltip from './Tooltip';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 
-const installmentFilterOptions = [
-    { value: 'all', label: 'Tous' },
-    ...Array.from({ length: 4 }, (_, i) => ([
-        { value: `v${i+1}-paid`, label: `Versement ${i+1} Payé` },
-        { value: `v${i+1}-unpaid`, label: `Versement ${i+1} Non Payé` }
-    ])).flat()
-];
+// Define local types that match the API response for this specific page
+type ReportEnrollment = Enrollment & {
+    prenom: string;
+    nom: string;
+};
+
+interface PaginatedReportData {
+    enrollments: ReportEnrollment[];
+    pagination: PaginationInfo;
+}
+
 
 const SummaryCard: React.FC<{ title: string; value: string; icon: React.ReactNode; colorClass: string; }> = ({ title, value, icon, colorClass }) => (
     <div className="bg-white p-6 rounded-xl shadow-md flex items-center gap-4">
@@ -26,44 +29,11 @@ const SummaryCard: React.FC<{ title: string; value: string; icon: React.ReactNod
     </div>
 );
 
-const MonthlyBarChart: React.FC<{ data: { month: string; amount: number }[] }> = ({ data }) => {
-    const maxValue = Math.max(...data.map(d => d.amount), 0);
-    if (data.length === 0) {
-        return (
-            <div className="bg-white p-6 rounded-xl shadow-md">
-                <h3 className="text-lg font-semibold text-gray-800 font-display mb-4">Revenus par Mois</h3>
-                <div className="flex justify-center items-center h-64 border-l border-b border-slate-200">
-                    <p className="text-slate-500 italic">Aucune donnée de paiement pour la période sélectionnée.</p>
-                </div>
-            </div>
-        );
-    }
-    
-    return (
-        <div className="bg-white p-6 rounded-xl shadow-md">
-            <h3 className="text-lg font-semibold text-gray-800 font-display mb-4">Revenus par Mois (12 derniers mois d'activité)</h3>
-            <div className="flex justify-around items-end h-64 border-l border-b border-slate-200 pl-4 pt-4">
-                {data.map(item => (
-                    <div key={item.month} className="flex flex-col items-center h-full justify-end w-1/12 group">
-                        <Tooltip text={`${item.amount.toLocaleString('fr-FR', { style: 'currency', currency: 'USD' })}`}>
-                            <div
-                                className="w-full bg-blue-400 group-hover:bg-blue-600 rounded-t-md transition-all"
-                                style={{ height: `${maxValue > 0 ? (item.amount / maxValue) * 100 : 0}%` }}
-                            ></div>
-                        </Tooltip>
-                        <span className="text-xs text-slate-500 mt-2">{item.month}</span>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-};
-
 
 const ReportPage: React.FC = () => {
     const { addNotification } = useNotification();
-    const { schoolYears, selectedYear, classes } = useSchoolYear();
-    const [allEnrollments, setAllEnrollments] = useState<Enrollment[]>([]);
+    const { classes } = useSchoolYear();
+    const [allEnrollments, setAllEnrollments] = useState<ReportEnrollment[]>([]);
     const [pagination, setPagination] = useState<PaginationInfo | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [isLoading, setIsLoading] = useState(true);
@@ -74,8 +44,8 @@ const ReportPage: React.FC = () => {
     const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set());
     const [searchTerm, setSearchTerm] = useState('');
     const [balanceFilter, setBalanceFilter] = useState('all'); // 'all', 'zero', 'nonzero'
-    const [installmentFilter, setInstallmentFilter] = useState('all'); // e.g., 'all', 'v1-paid', 'v2-unpaid'
     const [mppaFilter, setMppaFilter] = useState('');
+    const { selectedYear } = useSchoolYear();
 
     useEffect(() => {
         if (classes.length > 0) {
@@ -92,7 +62,6 @@ const ReportPage: React.FC = () => {
                 limit: '25',
                 selectedClasses: Array.from(selectedClasses).join(','),
                 balanceFilter,
-                installmentFilter,
                 mppaFilter,
                 searchTerm,
             });
@@ -105,14 +74,8 @@ const ReportPage: React.FC = () => {
                 setInstanceInfo(info);
             }
 
-            const data: PaginatedEnrollments = await apiFetch(`/enrollments/all?${params.toString()}`);
-
-            const transformedEnrollments = data.enrollments.map((e: any) => ({
-                ...e,
-                student: { id: e.student_id, nom: e.nom, prenom: e.prenom } as StudentProfile
-            }));
-
-            setAllEnrollments(transformedEnrollments);
+            const data: PaginatedReportData = await apiFetch(`/enrollments/all?${params.toString()}`);
+            setAllEnrollments(data.enrollments);
             setPagination(data.pagination);
 
         } catch (err) {
@@ -122,7 +85,7 @@ const ReportPage: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [addNotification, selectedClasses, balanceFilter, installmentFilter, mppaFilter, searchTerm, selectedYear, instanceInfo]);
+    }, [addNotification, selectedClasses, balanceFilter, mppaFilter, searchTerm, selectedYear, instanceInfo]);
     
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -133,43 +96,20 @@ const ReportPage: React.FC = () => {
     
     useEffect(() => {
         setCurrentPage(1);
-    }, [selectedClasses, balanceFilter, installmentFilter, mppaFilter, searchTerm, selectedYear]);
+    }, [selectedClasses, balanceFilter, mppaFilter, searchTerm, selectedYear]);
 
     const summaryData = useMemo(() => {
-        // Note: Summary is calculated only for the current page. A full summary would require a separate API call.
-        const data = { totalMPPA: 0, totalPaid: 0, balance: 0 };
+        const data = { totalAdjustedMPPA: 0, totalPaid: 0, balance: 0 };
         for (const enrollment of allEnrollments) {
-            data.totalMPPA += Number(enrollment.mppa);
-            data.totalPaid += enrollment.payments.reduce((acc, p) => acc + Number(p.amount), 0);
+            const totalAdjustments = (enrollment.adjustments || []).reduce((acc, adj) => acc + Number(adj.amount), 0);
+            const adjustedMppa = Number(enrollment.mppa) + totalAdjustments;
+            const totalPaid = (enrollment.payments || []).reduce((acc, p) => acc + Number(p.amount), 0);
+            
+            data.totalAdjustedMPPA += adjustedMppa;
+            data.totalPaid += totalPaid;
         }
-        data.balance = data.totalMPPA - data.totalPaid;
+        data.balance = data.totalAdjustedMPPA - data.totalPaid;
         return data;
-    }, [allEnrollments]);
-    
-    const chartData = useMemo(() => {
-        const monthlyPayments: Record<string, number> = {};
-        const monthNames = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
-    
-        allEnrollments.forEach(enrollment => {
-            enrollment.payments.forEach(payment => {
-                if (payment.date) {
-                    const date = new Date(payment.date);
-                    const monthKey = `${date.getFullYear()}-${String(date.getMonth()).padStart(2, '0')}`; // YYYY-MM (0-indexed month)
-                    if (!monthlyPayments[monthKey]) {
-                        monthlyPayments[monthKey] = 0;
-                    }
-                    monthlyPayments[monthKey] += Number(payment.amount);
-                }
-            });
-        });
-    
-        return Object.entries(monthlyPayments)
-            .map(([key, amount]) => {
-                const [year, month] = key.split('-');
-                return { month: `${monthNames[parseInt(month, 10)]} '${year.slice(2)}`, amount, key };
-            })
-            .sort((a, b) => a.key.localeCompare(b.key))
-            .slice(-12);
     }, [allEnrollments]);
 
     const handleClassToggle = (className: string) => {
@@ -179,134 +119,6 @@ const ReportPage: React.FC = () => {
             else newSet.add(className);
             return newSet;
         });
-    };
-    
-    const handlePrint = () => {
-        if (!instanceInfo) {
-            addNotification({ type: 'error', message: "Les informations de l'école ne sont pas chargées." });
-            return;
-        }
-
-        const titleParts = [];
-        
-        if (selectedYear) {
-            titleParts.push(`Année: ${selectedYear.name}`);
-        }
-
-        const selectedClassesArray = Array.from(selectedClasses);
-        if (selectedClassesArray.length > 0 && selectedClassesArray.length < classes.length) {
-            titleParts.push(`Classe(s): ${selectedClassesArray.join(', ')}`);
-        }
-
-        if (balanceFilter !== 'all') {
-            titleParts.push(`Solde: ${balanceFilter === 'zero' ? 'Nul' : 'Non-nul'}`);
-        }
-
-        if (installmentFilter !== 'all') {
-            const option = installmentFilterOptions.find(opt => opt.value === installmentFilter);
-            if(option) titleParts.push(`Versement: ${option.label}`);
-        }
-
-        if (mppaFilter) {
-            titleParts.push(`MPPA: ${mppaFilter}$`);
-        }
-
-        if (searchTerm) {
-            titleParts.push(`Recherche: "${searchTerm}"`);
-        }
-
-        let reportTitle = "Rapport Financier Historique Complet";
-        let subTitle = '';
-        if (titleParts.length > 0) {
-            reportTitle = "Rapport Financier Filtré";
-            subTitle = titleParts.join(' | ');
-        }
-
-        const tableRows = allEnrollments.map(enrollment => {
-            const total = enrollment.payments.reduce((acc, p) => acc + Number(p.amount), 0);
-            const balance = Number(enrollment.mppa) - total;
-            return `
-                <tr>
-                    <td>${enrollment.student?.prenom || ''} ${enrollment.student?.nom || ''}</td>
-                    <td>${enrollment.year_name}</td>
-                    <td>${enrollment.className}</td>
-                    <td class="text-right">${Number(enrollment.mppa).toFixed(2)}$</td>
-                    <td class="text-right">${Number(enrollment.payments[0].amount).toFixed(2)}$</td>
-                    <td class="text-right">${Number(enrollment.payments[1].amount).toFixed(2)}$</td>
-                    <td class="text-right">${Number(enrollment.payments[2].amount).toFixed(2)}$</td>
-                    <td class="text-right">${Number(enrollment.payments[3].amount).toFixed(2)}$</td>
-                    <td class="text-right">${total.toFixed(2)}$</td>
-                    <td class="text-right ${balance > 0 ? 'balance-negative' : ''}">${balance.toFixed(2)}$</td>
-                </tr>
-            `;
-        }).join('');
-
-        const printContent = `
-            <html>
-                <head>
-                    <title>${reportTitle}</title>
-                    <style>
-                        body { font-family: Arial, sans-serif; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                        @page {
-                            size: A4 landscape;
-                            margin: 20mm;
-                        }
-                        .header { text-align: center; margin-bottom: 20px; }
-                        .header h1 { font-size: 18pt; margin: 0; }
-                        .header h2 { font-size: 14pt; margin: 5px 0; font-weight: normal; color: #333; }
-                        .header p { font-size: 9pt; margin: 2px 0; color: #555; }
-                        .header p.subtitle { font-size: 9pt; color: #666; font-style: italic; margin-top: 0; }
-                        table { width: 100%; border-collapse: collapse; font-size: 8pt; }
-                        th, td { border: 1px solid #ccc; padding: 5px; text-align: left; }
-                        th { background-color: #f2f2f2; font-weight: bold; }
-                        .text-right { text-align: right; }
-                        .balance-negative { color: red; font-weight: bold; }
-                    </style>
-                </head>
-                <body>
-                    <div class="header">
-                        <h1>${instanceInfo.name}</h1>
-                        ${instanceInfo.address ? `<p>${instanceInfo.address}</p>` : ''}
-                        <h2>${reportTitle}</h2>
-                        ${subTitle ? `<p class="subtitle">${subTitle}</p>` : ''}
-                        <p>Date d'impression: ${new Date().toLocaleDateString('fr-FR')}</p>
-                    </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Élève</th>
-                                <th>Année</th>
-                                <th>Classe</th>
-                                <th class="text-right">MPPA</th>
-                                <th class="text-right">V1</th>
-                                <th class="text-right">V2</th>
-                                <th class="text-right">V3</th>
-                                <th class="text-right">V4</th>
-                                <th class="text-right">Total Versé</th>
-                                <th class="text-right">Balance</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${tableRows}
-                        </tbody>
-                    </table>
-                </body>
-            </html>
-        `;
-
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) {
-            addNotification({ type: 'warning', message: 'Veuillez autoriser les pop-ups pour imprimer.' });
-            return;
-        }
-
-        printWindow.document.write(printContent);
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => {
-            printWindow.print();
-            printWindow.close();
-        }, 500);
     };
 
     return (
@@ -319,9 +131,6 @@ const ReportPage: React.FC = () => {
                     </ReactRouterDOM.Link>
                     <h1 className="text-4xl font-bold text-gray-800 font-display">Rapport Financier</h1>
                     <p className="text-lg text-slate-500 mt-2">Données pour l'année scolaire : <span className="font-semibold text-slate-700">{selectedYear?.name || 'Toutes'}</span></p>
-                </div>
-                 <div className="flex gap-4">
-                    <button onClick={handlePrint} className="flex items-center px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg shadow-sm hover:bg-green-700">Imprimer</button>
                 </div>
             </header>
 
@@ -340,19 +149,11 @@ const ReportPage: React.FC = () => {
                             <option value="nonzero">Solde Restant</option>
                         </select>
                     </div>
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Filtre par Versement</label>
-                         <select value={installmentFilter} onChange={e => setInstallmentFilter(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md">
-                            {installmentFilterOptions.map(opt => (
-                                <option key={opt.value} value={opt.value}>{opt.label}</option>
-                            ))}
-                        </select>
-                    </div>
                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">Filtrer par MPPA</label>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Filtrer par MPPA de Base</label>
                         <input type="number" placeholder="Montant exact" value={mppaFilter} onChange={e => setMppaFilter(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md"/>
                     </div>
-                     <div className="lg:col-span-2">
+                     <div className="lg:col-span-3">
                          <label className="block text-sm font-medium text-slate-700 mb-2">Filtrer par Classe</label>
                          <div className="flex flex-wrap gap-x-4 gap-y-2">
                             {classes.map(c => <label key={c.id} className="flex items-center space-x-2 cursor-pointer"><input type="checkbox" checked={selectedClasses.has(c.name)} onChange={() => handleClassToggle(c.name)} className="h-4 w-4 rounded text-blue-600"/><span>{c.name}</span></label>)}
@@ -367,15 +168,11 @@ const ReportPage: React.FC = () => {
             {!isLoading && !error && (
             <>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 no-print">
-                    <SummaryCard title="Total Attendu (MPPA)" value={summaryData.totalMPPA.toLocaleString('fr-FR', {style: 'currency', currency: 'USD'})} colorClass="bg-blue-100" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>} />
+                    <SummaryCard title="Total Attendu (MPPA Ajusté)" value={summaryData.totalAdjustedMPPA.toLocaleString('fr-FR', {style: 'currency', currency: 'USD'})} colorClass="bg-blue-100" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>} />
                     <SummaryCard title="Total Versé" value={summaryData.totalPaid.toLocaleString('fr-FR', {style: 'currency', currency: 'USD'})} colorClass="bg-green-100" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>} />
                     <SummaryCard title="Balance Restante" value={summaryData.balance.toLocaleString('fr-FR', {style: 'currency', currency: 'USD'})} colorClass="bg-red-100" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
                 </div>
                 
-                <div className="mb-8 no-print">
-                    <MonthlyBarChart data={chartData} />
-                </div>
-
                 <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg printable-content overflow-x-auto">
                     <p className="mb-4 text-slate-600">Affichage de <span className="font-bold text-slate-800">{allEnrollments.length}</span> sur <span className="font-bold text-slate-800">{pagination?.total || 0}</span> inscriptions.</p>
                     <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -384,35 +181,35 @@ const ReportPage: React.FC = () => {
                                 <th className="px-3 py-3 text-left font-semibold text-slate-600 uppercase">Élève</th>
                                 <th className="px-3 py-3 text-left font-semibold text-slate-600 uppercase">Année</th>
                                 <th className="px-3 py-3 text-left font-semibold text-slate-600 uppercase">Classe</th>
-                                <th className="px-3 py-3 text-right font-semibold text-slate-600 uppercase">MPPA</th>
-                                <th className="px-3 py-3 text-right font-semibold text-slate-600 uppercase">V1</th>
-                                <th className="px-3 py-3 text-right font-semibold text-slate-600 uppercase">V2</th>
-                                <th className="px-3 py-3 text-right font-semibold text-slate-600 uppercase">V3</th>
-                                <th className="px-3 py-3 text-right font-semibold text-slate-600 uppercase">V4</th>
+                                <th className="px-3 py-3 text-right font-semibold text-slate-600 uppercase">MPPA Base</th>
+                                <th className="px-3 py-3 text-right font-semibold text-slate-600 uppercase">Ajustements</th>
+                                <th className="px-3 py-3 text-right font-semibold text-slate-600 uppercase">MPPA Ajusté</th>
                                 <th className="px-3 py-3 text-right font-semibold text-slate-600 uppercase">Total Versé</th>
                                 <th className="px-3 py-3 text-right font-semibold text-slate-600 uppercase">Balance</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-slate-200">
                            {allEnrollments.length > 0 ? allEnrollments.map(enrollment => {
-                               const total = enrollment.payments.reduce((acc, p) => acc + Number(p.amount), 0);
-                               const balance = Number(enrollment.mppa) - total;
+                               const totalPaid = (enrollment.payments || []).reduce((acc, p) => acc + Number(p.amount), 0);
+                               const totalAdjustments = (enrollment.adjustments || []).reduce((acc, adj) => acc + Number(adj.amount), 0);
+                               const adjustedMppa = Number(enrollment.mppa) + totalAdjustments;
+                               const balance = adjustedMppa - totalPaid;
+
                                return (
                                    <tr key={enrollment.id} className="even:bg-gray-50">
-                                       <td className="px-3 py-3 font-medium whitespace-nowrap">{enrollment.student?.prenom} {enrollment.student?.nom}</td>
+                                       <td className="px-3 py-3 font-medium whitespace-nowrap">{enrollment.prenom} {enrollment.nom}</td>
                                        <td className="px-3 py-3 whitespace-nowrap">{enrollment.year_name}</td>
                                        <td className="px-3 py-3 whitespace-nowrap">{enrollment.className}</td>
-                                       <td className="px-3 py-3 text-right font-medium">{Number(enrollment.mppa).toFixed(2)}$</td>
-                                       {enrollment.payments.map((p, i) => (
-                                           <td key={i} className="px-3 py-3 text-right">{Number(p.amount).toFixed(2)}$</td>
-                                       ))}
-                                       <td className="px-3 py-3 text-right font-semibold text-slate-800">{total.toFixed(2)}$</td>
+                                       <td className="px-3 py-3 text-right">{Number(enrollment.mppa).toFixed(2)}$</td>
+                                       <td className="px-3 py-3 text-right">{totalAdjustments.toFixed(2)}$</td>
+                                       <td className="px-3 py-3 text-right font-medium">{adjustedMppa.toFixed(2)}$</td>
+                                       <td className="px-3 py-3 text-right font-semibold text-slate-800">{totalPaid.toFixed(2)}$</td>
                                        <td className={`px-3 py-3 text-right font-bold ${balance > 0 ? 'text-red-600' : 'text-green-700'}`}>{balance.toFixed(2)}$</td>
                                    </tr>
                                );
                            }) : (
                                <tr>
-                                   <td colSpan={10} className="text-center py-10 text-slate-500">Aucune inscription ne correspond à vos critères.</td>
+                                   <td colSpan={8} className="text-center py-10 text-slate-500">Aucune inscription ne correspond à vos critères.</td>
                                </tr>
                            )}
                         </tbody>

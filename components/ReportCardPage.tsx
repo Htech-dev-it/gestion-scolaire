@@ -7,7 +7,7 @@ import { useSchoolYear } from '../contexts/SchoolYearContext';
 import GradebookModal from './GradebookModal';
 import { useAuth } from '../auth/AuthContext';
 
-type Template = 'moderne' | 'classique' | 'compact' | 'détaillé' | 'elegant' | 'annuel';
+type Template = 'moderne' | 'classique' | 'formel' | 'détaillé' | 'annuel' | 'élégant' | 'créatif' | 'creatif-compact' | 'elegant-compact';
 
 // --- Reusable Sub-components ---
 
@@ -30,18 +30,18 @@ const TemplateRenderer: React.FC<{
     onGeneralAppreciationChange: (value: string) => void;
 }> = ({ template, data, onAppreciationChange, onGeneralAppreciationChange }) => {
     
-    const { schoolInfo, enrollment, selectedPeriod, year, subjectAverages, generalAverage, appreciations, gradesBySubject, generalAppreciation, formatDate, user } = data;
+    const { schoolInfo, enrollment, selectedPeriod, year, subjectAverages, generalAverage, appreciations, gradesBySubject, generalAppreciation, formatDate, user, totalNotes, totalCoefficient, studentAverage, averageBase, classAverage, rank } = data;
 
     const renderHeader = () => (
         <>
-            <div className="text-center mb-4 border-b-2 border-gray-800 pb-2 print-header">
-                {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="Logo" className="h-16 mx-auto mb-2" />}
-                <h1 className="text-2xl font-bold font-display">{schoolInfo?.name}</h1>
+            <div className="text-center mb-2 border-b-2 border-gray-700 pb-2 print-header">
+                {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="Logo" className="h-14 print:h-12 mx-auto mb-2 object-contain" />}
+                <h1 className="text-xl font-bold font-display">{schoolInfo?.name}</h1>
                 <p className="text-xs text-slate-600">{schoolInfo?.address}</p>
                 <p className="text-xs text-slate-600">{schoolInfo?.phone} | {schoolInfo?.email}</p>
             </div>
-            <h2 className="text-center text-xl font-semibold my-2 font-display uppercase print-title">Bulletin de Notes - {selectedPeriod?.name}</h2>
-            <div className="grid grid-cols-2 gap-x-4 text-sm bg-gray-50 p-3 rounded-lg border my-2 print-header-info">
+            <h2 className="text-center text-sm font-semibold my-1 font-display uppercase print-title">Bulletin de Notes - {selectedPeriod?.name}</h2>
+            <div className="grid grid-cols-2 gap-x-4 text-xs bg-gray-50 p-2 rounded-lg border my-1 print-header-info">
                 <p><strong>Élève:</strong> {enrollment.student?.prenom} {enrollment.student?.nom}</p>
                 <p><strong>Classe:</strong> {enrollment.className}</p>
                 <p><strong>Date de Naissance:</strong> {formatDate(enrollment.student?.date_of_birth)}</p>
@@ -56,17 +56,17 @@ const TemplateRenderer: React.FC<{
         const statusColor = enrollment.promotionStatus === 'ADMIS(E) EN CLASSE SUPÉRIEURE' ? 'text-green-700' : 'text-red-700';
 
         return (
-             <div className="mt-4 pt-4 border-t-2 border-slate-400">
-                <h3 className="font-bold text-center text-base mb-2">RÉSUMÉ ANNUEL</h3>
-                <div className={`grid ${showPromotionStatus ? 'grid-cols-2' : 'grid-cols-1 text-center'} gap-x-4 text-sm bg-slate-100 p-3 rounded-lg border`}>
+             <div className="mt-2 pt-2 border-t-2 border-slate-400">
+                <h3 className="font-bold text-center text-sm mb-2">RÉSUMÉ ANNUEL</h3>
+                <div className={`grid ${showPromotionStatus ? 'grid-cols-2' : 'grid-cols-1 text-center'} gap-x-4 text-xs bg-slate-100 p-2 rounded-lg border`}>
                     <div>
                         <span className="font-semibold">Moyenne Générale Annuelle:</span>
-                        <p className="font-bold text-lg">{Number(enrollment.annualAverage).toFixed(2)}%</p>
+                        <p className="font-bold text-base">{Number(enrollment.annualAverage).toFixed(2)}%</p>
                     </div>
                     {showPromotionStatus && enrollment.promotionStatus && (
                         <div className="text-right">
                             <span className="font-semibold">Décision du Conseil:</span>
-                            <p className={`font-bold text-lg ${statusColor}`}>{enrollment.promotionStatus}</p>
+                            <p className={`font-bold text-base ${statusColor}`}>{enrollment.promotionStatus}</p>
                         </div>
                     )}
                 </div>
@@ -75,11 +75,28 @@ const TemplateRenderer: React.FC<{
     };
 
     const renderFooter = () => (
-         <div className="mt-8 pt-4 flex justify-between items-end text-xs text-center print-footer">
-            <div className="w-1/3"><div className="border-t border-gray-500 w-2/3 mx-auto pt-1">Signature du Titulaire</div></div>
-            <div className="w-1/3 text-gray-500">Bulletin généré le {new Date().toLocaleDateString('fr-FR')}</div>
+         <div className="mt-6 pt-2 flex justify-between items-end text-xs text-center print-footer">
+            <div className="w-1/3"><div className="border-t border-gray-500 w-2/3 mx-auto pt-1">Personne responsable</div></div>
             <div className="w-1/3"><div className="border-t border-gray-500 w-2/3 mx-auto pt-1">Signature de la Direction</div></div>
         </div>
+    );
+
+    const renderAnnualHeader = () => (
+        <>
+            <div className="text-center mb-2 border-b-2 border-gray-700 pb-2">
+                {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="Logo" className="h-14 print:h-12 mx-auto mb-2 object-contain" />}
+                <h1 className="text-xl font-bold font-display">{schoolInfo?.name}</h1>
+                <p className="text-xs text-slate-600">{schoolInfo?.address}</p>
+                <p className="text-xs text-slate-600">{schoolInfo?.phone} | {schoolInfo?.email}</p>
+            </div>
+            <h2 className="text-center text-lg font-semibold my-2 font-display uppercase">{`BULLETIN DE NOTES - ${selectedPeriod?.name}`}</h2>
+            <div className="grid grid-cols-2 gap-x-4 text-xs bg-gray-50 p-2 rounded-lg border my-2">
+                <p><strong>Élève:</strong> {enrollment.student?.prenom} {enrollment.student?.nom}</p>
+                <p><strong>Classe:</strong> {enrollment.className}</p>
+                <p><strong>Date de Naissance:</strong> {formatDate(enrollment.student?.date_of_birth)}</p>
+                <p><strong>Année Scolaire:</strong> {year.name}</p>
+            </div>
+        </>
     );
 
     switch(template) {
@@ -89,32 +106,40 @@ const TemplateRenderer: React.FC<{
                     <div className="absolute top-0 left-0 bottom-0 w-2 bg-blue-600 rounded-l-lg"></div>
                     <div className="ml-4">
                         {renderHeader()}
-                        <table className="w-full text-sm mt-4 print-table">
+                        <table className="w-full text-sm mt-1 print-table">
                             <thead className="border-b-2 border-slate-300">
                                 <tr>
-                                    <th className="p-2 text-left font-semibold text-slate-600">Matière</th>
-                                    <th className="p-2 w-28 text-center font-semibold text-slate-600">Moyenne</th>
-                                    <th className="p-2 text-left font-semibold text-slate-600">Appréciation</th>
+                                    <th className="py-0.5 px-2 text-left font-semibold text-slate-600">Matière</th>
+                                    <th className="py-0.5 px-2 w-32 text-center font-semibold text-slate-600">Moyenne (/100)</th>
+                                    <th className="py-0.5 px-2 text-left font-semibold text-slate-600">Appréciation</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {subjectAverages.map((s: any, index: number) => (
                                     <tr key={s.id} className={`${index % 2 === 0 ? 'bg-slate-50' : 'bg-white'}`}>
-                                        <td className="p-2 font-medium text-slate-800">{s.name}</td>
-                                        <td className="p-2 text-center">
-                                            <span className={`font-bold text-base px-2 py-1 rounded-md ${s.average >= 80 ? 'text-green-800 bg-green-100' : s.average >= 60 ? 'text-blue-800 bg-blue-100' : 'text-red-800 bg-red-100'}`}>
-                                                {s.average.toFixed(2)}%
+                                        <td className="py-0.5 px-2 font-medium text-slate-800">{s.name}</td>
+                                        <td className="py-0.5 px-2 text-center">
+                                            <span className={`font-bold text-sm px-2 py-1 rounded-md ${s.average >= 80 ? 'text-green-800 bg-green-100' : s.average >= 60 ? 'text-blue-800 bg-blue-100' : 'text-red-800 bg-red-100'}`}>
+                                                {s.average.toFixed(2)}
                                             </span>
                                         </td>
-                                        <td className="p-2"><AppreciationTextarea value={appreciations[s.id] || ''} onChange={e => onAppreciationChange(s.id, e.target.value)} /></td>
+                                        <td className="py-0.5 px-2"><AppreciationTextarea value={appreciations[s.id] || ''} onChange={e => onAppreciationChange(s.id, e.target.value)} className="text-xs" /></td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
-                        <div className="mt-4 flex justify-end items-baseline gap-x-3 bg-slate-100 p-3 rounded-lg print-moderne-avg">
-                            <span className="text-slate-600 font-semibold text-lg">Moyenne Période:</span>
-                            <p className="font-bold text-2xl text-blue-700">{generalAverage.toFixed(2)}%</p>
+                        <div className="mt-2 flex justify-between items-baseline gap-x-3 bg-slate-100 p-2 rounded-lg print-moderne-avg">
+                            <h4 className="font-semibold text-xs text-slate-600">Appréciation Générale:</h4>
+                            <div className="text-right">
+                                <span className="text-slate-600 font-semibold text-sm">Moyenne Période:</span>
+                                <p className="font-bold text-sm text-blue-700">{((generalAverage / 100) * averageBase).toFixed(2)} / {averageBase}</p>
+                            </div>
                         </div>
+                        <AppreciationTextarea 
+                            value={generalAppreciation} 
+                            onChange={e => onGeneralAppreciationChange(e.target.value)}
+                            className="w-full p-2 border rounded-md bg-slate-50 min-h-[30px] whitespace-pre-wrap text-xs mt-1"
+                        />
                         {renderAnnualSummary()}
                         {renderFooter()}
                     </div>
@@ -122,44 +147,131 @@ const TemplateRenderer: React.FC<{
             );
         case 'classique':
             return (
-                <div className="p-4 border-2 border-slate-800 bg-slate-50">
+                <div className="p-2 border-2 border-slate-800 bg-slate-50">
                     {renderHeader()}
-                    <table className="w-full text-sm border-collapse border border-slate-400 mt-4 bg-white print-table">
+                    <table className="w-full text-sm border-collapse border border-slate-400 mt-1 bg-white print-table">
                         <thead>
                             <tr>
-                                <th className="p-2 text-left font-semibold border border-slate-300">Matière</th>
-                                <th className="p-2 w-28 font-semibold border border-slate-300">Moyenne</th>
-                                <th className="p-2 text-left font-semibold border border-slate-300">Appréciation</th>
+                                <th className="py-0.5 px-2 text-left font-semibold border border-slate-300">Matière</th>
+                                <th className="py-0.5 px-2 w-32 font-semibold border border-slate-300">Moyenne (/100)</th>
+                                <th className="py-0.5 px-2 text-left font-semibold border border-slate-300">Appréciation</th>
                             </tr>
                         </thead>
                         <tbody>
                             {subjectAverages.map((s: any) => (
                                 <tr key={s.id} className="border-b border-slate-200">
-                                    <td className="p-2 font-medium border border-slate-300">{s.name}</td>
-                                    <td className="p-2 text-center font-bold border border-slate-300">{s.average.toFixed(2)}%</td>
-                                    <td className="p-2 border border-slate-300"><AppreciationTextarea value={appreciations[s.id] || ''} onChange={e => onAppreciationChange(s.id, e.target.value)} /></td>
+                                    <td className="py-0.5 px-2 font-medium border border-slate-300">{s.name}</td>
+                                    <td className="py-0.5 px-2 text-center border border-slate-300">{s.average.toFixed(2)}</td>
+                                    <td className="py-0.5 px-2 border border-slate-300"><AppreciationTextarea value={appreciations[s.id] || ''} onChange={e => onAppreciationChange(s.id, e.target.value)} className="text-xs"/></td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
-                    <p className="text-right font-bold text-xl mt-6 border-t-2 border-slate-800 pt-2 print-classique-avg">Moyenne Période: {generalAverage.toFixed(2)}%</p>
+                     <div className="flex justify-between items-end mt-2 border-t-2 border-slate-800 pt-1">
+                        <div>
+                            <h4 className="font-semibold text-xs text-slate-600">Appréciation Générale:</h4>
+                            <AppreciationTextarea 
+                                value={generalAppreciation} 
+                                onChange={e => onGeneralAppreciationChange(e.target.value)}
+                                className="w-full p-2 border rounded-md bg-white min-h-[30px] whitespace-pre-wrap text-xs mt-1"
+                            />
+                        </div>
+                        <p className="font-bold text-sm print-classique-avg text-right">Moyenne Période: {((generalAverage / 100) * averageBase).toFixed(2)} / {averageBase}</p>
+                    </div>
                     {renderAnnualSummary()}
                     {renderFooter()}
                 </div>
             );
+        case 'formel':
+            return (
+                <div className="p-2 bg-white font-serif text-black" style={{ fontSize: '10pt' }}>
+                    <div className="text-center mb-4">
+                        {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="Logo" className="h-24 w-24 print:h-16 print:w-16 object-contain mx-auto" />}
+                        <h1 className="text-xl font-bold uppercase mt-2">{schoolInfo?.name}</h1>
+                        <p className="text-xs">{`Année Académique ${year.name}`}</p>
+                        <p className="text-xs">{schoolInfo?.address}</p>
+                        <p className="text-xs">{schoolInfo?.phone}</p>
+                        {schoolInfo?.email && <p className="text-xs">{schoolInfo.email}</p>}
+                    </div>
+                    
+                    <h2 className="text-center text-lg font-bold my-4 uppercase">{`Bulletin: ${selectedPeriod?.name}`}</h2>
+
+                    <div className="text-sm mb-4">
+                        <div className="flex items-baseline">
+                            <div className="w-1/2 flex items-baseline pr-4">
+                                <strong className="flex-shrink-0 mr-2">Nom:</strong>
+                                <span className="flex-grow border-b border-dotted border-black">{enrollment.student?.nom}</span>
+                            </div>
+                            <div className="w-1/2 flex items-baseline pl-4">
+                                <strong className="flex-shrink-0 mr-2">Prénom(s):</strong>
+                                <span className="flex-grow border-b border-dotted border-black">{enrollment.student?.prenom}</span>
+                            </div>
+                        </div>
+                        <div className="flex items-baseline mt-2">
+                            <div className="w-1/2 flex items-baseline pr-4">
+                                <strong className="flex-shrink-0 mr-2">Identifiant:</strong>
+                                <span className="flex-grow border-b border-dotted border-black">{enrollment.student?.nisu || enrollment.student?.id}</span>
+                            </div>
+                            <div className="w-1/2 flex items-baseline pl-4">
+                                <strong className="flex-shrink-0 mr-2">Classe:</strong>
+                                <span className="flex-grow border-b border-dotted border-black">{enrollment.className}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <table className="w-full text-sm border-collapse border border-black">
+                        <thead className="bg-gray-200"><tr className="bg-gray-200"><th className="border border-black py-0.5 px-1 font-bold">Matières</th><th className="border border-black py-0.5 px-1 font-bold w-32">Coefficient</th><th className="border border-black py-0.5 px-1 font-bold w-32">Notes</th></tr></thead>
+                        <tbody>
+                            {subjectAverages.map((subject: any) => {
+                                const subjectGrades = gradesBySubject[subject.id] || [];
+                                const note = subjectGrades.reduce((sum: number, g: Grade) => sum + Number(g.score), 0);
+                                return (
+                                    <tr key={subject.id}><td className="border border-black py-0.5 px-1">{subject.name}</td><td className="border border-black py-0.5 px-1 text-center">{Number(subject.max_grade)}</td><td className="border border-black py-0.5 px-1 text-center">{note.toFixed(2)}</td></tr>
+                                );
+                            })}
+                            <tr><td className="border border-black py-0.5 px-1 font-bold">Total</td><td className="border border-black py-0.5 px-1 text-center font-bold bg-gray-200">{totalCoefficient.toFixed(0)}</td><td className="border border-black py-0.5 px-1 text-center font-bold bg-gray-200">{totalNotes.toFixed(2)}</td></tr>
+                            <tr>
+                                <td className="border border-black py-0.5 px-1 font-bold">Moyenne de l'élève</td>
+                                <td className="border border-black py-0.5 px-1 text-center font-bold bg-gray-200">{averageBase}</td>
+                                <td className="border border-black py-0.5 px-1 text-center font-bold bg-gray-200">{studentAverage.toFixed(2)}</td>
+                            </tr>
+                            <tr>
+                                <td colSpan={3} className="border-t border-black p-0">
+                                    <div className="grid grid-cols-4">
+                                        <div className="border-r border-black py-0.5 px-1 font-bold bg-gray-200 text-left">Moyenne de la Classe</div>
+                                        <div className="border-r border-black py-0.5 px-1 text-center font-bold bg-gray-200">{classAverage.toFixed(2)}</div>
+                                        <div className="border-r border-black py-0.5 px-1 font-bold bg-gray-200 text-left">Place de l'élève</div>
+                                        <div className="py-0.5 px-1 text-center font-bold bg-gray-200">{rank}</div>
+                                    </div>
+                                </td>
+                            </tr>
+                            <tr><td colSpan={3} className="border border-black py-0.5 px-1"><div className="font-bold">OBSERVATIONS</div><AppreciationTextarea value={generalAppreciation} onChange={e => onGeneralAppreciationChange(e.target.value)} className="w-full min-h-[50px] py-0.5 px-1 bg-transparent focus:bg-yellow-100" /></td></tr>
+                        </tbody>
+                    </table>
+                    
+                    <div className="flex justify-between mt-16 text-sm">
+                        <div className="w-2/5 text-center"><div className="border-t border-black pt-1">Signature de la Direction</div></div>
+                        <div className="w-2/5 text-center"><div className="border-t border-black pt-1">Signature du Responsable</div></div>
+                    </div>
+                </div>
+            );
         case 'annuel': {
             const statusColor = enrollment.promotionStatus === 'ADMIS(E) EN CLASSE SUPÉRIEURE' ? 'text-green-700' : 'text-red-700';
-
+            const totalScore = subjectAverages.reduce((acc: number, s: any) => {
+                const scaledScore = Number(s.max_grade) > 0 ? (s.average / 100) * Number(s.max_grade) : 0;
+                return acc + scaledScore;
+            }, 0);
+            const totalCoefficientAnnuel = subjectAverages.reduce((acc: number, s: any) => acc + Number(s.max_grade), 0);
             return (
                 <div className="p-1">
-                    {renderHeader()}
-                    <table className="w-full text-sm print-table">
+                    {renderAnnualHeader()}
+                    <table className="w-full text-sm">
                         <thead className="border-b-2 border-slate-300">
                             <tr>
-                                <th className="p-1 text-left font-semibold">Matière</th>
-                                <th className="p-1 w-28 text-center font-semibold">Note</th>
-                                <th className="p-1 w-28 text-center font-semibold">Pourcentage</th>
-                                <th className="p-1 text-left font-semibold">Appréciation</th>
+                                <th className="py-0.5 px-2 text-left font-semibold">Matière</th>
+                                <th className="py-0.5 px-2 w-28 text-center font-semibold">Note</th>
+                                <th className="py-0.5 px-2 w-28 text-center font-semibold">Coefficient</th>
+                                <th className="py-0.5 px-2 text-left font-semibold">Appréciation</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -167,28 +279,46 @@ const TemplateRenderer: React.FC<{
                                 const scaledScore = Number(s.max_grade) > 0 ? (s.average / 100) * Number(s.max_grade) : 0;
                                 return (
                                     <tr key={s.id} className="border-b border-slate-100">
-                                        <td className="p-1 font-medium">{s.name}</td>
-                                        <td className="p-1 text-center font-mono">{scaledScore.toFixed(2)} / {Number(s.max_grade).toFixed(2)}</td>
-                                        <td className="p-1 text-center font-bold">{s.average.toFixed(2)}%</td>
-                                        <td className="p-1"><AppreciationTextarea value={appreciations[s.id] || ''} onChange={e => onAppreciationChange(s.id, e.target.value)} /></td>
+                                        <td className="py-0.5 px-2 font-medium">{s.name}</td>
+                                        <td className="py-0.5 px-2 text-center font-mono">{scaledScore.toFixed(2)}</td>
+                                        <td className="py-0.5 px-2 text-center font-bold">{Number(s.max_grade).toFixed(2)}</td>
+                                        <td className="py-0.5 px-2">
+                                            <AppreciationTextarea 
+                                                value={appreciations[s.id] || ''} 
+                                                onChange={e => onAppreciationChange(s.id, e.target.value)} 
+                                                className="text-xs"
+                                            />
+                                        </td>
                                     </tr>
                                 );
                             })}
+                            <tr className="border-t-2 border-slate-300 bg-slate-100 font-bold">
+                                <td className="py-0.5 px-2">Total</td>
+                                <td className="py-0.5 px-2 text-center font-mono">{totalScore.toFixed(2)}</td>
+                                <td className="py-0.5 px-2 text-center">{totalCoefficientAnnuel.toFixed(2)}</td>
+                                <td className="py-0.5 px-2"></td>
+                            </tr>
+                            <tr className="bg-slate-200 font-bold">
+                                <td className="py-0.5 px-2">Moyenne Générale</td>
+                                <td className="py-0.5 px-2 text-center font-mono">{((generalAverage / 100) * averageBase).toFixed(2)}</td>
+                                <td className="py-0.5 px-2 text-center">{averageBase.toFixed(2)}</td>
+                                <td className="py-0.5 px-2"></td>
+                            </tr>
                         </tbody>
                     </table>
-                     <div className="mt-4 flex justify-between items-end gap-4 print-annuel-appreciation">
+                     <div className="mt-2 flex justify-between items-end gap-4">
                         <div className="flex-grow">
-                           <h4 className="font-semibold text-sm mb-1">Appréciation Générale:</h4>
+                           <h4 className="font-semibold text-xs mb-1">Appréciation Générale:</h4>
                            <AppreciationTextarea 
                                value={generalAppreciation} 
                                onChange={e => onGeneralAppreciationChange(e.target.value)}
-                               className="w-full p-2 border rounded-md bg-slate-50 min-h-[25px] whitespace-pre-wrap"
+                               className="w-full p-2 border rounded-md bg-slate-50 min-h-[25px] whitespace-pre-wrap text-xs"
                            />
                        </div>
                        {enrollment.promotionStatus && (
                            <div className="flex-shrink-0 text-right pb-1">
-                               <span className="font-semibold text-sm">Décision du Conseil:</span>
-                               <p className={`font-bold text-lg ${statusColor}`}>{enrollment.promotionStatus}</p>
+                               <span className="font-semibold text-xs">Décision du Conseil:</span>
+                               <p className={`font-bold text-base ${statusColor}`}>{enrollment.promotionStatus}</p>
                            </div>
                        )}
                     </div>
@@ -205,7 +335,7 @@ const TemplateRenderer: React.FC<{
                         <div key={s.id} className="mb-4 border rounded-lg overflow-hidden break-inside-avoid">
                             <div className="bg-slate-100 p-1 grid grid-cols-3 gap-2 items-center">
                                 <h4 className="font-bold col-span-2">{s.name}</h4>
-                                <div className="text-right text-lg font-bold text-blue-700">{s.average.toFixed(2)}%</div>
+                                <div className="text-right text-sm font-bold text-blue-700">{s.average.toFixed(2)}%</div>
                             </div>
                             <div className="p-1 grid grid-cols-2 gap-x-4">
                                 <div className="text-sm">
@@ -219,12 +349,233 @@ const TemplateRenderer: React.FC<{
                             </div>
                         </div>
                     ))}
-                    <p className="text-right font-bold text-xl mt-6">Moyenne Période: {generalAverage.toFixed(2)}%</p>
+                    <p className="text-right font-bold text-sm mt-6">Moyenne Période: {((generalAverage / 100) * averageBase).toFixed(2)} / {averageBase}</p>
                     {renderAnnualSummary()}
                     {renderFooter()}
                 </div>
             );
-        default: // Fallback to 'moderne'
+        case 'élégant':
+            return (
+                <div className="p-2 bg-gray-50 font-sans text-sm">
+                    <div className="text-center mb-2">
+                        {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="Logo" className="h-14 print:h-12 mx-auto mb-1 object-contain" />}
+                        <h1 className="text-lg font-bold text-gray-800">{schoolInfo?.name}</h1>
+                        <p className="text-[10px] text-gray-500">{schoolInfo?.address}</p>
+                        <p className="text-[10px] text-gray-500">{schoolInfo?.phone} | {schoolInfo?.email}</p>
+                        <hr className="my-1 border-gray-300" />
+                    </div>
+                    <h2 className="text-center text-sm font-semibold text-gray-700 my-1 uppercase tracking-wider">{`BULLETIN PÉRIODIQUE - ${selectedPeriod?.name?.toUpperCase()}`}</h2>
+                    <div className="grid grid-cols-2 gap-x-4 text-xs bg-white p-1.5 rounded-lg shadow-sm border border-gray-200 my-1">
+                        <p><strong>Élève :</strong> {enrollment.student?.prenom} {enrollment.student?.nom}</p>
+                        <p><strong>Classe :</strong> {enrollment.className}</p>
+                        <p><strong>Période :</strong> {selectedPeriod?.name}</p>
+                        <p><strong>Année :</strong> {year.name}</p>
+                    </div>
+                    <table className="w-full text-xs mt-2 bg-white shadow-sm rounded-lg overflow-hidden">
+                        <thead className="bg-gray-100 border-b-2 border-gray-300">
+                            <tr>
+                                <th className="py-1 px-2 text-left font-semibold text-gray-600">Matière</th>
+                                <th className="py-1 px-2 w-28 text-center font-semibold text-gray-600">Moyenne (/100)</th>
+                                <th className="py-1 px-2 text-left font-semibold text-gray-600">Appréciation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {subjectAverages.map((s: any) => (
+                                <tr key={s.id} className="border-b border-gray-100">
+                                    <td className="py-0.5 px-2 font-medium text-gray-700">{s.name}</td>
+                                    <td className="py-0.5 px-2 text-center font-bold text-sm text-gray-800">{s.average.toFixed(2)}</td>
+                                    <td className="py-0.5 px-2 text-gray-600 italic">
+                                        <AppreciationTextarea value={appreciations[s.id] || ''} onChange={e => onAppreciationChange(s.id, e.target.value)} className="text-xs" />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    <div className="mt-2 flex justify-end">
+                        <div className="bg-white p-1.5 rounded-lg shadow-sm border border-gray-200">
+                            <span className="text-gray-600 font-semibold text-xs">Moyenne Générale : </span>
+                            <span className="font-bold text-sm text-blue-600">{((generalAverage / 100) * averageBase).toFixed(2)} / {averageBase}</span>
+                        </div>
+                    </div>
+                    <div className="mt-1 bg-white p-2 rounded-lg shadow-sm border border-gray-200">
+                        <h4 className="font-semibold text-gray-600 text-xs">Appréciation Générale :</h4>
+                        <AppreciationTextarea value={generalAppreciation} onChange={e => onGeneralAppreciationChange(e.target.value)} className="text-xs"/>
+                    </div>
+                    {renderAnnualSummary()}
+                    <div className="mt-6 pt-2 flex justify-between items-end text-xs text-center">
+                        <div className="w-2/5"><div className="border-t-2 border-gray-400 pt-1">Signature de la Direction</div></div>
+                        <div className="w-2/5"><div className="border-t-2 border-gray-400 pt-1">Signature du Responsable</div></div>
+                    </div>
+                </div>
+            );
+        case 'créatif':
+            return (
+                <div className="p-4 bg-gradient-to-br from-sky-50 to-indigo-100 font-sans">
+                    <div className="text-center mb-4">
+                        {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="Logo" className="h-20 print:h-14 mx-auto mb-2 object-contain" />}
+                        <h1 className="text-xl font-bold uppercase">{schoolInfo?.name}</h1>
+                        <p className="text-xs">{`Année Académique ${year.name}`}</p>
+                        <p className="text-xs">{schoolInfo?.address}</p>
+                        <p className="text-xs">{schoolInfo?.phone}</p>
+                        {schoolInfo?.email && <p className="text-xs">{schoolInfo.email}</p>}
+                    </div>
+                    <h2 className="text-center text-sm font-bold my-2 uppercase">{`BULLETIN: ${selectedPeriod?.name}`}</h2>
+                    
+                    <div className="bg-white p-3 rounded-xl shadow-lg my-4 flex items-center gap-4">
+                        <div className="flex-shrink-0 h-12 w-12 rounded-full bg-gradient-to-br from-sky-200 to-indigo-200 flex items-center justify-center font-bold text-xl text-indigo-800">
+                            {enrollment.student?.prenom[0]}{enrollment.student?.nom[0]}
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-gray-800">{enrollment.student?.prenom} {enrollment.student?.nom}</p>
+                            <p className="text-xs text-gray-500">Classe: {enrollment.className} | Année: {year.name}</p>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 mt-2">
+                        {subjectAverages.map((s: any) => {
+                            const gradeColor = s.average >= 80 ? 'border-teal-400' : s.average >= 60 ? 'border-sky-400' : 'border-red-400';
+                            const scaledScore = Number(s.max_grade) > 0 ? (s.average / 100) * Number(s.max_grade) : 0;
+                            return (
+                                <div key={s.id} className={`bg-white rounded-lg shadow-md border-l-4 ${gradeColor} p-1.5 flex flex-col justify-between`}>
+                                    <div>
+                                        <div className="flex justify-between items-baseline">
+                                            <h4 className="font-bold text-gray-700 text-[11px]">{s.name}</h4>
+                                            <span className="font-bold text-[11px] text-gray-800">
+                                                {scaledScore.toFixed(2)} / {Number(s.max_grade).toFixed(0)}
+                                            </span>
+                                        </div>
+                                        <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
+                                            <div className={`h-1 rounded-full ${s.average >= 80 ? 'bg-teal-500' : s.average >= 60 ? 'bg-sky-500' : 'bg-red-500'}`} style={{ width: `${s.average}%` }}></div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-1.5">
+                                        <AppreciationTextarea value={appreciations[s.id] || ''} onChange={e => onAppreciationChange(s.id, e.target.value)} className="text-[9px] italic text-gray-600" />
+                                    </div>
+                                </div>
+                            )
+                        })}
+                    </div>
+                    <div className="mt-4 p-3 bg-white rounded-xl shadow-lg">
+                        <div className="grid grid-cols-3 items-center">
+                            <div className="col-span-2">
+                                <h3 className="text-xs font-bold text-gray-800">Moyenne Générale</h3>
+                                <AppreciationTextarea 
+                                    value={generalAppreciation} 
+                                    onChange={e => onGeneralAppreciationChange(e.target.value)} 
+                                    className="text-[10px] italic text-gray-600 w-full bg-slate-50 rounded p-1"
+                                />
+                            </div>
+                            <div className="text-base font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-indigo-700 text-right">
+                                {((generalAverage / 100) * averageBase).toFixed(2)} / {averageBase}
+                            </div>
+                        </div>
+                    </div>
+
+                    {renderAnnualSummary()}
+                    <div className="mt-12 pt-6 flex justify-between items-end text-[10px] text-center">
+                        <div className="w-2/5"><div className="border-t-2 border-gray-400 pt-2">Signature de la Direction</div></div>
+                        <div className="w-2/5"><div className="border-t-2 border-gray-400 pt-2">Signature du Responsable</div></div>
+                    </div>
+                </div>
+            );
+        case 'creatif-compact':
+             return (
+                <div className="p-2 bg-slate-100 font-sans">
+                    <div className="text-center mb-4">
+                        {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="Logo" className="h-16 print:h-12 mx-auto mb-2 object-contain" />}
+                        <h1 className="text-lg font-bold uppercase">{schoolInfo?.name}</h1>
+                        <p className="text-xs">{`Bulletin Périodique - ${selectedPeriod?.name}`}</p>
+                    </div>
+                    <div className="bg-white p-2.5 rounded-lg shadow-sm my-3 flex items-center gap-3">
+                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-800">
+                            {enrollment.student?.prenom[0]}{enrollment.student?.nom[0]}
+                        </div>
+                        <div>
+                            <p className="text-sm font-bold text-gray-800">{enrollment.student?.prenom} {enrollment.student?.nom}</p>
+                            <p className="text-xs text-gray-500">Classe: {enrollment.className} | Année: {year.name}</p>
+                        </div>
+                    </div>
+                    <div className="space-y-1.5">
+                        {subjectAverages.map((s: any) => {
+                            const scaledScore = Number(s.max_grade) > 0 ? (s.average / 100) * Number(s.max_grade) : 0;
+                            return (
+                                <div key={s.id} className="bg-white rounded-md shadow-sm p-2">
+                                    <div className="flex justify-between items-center">
+                                        <h4 className="font-bold text-slate-700 text-xs">{s.name}</h4>
+                                        <span className="font-bold text-xs text-slate-800">{scaledScore.toFixed(2)} / {Number(s.max_grade).toFixed(0)}</span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
+                                        <div className={`h-1 rounded-full ${s.average >= 80 ? 'bg-teal-500' : s.average >= 60 ? 'bg-sky-500' : 'bg-red-500'}`} style={{ width: `${s.average}%` }}></div>
+                                    </div>
+                                    <AppreciationTextarea value={appreciations[s.id] || ''} onChange={e => onAppreciationChange(s.id, e.target.value)} className="text-[9px] italic text-gray-600 mt-1 w-full" />
+                                </div>
+                            )
+                        })}
+                    </div>
+                     <div className="mt-3 p-2 bg-white rounded-lg shadow-sm">
+                         <div className="flex justify-between items-center mb-1">
+                            <h3 className="text-xs font-bold text-gray-800">Moyenne Générale</h3>
+                            <div className="text-sm font-bold text-blue-700">
+                                {((generalAverage / 100) * averageBase).toFixed(2)} / {averageBase}
+                            </div>
+                        </div>
+                        <AppreciationTextarea value={generalAppreciation} onChange={e => onGeneralAppreciationChange(e.target.value)} className="text-[10px] italic text-gray-600 w-full bg-slate-50 rounded p-1" />
+                    </div>
+                    {renderAnnualSummary()}
+                     <div className="mt-8 pt-4 flex justify-between items-end text-[9px] text-center">
+                        <div className="w-2/5"><div className="border-t border-gray-400 pt-1">Signature du Responsable </div></div>
+                        <div className="w-2/5"><div className="border-t border-gray-400 pt-1">Signature de la Direction</div></div>
+                    </div>
+                </div>
+            );
+        case 'elegant-compact':
+            return (
+                 <div className="p-3 bg-white font-sans text-[9pt]">
+                    <div className="text-center mb-2">
+                        <h1 className="text-lg font-bold text-gray-800">{schoolInfo?.name}</h1>
+                        <p className="text-[8pt] text-gray-500">{`Bulletin Périodique - ${selectedPeriod?.name}`}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-4 text-[8pt] bg-slate-50 p-1 rounded-md border my-1">
+                        <p><strong>Élève:</strong> {enrollment.student?.prenom} {enrollment.student?.nom}</p>
+                        <p><strong>Classe:</strong> {enrollment.className}</p>
+                    </div>
+                    <table className="w-full text-[8pt] mt-2">
+                        <thead className="border-b border-slate-200">
+                            <tr>
+                                <th className="py-0.5 px-1 text-left font-semibold text-gray-600">Matière</th>
+                                <th className="py-0.5 px-1 w-24 text-center font-semibold text-gray-600">Moyenne (/100)</th>
+                                <th className="py-0.5 px-1 text-left font-semibold text-gray-600">Appréciation</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {subjectAverages.map((s: any) => (
+                                <tr key={s.id} className="border-b border-slate-100">
+                                    <td className="py-0 px-1 font-medium text-gray-700">{s.name}</td>
+                                    <td className="py-0 px-1 text-center font-bold text-sm text-gray-800">{s.average.toFixed(2)}</td>
+                                    <td className="py-0 px-1 text-gray-600 italic">
+                                        <AppreciationTextarea value={appreciations[s.id] || ''} onChange={e => onAppreciationChange(s.id, e.target.value)} className="text-[8pt]" />
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                     <div className="mt-1 flex justify-end">
+                        <div className="bg-slate-100 p-1 rounded-md border">
+                            <span className="text-gray-600 font-semibold text-[8pt]">Moyenne Générale: </span>
+                            <span className="font-bold text-[9pt] text-blue-600">{((generalAverage / 100) * averageBase).toFixed(2)} / {averageBase}</span>
+                        </div>
+                    </div>
+                    <div className="mt-1 bg-slate-50 p-1.5 rounded-md border">
+                        <h4 className="font-semibold text-gray-600 text-[8pt]">Appréciation Générale:</h4>
+                        <AppreciationTextarea value={generalAppreciation} onChange={e => onGeneralAppreciationChange(e.target.value)} className="text-[8pt]"/>
+                    </div>
+                    {renderAnnualSummary()}
+                    <div className="mt-6 pt-2 flex justify-between items-end text-[8pt] text-center">
+                        <div className="w-2/5"><div className="border-t border-gray-400 pt-1">Signature du Responsable </div></div>
+                        <div className="w-2/5"><div className="border-t border-gray-400 pt-1">Signature de la Direction</div></div>
+                    </div>
+                </div>
+            );
+        default:
             return (
                 <div className="p-1">
                     {renderHeader()}
@@ -439,81 +790,42 @@ const ReportCardPage: React.FC = () => {
     };
     
     const handleFinalPrint = () => {
-        const previewContainer = document.getElementById('bulk-preview-content');
-        if (!previewContainer) return;
-        
-        const contentToPrint = previewContainer.cloneNode(true) as HTMLElement;
-        
-        contentToPrint.querySelectorAll('textarea').forEach(textarea => {
-            const div = document.createElement('div');
-            div.textContent = textarea.value;
-            div.className = textarea.className;
-            textarea.parentNode?.replaceChild(div, textarea);
-        });
-
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
 
+        let contentToPrint = '';
+        const previewContainer = document.getElementById('bulk-preview-content');
+        if (previewContainer) {
+            const clonedContainer = previewContainer.cloneNode(true) as HTMLElement;
+            clonedContainer.querySelectorAll('textarea').forEach(textarea => {
+                const div = document.createElement('div');
+                div.textContent = textarea.value;
+                div.className = textarea.className;
+                textarea.parentNode?.replaceChild(div, textarea);
+            });
+            contentToPrint = clonedContainer.innerHTML;
+        }
+
         printWindow.document.write(`
-            <html><head><title>Bulletins</title>
+            <html><head><title></title>
             <script src="https://cdn.tailwindcss.com"></script>
-            <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Slab:wght@400;700&display=swap" rel="stylesheet">
             <style>
-                @page {
-                    size: letter portrait;
-                    margin: 10mm;
-                }
+                @page { size: letter portrait; margin: 0; }
                 body {
-                    font-family: 'Roboto', sans-serif;
                     -webkit-print-color-adjust: exact !important;
                     print-color-adjust: exact !important;
-                    font-size: 9pt;
-                    line-height: 1.15;
+                    font-size: 9pt; line-height: 1.15;
                 }
-                h1, h2, h3, h4, .font-display { font-family: 'Montserrat', sans-serif; }
-                
-                .student-report-block {
-                    page-break-after: always;
-                }
-                .student-report-block:last-of-type {
-                    page-break-after: auto;
-                }
-                
-                .student-report-block.template-moderne,
-                .student-report-block.template-classique,
-                .student-report-block.template-annuel {
-                    page-break-inside: avoid;
-                }
-                .student-report-block.template-détaillé {
-                    page-break-inside: auto;
-                }
-
+                h1, h2, h3, h4, .font-display { font-family: 'Inter', sans-serif; }
+                .font-serif { font-family: 'Roboto Slab', serif; }
+                .student-report-block { page-break-after: always; }
+                .student-report-block:last-of-type { page-break-after: auto; }
                 .no-print { display: none !important; }
-
-                /* Spacing overrides for print */
-                .print-header h1 { font-size: 16pt !important; margin: 0 0 2px 0 !important; }
-                .print-header p { font-size: 8pt !important; margin: 0 !important; }
-                .print-header-info { padding: 6px !important; margin: 8px 0 !important; }
-                .print-title { font-size: 12pt !important; margin: 4px 0 !important; }
-
-                .print-table { margin-top: 8px !important; margin-bottom: 8px !important; }
-                .print-table th { padding: 3px 4px !important; }
-                .print-table td { padding: 2px 4px !important; }
-
-                .print-moderne-avg { margin-top: 12px !important; padding: 8px !important; }
-                .print-moderne-avg span { font-size: 12pt !important; }
-                .print-moderne-avg p { font-size: 16pt !important; }
-
-                .print-classique-avg { margin-top: 12px !important; padding-top: 4px !important; font-size: 12pt !important; }
-                
-                .print-annuel-appreciation { margin-top: 12px !important; }
-                .print-annuel-appreciation h4 { font-size: 9pt !important; }
-                .print-annuel-appreciation div { font-size: 9pt !important; padding: 2px !important; }
-                
-                .print-footer { margin-top: 20px !important; padding-top: 8px !important; }
             </style>
-            </head><body>${contentToPrint.innerHTML}</body></html>`);
+            </head><body>${contentToPrint}</body></html>`);
         printWindow.document.close();
+        printWindow.document.title = ""; 
         printWindow.focus();
         setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
     };
@@ -523,6 +835,63 @@ const ReportCardPage: React.FC = () => {
         return classData.enrollments.filter(en => selectedStudentIds.has(en.id));
     }, [classData, selectedStudentIds]);
 
+     const allEnrollmentsWithStats = useMemo(() => {
+        if (!classData) return [];
+        
+        const averageBase = classData.subjects.some((s: ClassSubject) => Number(s.max_grade) >= 100) ? 100 : 10;
+
+        return classData.enrollments.map(enrollment => {
+            const gradesForStudent = classData.gradesByEnrollment[enrollment.id] || [];
+            const gradesBySubject = gradesForStudent.reduce((acc, grade) => {
+                if (!acc[grade.subject_id]) acc[grade.subject_id] = [];
+                acc[grade.subject_id].push(grade);
+                return acc;
+            }, {} as Record<number, Grade[]>);
+            
+            let totalNotes = 0;
+            let totalCoefficient = 0;
+            
+            classData.subjects.forEach(subject => {
+                const subjectGrades = gradesBySubject[subject.subject_id] || [];
+                const subjectScore = subjectGrades.reduce((sum, g) => sum + Number(g.score), 0);
+                totalNotes += subjectScore;
+                totalCoefficient += Number(subject.max_grade);
+            });
+
+            const studentAverage = totalCoefficient > 0 ? (totalNotes / totalCoefficient) * averageBase : 0;
+
+            return { 
+                enrollmentId: enrollment.id, 
+                average: studentAverage, 
+                totalNotes, 
+                totalCoefficient,
+                averageBase
+            };
+        });
+    }, [classData]);
+
+    const classAverage = useMemo(() => {
+        if (!allEnrollmentsWithStats || allEnrollmentsWithStats.length === 0) return 0;
+        const totalAverage = allEnrollmentsWithStats.reduce((sum, student) => sum + student.average, 0);
+        return totalAverage / allEnrollmentsWithStats.length;
+    }, [allEnrollmentsWithStats]);
+
+    const studentRanks = useMemo(() => {
+        if (!allEnrollmentsWithStats) return {};
+        const sortedStudents = [...allEnrollmentsWithStats].sort((a, b) => b.average - a.average);
+        const ranks: Record<number, number> = {};
+        let rank = 1;
+        let lastAvg = -1;
+        sortedStudents.forEach((s, index) => {
+            if (s.average !== lastAvg) {
+                rank = index + 1;
+            }
+            ranks[s.enrollmentId] = rank;
+            lastAvg = s.average;
+        });
+        return ranks;
+    }, [allEnrollmentsWithStats]);
+
     const renderSelectionView = () => (
         <>
             <div className="bg-white p-6 rounded-xl shadow-md mb-8 grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
@@ -530,7 +899,13 @@ const ReportCardPage: React.FC = () => {
                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Période</label><select value={selectedPeriodId} onChange={e => setSelectedPeriodId(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-300 rounded-md" disabled={academicPeriods.length === 0}>{academicPeriods.length === 0 ? <option>Aucune période</option> : academicPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
                  <div className="md:col-span-2 flex items-center justify-end flex-wrap gap-2">
                     <h3 className="text-sm font-medium text-slate-700">Modèle de Bulletin</h3>
-                    <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg flex-wrap">{(['moderne', 'classique', 'annuel', 'détaillé'] as Template[]).map(t => <button key={t} onClick={() => setTemplate(t)} className={`px-3 py-1 text-sm rounded-md capitalize transition-colors flex-grow ${template === t ? 'bg-blue-600 text-white shadow' : 'hover:bg-slate-200'}`}>{t}</button>)}</div>
+                    <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg flex-wrap">
+                        {(['moderne', 'classique', 'formel', 'annuel', 'détaillé', 'élégant', 'créatif', 'creatif-compact', 'elegant-compact'] as Template[]).map(t => 
+                            <button key={t} onClick={() => setTemplate(t)} className={`px-3 py-1 text-sm rounded-md capitalize transition-colors ${template === t ? 'bg-blue-600 text-white shadow' : 'hover:bg-slate-200'}`}>
+                                {t.replace('-compact', ' V2')}
+                            </button>
+                        )}
+                    </div>
                  </div>
             </div>
 
@@ -549,6 +924,7 @@ const ReportCardPage: React.FC = () => {
     const renderPreviewView = () => {
         const selectedPeriod = academicPeriods.find(p => p.id.toString() === selectedPeriodId);
         const formatDate = (dStr: string | null | undefined) => dStr ? new Date(new Date(dStr).getTime() + new Date(dStr).getTimezoneOffset() * 60000).toLocaleDateString('fr-FR') : 'N/A';
+        const rankSuffix = (r: number) => { if (r === 1) return 'er'; return 'ème'; };
 
         return (
             <div>
@@ -558,9 +934,11 @@ const ReportCardPage: React.FC = () => {
                         <h2 className="text-xl font-bold text-slate-800 font-display mt-2">Prévisualisation et Modification</h2>
                     </div>
                     <div className="flex items-center gap-4 flex-wrap">
-                        <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg">
-                            {(['moderne', 'classique', 'annuel', 'détaillé'] as Template[]).map(t =>
-                                <button key={t} onClick={() => setTemplate(t)} className={`px-3 py-1 text-sm rounded-md capitalize transition-colors ${template === t ? 'bg-blue-600 text-white shadow' : 'hover:bg-slate-200'}`}>{t}</button>
+                        <div className="flex items-center gap-1 p-1 bg-slate-100 rounded-lg flex-wrap">
+                           {(['moderne', 'classique', 'formel', 'annuel', 'détaillé', 'élégant', 'créatif', 'creatif-compact', 'elegant-compact'] as Template[]).map(t => 
+                                <button key={t} onClick={() => setTemplate(t)} className={`px-3 py-1 text-sm rounded-md capitalize transition-colors ${template === t ? 'bg-blue-600 text-white shadow' : 'hover:bg-slate-200'}`}>
+                                    {t.replace('-compact', ' V2')}
+                                </button>
                             )}
                         </div>
                         <button onClick={handleFinalPrint} className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg shadow-sm hover:bg-green-700">Imprimer les Bulletins</button>
@@ -568,13 +946,15 @@ const ReportCardPage: React.FC = () => {
                 </div>
                  <div id="bulk-preview-content" className="space-y-4">
                      {selectedEnrollments.map(enrollment => {
+                         const studentStats = allEnrollmentsWithStats.find(s => s.enrollmentId === enrollment.id);
+                         const rank = studentRanks[enrollment.id];
                          const gradesForStudent = classData?.gradesByEnrollment[enrollment.id] || [];
                          const gradesBySubject = gradesForStudent.reduce((acc, grade) => { if (!acc[grade.subject_id]) acc[grade.subject_id] = []; acc[grade.subject_id].push(grade); return acc; }, {} as Record<number, Grade[]>);
                          const subjectAverages = classData?.subjects.map(subject => { const subjectGrades = gradesBySubject[subject.subject_id] || []; const totalScore = subjectGrades.reduce((sum, g) => sum + Number(g.score), 0); const totalMaxScore = subjectGrades.reduce((sum, g) => sum + Number(g.max_score), 0); return { id: subject.subject_id, name: subject.subject_name, max_grade: subject.max_grade, average: totalMaxScore > 0 ? (totalScore / totalMaxScore) * 100 : 0 }; }) || [];
                          const generalAverage = subjectAverages.length > 0 ? subjectAverages.reduce((sum, s) => sum + s.average, 0) / subjectAverages.length : 0;
                          const studentAppreciations = appreciations[enrollment.id] || {};
                          const generalAppreciation = generalAppreciations[enrollment.id] || '';
-                         const bulletinData = { schoolInfo, enrollment, year: selectedYear, selectedPeriod, subjectAverages, generalAverage, appreciations: studentAppreciations, gradesBySubject, generalAppreciation, formatDate, user };
+                         const bulletinData = { schoolInfo, enrollment, year: selectedYear, selectedPeriod, subjectAverages, generalAverage, appreciations: studentAppreciations, gradesBySubject, generalAppreciation, formatDate, user, totalNotes: studentStats?.totalNotes || 0, totalCoefficient: studentStats?.totalCoefficient || 0, studentAverage: studentStats?.average || 0, averageBase: studentStats?.averageBase || 10, classAverage, rank: rank ? `${rank}${rankSuffix(rank)}` : 'N/A' };
                          
                          return (
                             <div key={enrollment.id} className={`bg-white shadow-lg student-report-block template-${template}`}>

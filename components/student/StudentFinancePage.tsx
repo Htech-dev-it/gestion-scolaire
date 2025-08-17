@@ -57,15 +57,15 @@ const StudentFinancePage: React.FC = () => {
 
     const renderContent = () => {
         if (isLoading) return <div className="text-center p-10 text-slate-500">Chargement des informations financières...</div>;
-        if (!financeData || financeData.mppa === 0) return <div className="text-center p-10 bg-white rounded-lg shadow-md italic">Aucune information financière trouvée pour cette année scolaire.</div>;
+        if (!financeData || financeData.baseMppa === 0) return <div className="text-center p-10 bg-white rounded-lg shadow-md italic">Aucune information financière trouvée pour cette année scolaire.</div>;
 
-        const { mppa, payments, totalPaid, balance } = financeData;
+        const { baseMppa, mppa, payments, adjustments, totalPaid, balance } = financeData;
         const paidPercentage = mppa > 0 ? (totalPaid / mppa) * 100 : 0;
         
         return (
             <>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <SummaryCard title="Montant Total à Payer" value={`${mppa.toFixed(2)}$`} color="bg-blue-100 text-blue-600" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>} />
+                    <SummaryCard title="Montant Final à Payer" value={`${mppa.toFixed(2)}$`} color="bg-blue-100 text-blue-600" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>} />
                     <SummaryCard title="Total Versé" value={`${totalPaid.toFixed(2)}$`} color="bg-green-100 text-green-600" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
                     <SummaryCard title="Balance Restante" value={`${balance.toFixed(2)}$`} color={balance > 0 ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>} />
                 </div>
@@ -78,37 +78,45 @@ const StudentFinancePage: React.FC = () => {
                     <ProgressBar value={paidPercentage} />
                 </div>
 
-                <div className="p-6 bg-white rounded-xl shadow-md">
-                    <h2 className="text-xl font-bold text-slate-800 font-display mb-4">Historique des Versements</h2>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-slate-200">
-                            <thead className="bg-slate-50">
-                                <tr>
-                                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Versement</th>
-                                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Montant</th>
-                                    <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider">Date du Paiement</th>
-                                    <th className="px-6 py-3 text-center text-xs font-semibold text-slate-600 uppercase tracking-wider">Statut</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-slate-200">
-                                {payments.map((payment, index) => (
-                                    <tr key={index}>
-                                        <td className="px-6 py-4 whitespace-nowrap font-medium text-slate-800">Versement {index + 1}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-slate-600">{payment.amount.toFixed(2)}$</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-slate-600">{payment.date ? new Date(payment.date).toLocaleDateString('fr-FR') : 'N/A'}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">
-                                            {payment.amount > 0 ? (
-                                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Payé</span>
-                                            ) : (
-                                                <span className="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-slate-100 text-slate-600">En attente</span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="p-6 bg-white rounded-xl shadow-md">
+                        <h2 className="text-xl font-bold text-slate-800 font-display mb-4">Détail du Calcul</h2>
+                         <div className="space-y-2 text-sm">
+                            <div className="flex justify-between"><span className="text-slate-500">Frais de base (MPPA):</span><span className="font-semibold">{baseMppa.toFixed(2)}$</span></div>
+                            {adjustments.map(adj => (
+                                <div key={adj.id} className="flex justify-between"><span className="text-slate-500">{adj.label}:</span><span className={`font-semibold ${adj.amount < 0 ? 'text-green-600' : 'text-red-600'}`}>{adj.amount.toFixed(2)}$</span></div>
+                            ))}
+                            <hr/>
+                            <div className="flex justify-between font-bold"><span className="text-slate-800">Total à Payer (Ajusté):</span><span>{mppa.toFixed(2)}$</span></div>
+                        </div>
                     </div>
-                    <p className="text-xs text-slate-500 mt-4 italic">Pour toute question ou pour effectuer un paiement, veuillez vous présenter au service de la comptabilité.</p>
+                    <div className="p-6 bg-white rounded-xl shadow-md">
+                        <h2 className="text-xl font-bold text-slate-800 font-display mb-4">Historique des Versements</h2>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-slate-200">
+                                <thead className="bg-slate-50">
+                                    <tr>
+                                        <th className="px-4 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
+                                        <th className="px-4 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Description</th>
+                                        <th className="px-4 py-2 text-right text-xs font-semibold text-slate-600 uppercase">Montant</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-slate-200 text-sm">
+                                    {payments.length > 0 ? payments.map((payment) => (
+                                        <tr key={payment.id}>
+                                            <td className="px-4 py-2 whitespace-nowrap text-slate-600">{payment.date ? new Date(payment.date).toLocaleDateString('fr-FR') : 'N/A'}</td>
+                                            <td className="px-4 py-2 font-medium text-slate-800">{payment.label}</td>
+                                            <td className="px-4 py-2 text-right font-mono">{payment.amount.toFixed(2)}$</td>
+                                        </tr>
+                                    )) : (
+                                        <tr>
+                                            <td colSpan={3} className="text-center py-6 text-slate-500 italic">Aucun versement enregistré.</td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </>
         );
