@@ -325,6 +325,13 @@ export interface StudentAccessStatus {
     grades_access_enabled: boolean;
 }
 
+export interface StudentFinanceData {
+    mppa: number;
+    payments: Payment[];
+    totalPaid: number;
+    balance: number;
+}
+
 // --- RESOURCES TYPES ---
 export interface Resource {
     id: number;

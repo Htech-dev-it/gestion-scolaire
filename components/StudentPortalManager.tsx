@@ -115,6 +115,14 @@ const StudentPortalManager: React.FC = () => {
         try {
             const data = await apiFetch(`/students/${studentId}/create-account`, { method: 'POST' });
             setIndividualCredential({ credential: data, title: "Compte créé avec succès" });
+
+            if (data.emailSent) {
+                addNotification({
+                    type: 'info',
+                    message: `Les identifiants ont aussi été envoyés par email au tuteur.`
+                });
+            }
+
             fetchStudentsWithStatus();
         } catch (error) {
              if (error instanceof Error) addNotification({ type: 'error', message: error.message });
@@ -125,6 +133,14 @@ const StudentPortalManager: React.FC = () => {
         try {
             const data = await apiFetch(`/students/${studentId}/reset-password`, { method: 'PUT' });
             setIndividualCredential({ credential: data, title: "Mot de passe réinitialisé" });
+
+            if (data.emailSent) {
+                addNotification({
+                    type: 'info',
+                    message: `Un email avec les nouveaux identifiants a également été envoyé au tuteur.`
+                });
+            }
+            fetchStudentsWithStatus();
         } catch (error) {
              if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -183,90 +199,101 @@ const StudentPortalManager: React.FC = () => {
     return (
         <div>
             <h2 className="text-xl font-semibold text-slate-700 font-display">Gestion des Comptes Élèves</h2>
-            <p className="text-sm text-slate-500 mt-1 mb-4">Créez automatiquement les comptes pour que les élèves puissent se connecter à leur portail.</p>
-            
-            <div className="bg-slate-50 p-4 rounded-lg border space-y-4">
-                <h3 className="text-lg font-semibold text-slate-800">Création en Masse</h3>
+            <p className="text-sm text-slate-500 mt-1 mb-4">
+                Créez les comptes pour les élèves n'en ayant pas encore, ou réinitialisez les mots de passe individuellement.
+            </p>
+
+            <div className="my-4 p-4 border rounded-lg flex flex-wrap gap-4 items-end bg-slate-50">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">1. Sélectionner une classe</label>
-                    <select
-                        value={selectedClass}
-                        onChange={(e) => {
-                            setSelectedClass(e.target.value);
-                            setGeneratedData(null);
-                        }}
-                        className="mt-1 block w-full md:w-1/2 pl-3 pr-10 py-2 border-slate-300 rounded-md"
-                    >
+                    <label className="block text-sm font-medium text-gray-700">Classe</label>
+                    <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="mt-1 block w-full pl-3 pr-10 py-2 border-gray-300 rounded-md">
                         {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                     </select>
                 </div>
-                <div>
-                    <h3 className="block text-sm font-medium text-gray-700 mb-1">2. Lancer la création des comptes</h3>
-                    <p className="text-xs text-slate-500 mb-2">Le système créera des comptes uniquement pour les élèves de la classe sélectionnée qui n'en ont pas déjà un. Cette action est sûre et peut être répétée.</p>
-                    <button onClick={handleCreateAccounts} disabled={isLoading} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 disabled:bg-slate-400">
-                        {isLoading ? 'Création en cours...' : `Créer les comptes pour ${selectedClass}`}
-                    </button>
+                 <button
+                    onClick={handleCreateAccounts}
+                    disabled={isLoading}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 disabled:bg-slate-400"
+                >
+                    {isLoading ? 'Création en cours...' : `Créer les comptes manquants pour ${selectedClass}`}
+                </button>
+            </div>
+            
+             {generatedData && generatedData.length > 0 && (
+                <div className="my-4 p-4 border rounded-lg bg-green-50">
+                    <div className="flex justify-between items-center mb-2">
+                        <h3 className="font-semibold text-green-800">Identifiants Générés</h3>
+                        <button onClick={handlePrint} className="px-3 py-1 text-sm text-white bg-green-600 rounded-md">Imprimer</button>
+                    </div>
+                    <div className="max-h-60 overflow-y-auto pr-2 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                        {generatedData.map(cred => (
+                            <div key={cred.username} className="p-2 bg-white rounded border">
+                                <p className="font-medium">{cred.prenom} {cred.nom}</p>
+                                <p>User: <span className="font-mono">{cred.username}</span></p>
+                                <p>Pass: <span className="font-mono">{cred.temp_password}</span></p>
+                            </div>
+                        ))}
+                    </div>
                 </div>
+            )}
+            
+            <div className="overflow-x-auto mt-4">
+                <table className="min-w-full divide-y divide-slate-200">
+                    <thead className="bg-slate-100">
+                        <tr>
+                            <th className="px-4 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Élève</th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Statut du Compte</th>
+                            <th className="px-4 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-200">
+                         {isListLoading ? (
+                             <tr><td colSpan={3} className="text-center py-8 text-slate-500 italic">Chargement de la liste...</td></tr>
+                         ) : studentsWithStatus.length === 0 ? (
+                             <tr><td colSpan={3} className="text-center py-8 text-slate-500 italic">Aucun élève dans cette classe.</td></tr>
+                         ) : (
+                            studentsWithStatus.map(student => (
+                                <tr key={student.student_id}>
+                                    <td className="px-4 py-2 font-medium">{student.prenom} {student.nom}</td>
+                                    <td className="px-4 py-2 text-center">
+                                        {student.account_id ? 
+                                            <span className="px-2 py-0.5 text-xs font-semibold text-green-800 bg-green-100 rounded-full">Actif</span> : 
+                                            <span className="px-2 py-0.5 text-xs font-semibold text-slate-700 bg-slate-200 rounded-full">Inexistant</span>
+                                        }
+                                    </td>
+                                    <td className="px-4 py-2 text-center space-x-2">
+                                        {student.account_id ? (
+                                            <>
+                                                <button onClick={() => handleResetPassword(student.student_id)} className="px-2 py-1 text-xs font-medium text-yellow-800 bg-yellow-200 rounded-full hover:bg-yellow-300">Réinitialiser MDP</button>
+                                                <button onClick={() => handleDeleteAccountRequest(student)} className="px-2 py-1 text-xs font-medium text-red-700 bg-red-100 rounded-full hover:bg-red-200">Supprimer</button>
+                                            </>
+                                        ) : (
+                                            <button onClick={() => handleCreateIndividualAccount(student.student_id)} className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-full hover:bg-blue-200">Créer le Compte</button>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))
+                        )}
+                    </tbody>
+                </table>
             </div>
 
-            {generatedData && (
-                <div className="mt-6 p-4 border-2 border-green-300 bg-green-50 rounded-lg">
-                    <div className="flex justify-between items-center"><h3 className="text-lg font-semibold text-green-800 font-display mb-2">Comptes Créés / Fiche d'Identifiants</h3><button onClick={handlePrint} className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-lg shadow-sm hover:bg-green-700">Imprimer la Fiche</button></div>
-                    <p className="text-xs text-green-700 mb-2">Imprimez cette fiche et distribuez les identifiants aux élèves. Ils seront invités à changer leur mot de passe à la première connexion.</p>
-                    <div className="overflow-x-auto"><table className="min-w-full bg-white text-sm"><thead className="bg-green-200"><tr><th className="p-2 text-left">Nom Complet</th><th className="p-2 text-left">Nom d'utilisateur</th><th className="p-2 text-left">Mot de Passe Temporaire</th></tr></thead><tbody>{generatedData.map(cred => (<tr key={cred.username} className="border-b"><td className="p-2">{cred.prenom} {cred.nom}</td><td className="p-2 font-mono">{cred.username}</td><td className="p-2 font-mono">{cred.temp_password}</td></tr>))}</tbody></table></div>
-                </div>
-            )}
-            
-            <div className="mt-6 bg-slate-50 p-4 rounded-lg border space-y-4">
-                <h3 className="text-lg font-semibold text-slate-800">Gestion Individuelle</h3>
-                {isListLoading ? <p>Chargement de la liste...</p> : (
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full bg-white text-sm">
-                            <thead className="bg-slate-200">
-                                <tr>
-                                    <th className="p-2 text-left font-semibold">Élève</th>
-                                    <th className="p-2 text-center font-semibold">Statut du Compte</th>
-                                    <th className="p-2 text-right font-semibold">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {studentsWithStatus.map(student => (
-                                    <tr key={student.student_id}>
-                                        <td className="p-2 font-medium">{student.prenom} {student.nom}</td>
-                                        <td className="p-2 text-center">
-                                            {student.account_id 
-                                                ? <span className="px-2 py-1 text-xs font-semibold text-green-800 bg-green-200 rounded-full">Actif</span>
-                                                : <span className="px-2 py-1 text-xs font-semibold text-slate-600 bg-slate-200 rounded-full">Inactif</span>
-                                            }
-                                        </td>
-                                        <td className="p-2 text-right space-x-2">
-                                            {student.account_id ? (
-                                                <>
-                                                    <button onClick={() => handleResetPassword(student.student_id)} className="px-3 py-1 text-xs font-medium text-black bg-yellow-400 rounded-md hover:bg-yellow-500">Réinitialiser MDP</button>
-                                                    <button onClick={() => handleDeleteAccountRequest(student)} className="px-3 py-1 text-xs font-medium text-white bg-red-500 rounded-md hover:bg-red-600">Supprimer</button>
-                                                </>
-                                            ) : (
-                                                <button onClick={() => handleCreateIndividualAccount(student.student_id)} className="px-3 py-1 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700">Créer le compte</button>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-            </div>
-            
-            {individualCredential && <CredentialModal credential={individualCredential.credential} title={individualCredential.title} onClose={() => setIndividualCredential(null)} />}
-            {studentToDelete && (
-                <ConfirmationModal
-                    isOpen={!!studentToDelete}
-                    onClose={() => setStudentToDelete(null)}
-                    onConfirm={handleConfirmDeleteAccount}
-                    title="Supprimer le Compte Élève"
-                    message={`Êtes-vous sûr de vouloir supprimer définitivement le compte de connexion pour ${studentToDelete.prenom} ${studentToDelete.nom} ? Son profil et ses notes ne seront pas affectés.`}
+            {individualCredential && (
+                <CredentialModal
+                    credential={individualCredential.credential}
+                    onClose={() => setIndividualCredential(null)}
+                    title={individualCredential.title}
                 />
             )}
+
+            <ConfirmationModal 
+                isOpen={!!studentToDelete}
+                onClose={() => setStudentToDelete(null)}
+                onConfirm={handleConfirmDeleteAccount}
+                title="Supprimer le Compte Élève"
+                message={`Êtes-vous sûr de vouloir supprimer le compte de connexion de ${studentToDelete?.prenom} ${studentToDelete?.nom} ? L'élève ne pourra plus se connecter. Son profil ne sera pas affecté.`}
+            />
+
         </div>
     );
 };

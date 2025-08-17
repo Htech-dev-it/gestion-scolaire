@@ -2111,6 +2111,34 @@ async function startServer() {
 
 
         // --- STUDENT PROFILE & PORTAL ROUTES ---
+        
+        app.get('/api/student/finances', authenticateToken, isStudent, asyncHandler(async (req, res) => {
+            const { yearId } = req.query;
+            const { student_id } = req.user;
+            if (!yearId || !student_id) return res.status(400).json({ message: "ID de l'année et de l'étudiant requis." });
+
+            const { rows } = await req.db.query(
+                'SELECT mppa, payments FROM enrollments WHERE student_id = $1 AND year_id = $2',
+                [student_id, yearId]
+            );
+
+            if (rows.length === 0) {
+                // Not enrolled this year, return a default state
+                return res.json({ mppa: 0, payments: Array(4).fill({ amount: 0, date: null }), totalPaid: 0, balance: 0 });
+            }
+            
+            const enrollment = rows[0];
+            const totalPaid = enrollment.payments.reduce((acc, p) => acc + Number(p.amount), 0);
+            const balance = Number(enrollment.mppa) - totalPaid;
+
+            res.json({
+                mppa: Number(enrollment.mppa),
+                payments: enrollment.payments,
+                totalPaid,
+                balance
+            });
+        }));
+
         app.get('/api/students-with-enrollment-status', authenticateToken, requirePermission('student:read'), asyncHandler(async (req, res) => {
             const { yearId, includeArchived, classFilter, page = 1, limit = 25 } = req.query;
             if (!yearId) return res.status(400).json({ message: "L'année scolaire est requise." });
@@ -2353,7 +2381,7 @@ async function startServer() {
                     'INSERT INTO student_users (student_id, username, password_hash, status) VALUES ($1, $2, $3, $4)',
                     [student.id, username, password_hash, 'temporary_password']
                 );
-                credentials.push({ prenom: student.prenom, nom: student.nom, username, tempPassword });
+                credentials.push({ prenom: student.prenom, nom: student.nom, username, temp_password: tempPassword });
             }
 
             res.status(201).json({
@@ -2504,7 +2532,7 @@ async function startServer() {
         app.post('/api/students/:studentId/create-account', authenticateToken, requirePermission('student_portal:manage_accounts'), asyncHandler(async (req, res) => {
             const { studentId } = req.params;
 
-            const { rows: studentRows } = await req.db.query('SELECT prenom, nom FROM students WHERE id = $1 AND instance_id = $2', [studentId, req.user.instance_id]);
+            const { rows: studentRows } = await req.db.query('SELECT prenom, nom, tutor_email FROM students WHERE id = $1 AND instance_id = $2', [studentId, req.user.instance_id]);
             if (studentRows.length === 0) return res.status(404).json({ message: 'Élève non trouvé.' });
             const student = studentRows[0];
             
@@ -2528,7 +2556,30 @@ async function startServer() {
             );
             
             await logActivity(req, 'STUDENT_ACCOUNT_CREATED', studentId, `${student.prenom} ${student.nom}`, `Compte portail créé pour l'élève ${student.prenom} ${student.nom} (ID: ${studentId}).`);
-            res.status(201).json({ prenom: student.prenom, nom: student.nom, username, tempPassword });
+            
+            let emailSent = false;
+            if (student.tutor_email) {
+                const { rows: instanceRows } = await req.db.query('SELECT name FROM instances WHERE id = $1', [req.user.instance_id]);
+                const instanceName = instanceRows[0]?.name || 'ScolaLink';
+                await sendCredentialEmail({
+                    email: student.tutor_email,
+                    username: username,
+                    password: tempPassword,
+                    instanceName: instanceName,
+                    role: `Élève (${student.prenom} ${student.nom})`,
+                    isReset: false,
+                });
+                emailSent = true;
+            }
+
+            res.status(201).json({ 
+                prenom: student.prenom, 
+                nom: student.nom, 
+                username, 
+                temp_password: tempPassword,
+                emailSent,
+                tutorEmail: student.tutor_email
+            });
         }));
 
         app.put('/api/students/:studentId/reset-password', authenticateToken, requirePermission('student_portal:manage_accounts'), asyncHandler(async (req, res) => {
@@ -2554,6 +2605,7 @@ async function startServer() {
 
             await logActivity(req, 'STUDENT_PASSWORD_RESET', studentId, `${student.prenom} ${student.nom}`, `Mot de passe du portail réinitialisé pour l'élève ${student.prenom} ${student.nom} (ID: ${studentId}).`);
             
+            let emailSent = false;
             if (student.tutor_email) {
                 const { rows: instanceRows } = await req.db.query('SELECT name FROM instances WHERE id = $1', [req.user.instance_id]);
                 const instanceName = instanceRows[0]?.name || 'ScolaLink';
@@ -2565,10 +2617,17 @@ async function startServer() {
                     role: `Élève (${student.prenom} ${student.nom})`,
                     isReset: true,
                 });
-                res.json({ message: `Un email avec le nouveau mot de passe a été envoyé au tuteur (${student.tutor_email}).` });
-            } else {
-                res.json({ prenom: student.prenom, nom: student.nom, username: studentUser.username, tempPassword });
+                emailSent = true;
             }
+
+            res.json({
+                prenom: student.prenom,
+                nom: student.nom,
+                username: studentUser.username,
+                temp_password: tempPassword,
+                emailSent,
+                tutorEmail: student.tutor_email
+            });
         }));
         
         app.delete('/api/students/:studentId/account', authenticateToken, requirePermission('student_portal:manage_accounts'), asyncHandler(async (req, res) => {

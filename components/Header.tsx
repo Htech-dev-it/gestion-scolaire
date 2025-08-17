@@ -36,8 +36,9 @@ const StudentNavLinks: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
         <>
             <NavLink to="/student" onClick={onClick}>Tableau de Bord</NavLink>
             <NavLink to="/student/timetable" onClick={onClick}>Emploi du temps</NavLink>
-            <NavLink to="/student/grades" isDisabled={isGradesDisabled} onClick={onClick}>Mes Notes</NavLink>
+            <NavLink to="/student/grades" isDisabled={isGradesDisabled} onClick={onClick}>Notes</NavLink>
             <NavLink to="/student/resources" onClick={onClick}>Ressources</NavLink>
+            <NavLink to="/student/finance" onClick={onClick}>Finances</NavLink>
             <NavLink to="/student/docs" onClick={onClick}>Documentation</NavLink>
         </>
     );

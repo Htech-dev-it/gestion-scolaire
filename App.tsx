@@ -29,6 +29,7 @@ const StudentDashboard = React.lazy(() => import('./components/student/StudentDa
 const StudentTimetablePage = React.lazy(() => import('./components/student/StudentTimetablePage'));
 const StudentGradesPage = React.lazy(() => import('./components/student/StudentGradesPage'));
 const StudentResourcesPage = React.lazy(() => import('./components/student/StudentResourcesPage'));
+const StudentFinancePage = React.lazy(() => import('./components/student/StudentFinancePage'));
 const StudentDocumentationPage = React.lazy(() => import('./components/DocumentationPage'));
 const SuperAdminPage = React.lazy(() => import('./components/SuperAdminPage')); // Lazy load SuperAdminPage
 const AdminContactPage = React.lazy(() => import('./components/AdminContactPage'));
@@ -148,6 +149,7 @@ const App: React.FC = () => {
           <ReactRouterDOM.Route path="/student/timetable" element={<Suspense fallback={<div className="p-8 text-center">Chargement...</div>}><StudentTimetablePage /></Suspense>} />
           <ReactRouterDOM.Route path="/student/grades" element={<Suspense fallback={<div className="p-8 text-center">Chargement...</div>}><StudentGradesPage /></Suspense>} />
           <ReactRouterDOM.Route path="/student/resources" element={<Suspense fallback={<div className="p-8 text-center">Chargement...</div>}><StudentResourcesPage /></Suspense>} />
+          <ReactRouterDOM.Route path="/student/finance" element={<Suspense fallback={<div className="p-8 text-center">Chargement...</div>}><StudentFinancePage /></Suspense>} />
           <ReactRouterDOM.Route path="/student/docs" element={<Suspense fallback={<div className="p-8 text-center">Chargement...</div>}><StudentDocumentationPage /></Suspense>} />
         </ReactRouterDOM.Route>
 
