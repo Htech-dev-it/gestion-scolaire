@@ -164,7 +164,7 @@ const isPrincipalSuperAdmin = (req, res, next) => {
 };
 
 const isAnySuperAdmin = (req, res, next) => {
-    if (req.user && (req.user.role === 'superadmin' || req.user.role === 'superadmin_delegate')) {
+    if (req.user && (req.user.role === 'superadmin' || user.role === 'superadmin_delegate')) {
         next();
     } else {
         res.status(403).json({ message: 'Accès refusé. Action réservée aux Super Administrateurs.' });
@@ -1023,22 +1023,27 @@ async function startServer() {
 
         app.get('/api/admin/audit-logs', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
             const { page = 1, limit = 25 } = req.query;
-            const { conditions, params } = buildFilterConditions(req.query);
+            const { conditions, params: filterParams } = buildFilterConditions(req.query);
             
-            conditions.push(`al.instance_id = $${params.length + 1}`);
+            let params = [...filterParams];
+            let paramIndex = params.length + 1;
+
+            conditions.push(`al.instance_id = $${paramIndex++}`);
             params.push(req.user.instance_id);
 
             const whereClause = ` WHERE ${conditions.join(' AND ')}`;
             
             const baseQuery = `FROM audit_logs al ${whereClause}`;
             const countQuery = `SELECT COUNT(*) as total ${baseQuery}`;
-            const dataQuery = `SELECT al.* ${baseQuery} ORDER BY al.timestamp DESC LIMIT $${params.length + 2} OFFSET $${params.length + 3}`;
-
+            
             const countResult = await req.db.query(countQuery, params);
             const total = parseInt(countResult.rows[0].total, 10);
             const offset = (page - 1) * limit;
 
-            const { rows: logs } = await req.db.query(dataQuery, [...params, limit, offset]);
+            const dataQuery = `SELECT al.* ${baseQuery} ORDER BY al.timestamp DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`;
+            const dataParams = [...params, limit, offset];
+
+            const { rows: logs } = await req.db.query(dataQuery, dataParams);
             
             res.json({
                 logs,
