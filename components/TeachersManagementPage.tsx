@@ -56,7 +56,7 @@ const TeacherManager: React.FC<{
     const [isLoading, setIsLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null);
-    const [formState, setFormState] = useState({ nom: '', prenom: '', email: '', phone: '', nif: '' });
+    const [formState, setFormState] = useState({ nom: '', prenom: '', email: '', phone: '', nif: '', sendEmail: true });
     const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
     const [credentials, setCredentials] = useState<{ username: string, tempPassword: string } | null>(null);
 
@@ -78,7 +78,7 @@ const TeacherManager: React.FC<{
     }, [fetchTeachers]);
 
     const resetForm = () => {
-        setFormState({ nom: '', prenom: '', email: '', phone: '', nif: '' });
+        setFormState({ nom: '', prenom: '', email: '', phone: '', nif: '', sendEmail: true });
         setShowForm(false);
         setEditingTeacher(null);
     };
@@ -90,7 +90,8 @@ const TeacherManager: React.FC<{
             nom: teacher.nom,
             email: teacher.email || '',
             phone: teacher.phone || '',
-            nif: teacher.nif || ''
+            nif: teacher.nif || '',
+            sendEmail: true
         });
         setShowForm(true);
     };
@@ -177,6 +178,20 @@ const TeacherManager: React.FC<{
                                 className="px-3 py-2 border rounded-md w-full" 
                             />
                         </div>
+                        {!editingTeacher && (
+                            <div className="flex items-center">
+                                <input
+                                    id="sendEmailTeacher"
+                                    type="checkbox"
+                                    checked={formState.sendEmail}
+                                    onChange={e => setFormState(s => ({ ...s, sendEmail: e.target.checked }))}
+                                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                />
+                                <label htmlFor="sendEmailTeacher" className="ml-2 block text-sm text-slate-700">
+                                    Envoyer les identifiants par email au professeur
+                                </label>
+                            </div>
+                        )}
                         <div className="flex justify-end gap-2">
                             <button type="button" onClick={resetForm} className="px-4 py-2 bg-slate-100 rounded-md">Annuler</button>
                             <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded-md">{editingTeacher ? 'Mettre à jour' : 'Enregistrer'}</button>

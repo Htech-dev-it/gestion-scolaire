@@ -10,6 +10,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const crypto = require('crypto');
 const archiver = require('archiver');
+const nodemailer = require('nodemailer');
 
 
 const app = express();
@@ -22,6 +23,65 @@ const JWT_SECRET = process.env.JWT_SECRET || 'votre_super_secret_jwt_a_changer_a
 if (JWT_SECRET === 'votre_super_secret_jwt_a_changer_absolument') {
     console.warn('ATTENTION : Le JWT_SECRET utilise une valeur par défaut. Veuillez définir JWT_SECRET dans votre fichier .env pour la production.');
 }
+
+// --- Nodemailer Transporter Setup (for Brevo) ---
+// Utilise les variables d'environnement pour la sécurité
+const transporter = nodemailer.createTransport({
+    host: 'smtp-relay.brevo.com',
+    port: 587,
+    secure: false, // true for 465, false for other ports
+    auth: {
+        user: process.env.BREVO_SMTP_LOGIN,
+        pass: process.env.BREVO_SMTP_KEY,
+    },
+});
+
+// --- Reusable Email Sending Function ---
+const sendCredentialEmail = async ({ email, username, password, instanceName, role, signature, contextName, isReset = false }) => {
+    // Utilise contextName pour le sujet, le nom de l'expéditeur et le corps du message si fourni
+    const fromName = contextName || instanceName;
+    const subject = isReset ? `Réinitialisation de votre mot de passe pour ${fromName}` : `Vos identifiants de connexion pour ${fromName}`;
+    const platformName = contextName || instanceName; // Utiliser pour le corps de l'email
+    const frontendUrl = process.env.FRONTEND_URL || 'https://gestion-scolaire-c1vh.onrender.com/';
+    
+    // Utilise la signature fournie, sinon utilise celle par défaut pour l'administration de l'école
+    const finalSignature = signature || `L'administration de ${instanceName}`;
+
+    const introText = isReset
+        ? `<p>Bonjour,</p><p>Votre mot de passe pour la plateforme de gestion scolaire <strong>${platformName}</strong> a été réinitialisé.</p>`
+        : `<p>Bonjour,</p><p>Un compte a été créé pour vous sur la plateforme de gestion scolaire <strong>${platformName}</strong>.</p>`;
+
+    const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: auto; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
+        <h2 style="color: #4A90E2; border-bottom: 2px solid #eee; padding-bottom: 10px;">Bienvenue sur ScolaLink !</h2>
+        ${introText}
+        <p>Voici vos identifiants de connexion pour le rôle de <strong>${role}</strong>. Ce mot de passe est temporaire et nous vous recommandons vivement de le changer lors de votre première connexion.</p>
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <ul style="list-style-type: none; padding: 0; margin: 0;">
+                <li style="margin-bottom: 10px;"><strong>Nom d'utilisateur :</strong> <span style="font-family: monospace; background-color: #e0e0e0; padding: 2px 5px; border-radius: 3px;">${username}</span></li>
+                <li><strong>Mot de passe temporaire :</strong> <span style="font-family: monospace; background-color: #e0e0e0; padding: 2px 5px; border-radius: 3px;">${password}</span></li>
+            </ul>
+        </div>
+        <p>Vous pouvez vous connecter en utilisant le lien ci-dessous :</p>
+        <a href="${frontendUrl}" style="display: inline-block; padding: 12px 25px; background-color: #F27438; color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold;">Accéder à la plateforme</a>
+        <p style="margin-top: 25px; font-size: 0.9em; color: #777;">Si vous n'êtes pas à l'origine de cette action, veuillez ignorer cet email.</p>
+        <p>Cordialement,<br>${finalSignature}</p>
+    </div>
+    `;
+
+    try {
+        await transporter.sendMail({
+            from: `"${fromName}" <${process.env.EMAIL_FROM}>`,
+            to: email,
+            subject: subject,
+            html: html,
+        });
+        console.log(`Email d'identifiants envoyé avec succès à ${email}`);
+    } catch (error) {
+        console.error(`Erreur lors de l'envoi de l'email à ${email}:`, error);
+        // Ne pas bloquer le processus de création en cas d'échec de l'email
+    }
+};
 
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -104,7 +164,7 @@ const isPrincipalSuperAdmin = (req, res, next) => {
 };
 
 const isAnySuperAdmin = (req, res, next) => {
-    if (req.user && (req.user.role === 'superadmin' || user.role === 'superadmin_delegate')) {
+    if (req.user && (req.user.role === 'superadmin' || req.user.role === 'superadmin_delegate')) {
         next();
     } else {
         res.status(403).json({ message: 'Accès refusé. Action réservée aux Super Administrateurs.' });
@@ -596,8 +656,11 @@ async function startServer() {
         }));
 
         app.post('/api/superadmin/instances', authenticateToken, isAnySuperAdmin, asyncHandler(async (req, res) => {
-            const { name, admin_email, address, phone } = req.body;
+            const { name, admin_email, address, phone, sendEmail } = req.body;
             const client = await req.db.connect();
+            let tempPassword; // Make it available in the outer scope
+            let username = 'admin'; // Default admin username
+
             try {
                 await client.query('BEGIN');
                 
@@ -607,8 +670,7 @@ async function startServer() {
                 );
                 const newInstance = instanceResult.rows[0];
 
-                const username = 'admin'; // Default admin username for new instances
-                const tempPassword = generateTempPassword();
+                tempPassword = generateTempPassword();
                 const passwordHash = await bcrypt.hash(tempPassword, 10);
 
                 await client.query(
@@ -620,10 +682,24 @@ async function startServer() {
                 
                 await logActivity(req, 'INSTANCE_CREATED', newInstance.id, newInstance.name, `Instance '${newInstance.name}' (ID: ${newInstance.id}) créée.`);
                 
-                res.status(201).json({
-                    instance: newInstance,
-                    credentials: { username, tempPassword }
-                });
+                let responsePayload = { instance: newInstance };
+
+                if (sendEmail) {
+                    await sendCredentialEmail({
+                        email: admin_email,
+                        username: username,
+                        password: tempPassword,
+                        instanceName: newInstance.name,
+                        role: 'Administrateur Principal',
+                        signature: "L'équipe de ScolaLink",
+                        contextName: "ScolaLink"
+                    });
+                    responsePayload.message = "Instance créée et identifiants envoyés par email.";
+                } else {
+                    responsePayload.credentials = { username, tempPassword };
+                }
+                
+                res.status(201).json(responsePayload);
 
             } catch (error) {
                 await client.query('ROLLBACK');
@@ -729,22 +805,37 @@ async function startServer() {
 
         app.put('/api/superadmin/users/:userId/reset-password', authenticateToken, isAnySuperAdmin, asyncHandler(async (req, res) => {
             const { userId } = req.params;
-            const { rows } = await req.db.query("SELECT * FROM users WHERE id = $1 AND role = 'admin'", [userId]);
-            const user = rows[0];
+            const { rows: userRows } = await req.db.query("SELECT u.*, i.name as instance_name, i.email as instance_email FROM users u JOIN instances i ON u.instance_id = i.id WHERE u.id = $1 AND u.role = 'admin'", [userId]);
+            const user = userRows[0];
             if (!user) return res.status(404).json({ message: 'Utilisateur admin non trouvé.' });
 
             const tempPassword = generateTempPassword();
             const hashedPassword = bcrypt.hashSync(tempPassword, 10);
-
             await req.db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPassword, userId]);
+            
             await logActivity(req, 'ADMIN_PASSWORD_RESET', userId, user.username, `Mot de passe de l'admin '${user.username}' (ID: ${userId}) réinitialisé.`);
-            res.json({ username: user.username, tempPassword });
+            
+            if (user.instance_email) {
+                await sendCredentialEmail({
+                    email: user.instance_email,
+                    username: user.username,
+                    password: tempPassword,
+                    instanceName: user.instance_name,
+                    role: 'Administrateur Principal',
+                    isReset: true,
+                    signature: "L'équipe de ScolaLink",
+                    contextName: "ScolaLink"
+                });
+                res.json({ message: `Un email avec le nouveau mot de passe a été envoyé à ${user.instance_email}.` });
+            } else {
+                res.json({ username: user.username, tempPassword });
+            }
         }));
 
         // --- NEW SUPER ADMIN USER MANAGEMENT ---
         app.get('/api/superadmin/superadmins', authenticateToken, isPrincipalSuperAdmin, asyncHandler(async(req, res) => {
             const { rows } = await req.db.query(`
-                SELECT id, username, role FROM users 
+                SELECT id, username, role, email FROM users 
                 WHERE role IN ('superadmin', 'superadmin_delegate') 
                 ORDER BY role DESC, username ASC
             `);
@@ -752,7 +843,7 @@ async function startServer() {
         }));
 
         app.post('/api/superadmin/superadmins', authenticateToken, isPrincipalSuperAdmin, asyncHandler(async(req, res) => {
-            const { username, password } = req.body;
+            const { username, password, email, sendEmail } = req.body;
             if (!username || !password) return res.status(400).json({ message: 'Nom d\'utilisateur et mot de passe requis.' });
             
             const { rows: existing } = await req.db.query('SELECT id FROM users WHERE username = $1', [username]);
@@ -760,12 +851,28 @@ async function startServer() {
 
             const passwordHash = await bcrypt.hash(password, 10);
             const { rows } = await req.db.query(
-                `INSERT INTO users (username, password_hash, role, instance_id) VALUES ($1, $2, 'superadmin_delegate', NULL) RETURNING id, username, role`,
-                [username, passwordHash]
+                `INSERT INTO users (username, password_hash, role, instance_id, email) VALUES ($1, $2, 'superadmin_delegate', NULL, $3) RETURNING id, username, role, email`,
+                [username, passwordHash, email || null]
             );
             
-            await logActivity(req, 'SUPERADMIN_DELEGATE_CREATED', rows[0].id.toString(), username, `Super admin délégué '${username}' créé.`);
-            res.status(201).json(rows[0]);
+            const newUser = rows[0];
+            await logActivity(req, 'SUPERADMIN_DELEGATE_CREATED', newUser.id.toString(), username, `Super admin délégué '${username}' créé.`);
+            
+            if (sendEmail && email) {
+                await sendCredentialEmail({
+                    email: email,
+                    username: username,
+                    password: password,
+                    instanceName: "ScolaLink",
+                    role: 'Super Administrateur Délégué',
+                    signature: "L'équipe de ScolaLink",
+                    contextName: "ScolaLink",
+                    isReset: false
+                });
+                res.status(201).json({ user: newUser, message: `Super admin délégué créé et identifiants envoyés à ${email}.`});
+            } else {
+                res.status(201).json(newUser);
+            }
         }));
 
         app.delete('/api/superadmin/superadmins/:id', authenticateToken, isPrincipalSuperAdmin, asyncHandler(async (req, res) => {
@@ -793,7 +900,22 @@ async function startServer() {
             await req.db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPassword, id]);
             
             await logActivity(req, 'SUPERADMIN_DELEGATE_PASSWORD_RESET', id, userToReset.username, `Mot de passe du super admin délégué '${userToReset.username}' réinitialisé.`);
-            res.json({ username: userToReset.username, tempPassword });
+            
+            if (userToReset.email) {
+                 await sendCredentialEmail({
+                    email: userToReset.email,
+                    username: userToReset.username,
+                    password: tempPassword,
+                    instanceName: "ScolaLink",
+                    role: 'Super Administrateur Délégué',
+                    signature: "L'équipe de ScolaLink",
+                    contextName: "ScolaLink",
+                    isReset: true
+                });
+                res.json({ message: `Un email avec le nouveau mot de passe a été envoyé à ${userToReset.email}.` });
+            } else {
+                res.json({ username: userToReset.username, tempPassword });
+            }
         }));
 
 
@@ -882,32 +1004,6 @@ async function startServer() {
         
         // --- AUDIT LOGS ---
         
-        // Generic log fetching function
-        const fetchLogs = async (db, conditions, params, page, limit) => {
-            let query = `SELECT * FROM audit_logs`;
-            let countQuery = `SELECT COUNT(*) as total FROM audit_logs`;
-            
-            if (conditions.length > 0) {
-                const whereClause = ` WHERE ` + conditions.join(' AND ');
-                query += whereClause;
-                countQuery += whereClause;
-            }
-
-            const totalResult = await db.query(countQuery, params);
-            const total = parseInt(totalResult.rows[0].total, 10);
-            
-            const offset = (page - 1) * limit;
-            query += ` ORDER BY timestamp DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`;
-            params.push(limit, offset);
-            
-            const { rows: logs } = await db.query(query, params);
-            
-            return {
-                logs,
-                pagination: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / limit) }
-            };
-        };
-
         const buildFilterConditions = (queryParams) => {
             const { startDate, endDate, userId, searchTerm } = queryParams;
             const conditions = [];
@@ -918,7 +1014,7 @@ async function startServer() {
             if (endDate) { conditions.push(`timestamp <= $${paramIndex++}`); params.push(endDate + 'T23:59:59.999Z'); }
             if (userId && userId !== 'all') { conditions.push(`user_id = $${paramIndex++}`); params.push(userId); }
             if (searchTerm) {
-                conditions.push(`(action_type ILIKE $${paramIndex} OR target_name ILIKE $${paramIndex} OR details::text ILIKE $${paramIndex})`);
+                conditions.push(`(action_type ILIKE $${paramIndex} OR target_name ILIKE $${paramIndex} OR details::text ILIKE $${paramIndex} OR username ILIKE $${paramIndex})`);
                 params.push(`%${searchTerm}%`);
                 paramIndex++;
             }
@@ -929,39 +1025,76 @@ async function startServer() {
             const { page = 1, limit = 25 } = req.query;
             const { conditions, params } = buildFilterConditions(req.query);
             
-            conditions.unshift(`instance_id = $${params.length + 1}`);
+            conditions.push(`al.instance_id = $${params.length + 1}`);
             params.push(req.user.instance_id);
 
-            const result = await fetchLogs(req.db, conditions, params, page, limit);
-            res.json(result);
+            const whereClause = ` WHERE ${conditions.join(' AND ')}`;
+            
+            const baseQuery = `FROM audit_logs al ${whereClause}`;
+            const countQuery = `SELECT COUNT(*) as total ${baseQuery}`;
+            const dataQuery = `SELECT al.* ${baseQuery} ORDER BY al.timestamp DESC LIMIT $${params.length + 2} OFFSET $${params.length + 3}`;
+
+            const countResult = await req.db.query(countQuery, params);
+            const total = parseInt(countResult.rows[0].total, 10);
+            const offset = (page - 1) * limit;
+
+            const { rows: logs } = await req.db.query(dataQuery, [...params, limit, offset]);
+            
+            res.json({
+                logs,
+                pagination: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / limit) }
+            });
         }));
         
         app.get('/api/superadmin/audit-logs', authenticateToken, isAnySuperAdmin, asyncHandler(async (req, res) => {
             const { page = 1, limit = 25 } = req.query;
-            const { conditions, params } = buildFilterConditions(req.query);
+            const { conditions, params: filterParams } = buildFilterConditions(req.query);
             
-            // Determine which roles' logs to fetch based on the requester's role
-            const targetRoles = req.user.role === 'superadmin' 
-                ? ['superadmin', 'superadmin_delegate'] 
+            let baseQuery = `
+                FROM audit_logs al
+                LEFT JOIN users u ON al.user_id = u.id
+            `;
+
+            let params = [...filterParams];
+            let paramIndex = params.length + 1;
+
+            const targetRoles = req.user.role === 'superadmin'
+                ? ['superadmin', 'superadmin_delegate']
                 : ['superadmin_delegate'];
 
-            // Get the user IDs corresponding to the target roles
-            const rolePlaceholders = targetRoles.map((_, i) => `$${i + 1}`).join(',');
-            const { rows: targetUsers } = await req.db.query(`SELECT id FROM users WHERE role IN (${rolePlaceholders})`, targetRoles);
-            const targetUserIds = targetUsers.map(u => u.id);
+            const rolePlaceholders = targetRoles.map(() => `$${paramIndex++}`).join(',');
+            conditions.push(`u.role IN (${rolePlaceholders})`);
+            params.push(...targetRoles);
+            
+            conditions.push(`al.instance_id IS NULL`);
 
-            if (targetUserIds.length === 0) {
-                // No users with the target roles exist, so no logs to show.
-                return res.json({ logs: [], pagination: { page: 1, limit: 25, total: 0, totalPages: 1 } });
-            }
+            const whereClause = ` WHERE ${conditions.join(' AND ')}`;
+            baseQuery += whereClause;
+
+            const countQuery = `SELECT COUNT(*) as total ${baseQuery}`;
+            const countResult = await req.db.query(countQuery, params);
+            const total = parseInt(countResult.rows[0].total, 10);
+
+            const offset = (page - 1) * limit;
+            const dataQuery = `
+                SELECT al.*, u.username as log_username
+                ${baseQuery}
+                ORDER BY al.timestamp DESC
+                LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+            `;
+            const dataParams = [...params, limit, offset];
+            const { rows: logs } = await req.db.query(dataQuery, dataParams);
             
-            // Add the user_id filter condition to the existing filter conditions
-            const userIdPlaceholders = targetUserIds.map((_, i) => `$${params.length + i + 1}`).join(',');
-            conditions.push(`user_id IN (${userIdPlaceholders})`);
-            params.push(...targetUserIds);
+            const logsWithCorrectUsername = logs.map(log => {
+                log.username = log.log_username; // Overwrite the stored username with the current one
+                delete log.log_username;
+                return log;
+            });
             
-            const result = await fetchLogs(req.db, conditions, params, page, limit);
-            res.json(result);
+            res.json({
+                logs: logsWithCorrectUsername,
+                pagination: { page: Number(page), limit: Number(limit), total, totalPages: Math.ceil(total / limit) }
+            });
         }));
 
         app.post('/api/admin/audit-logs/delete-by-date', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
@@ -1026,7 +1159,7 @@ async function startServer() {
         }));
 
         app.post('/api/teachers', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
-            const { nom, prenom, email, phone, nif } = req.body;
+            const { nom, prenom, email, phone, nif, sendEmail } = req.body;
 
             if (!nom || !prenom || !email || !phone || !nif) {
                 return res.status(400).json({ message: 'Tous les champs (Prénom, Nom, Email, Téléphone, NIF) sont obligatoires.' });
@@ -1057,8 +1190,24 @@ async function startServer() {
                 await client.query('COMMIT');
 
                 const { rows: newTeacherRows } = await client.query('SELECT t.*, u.username FROM teachers t JOIN users u ON t.user_id = u.id WHERE t.id = $1', [teacherId]);
-                await logActivity(req, 'TEACHER_CREATED', teacherId.toString(), `${newTeacherRows[0].prenom} ${newTeacherRows[0].nom}`, `Profil enseignant créé pour ${newTeacherRows[0].prenom} ${newTeacherRows[0].nom} (ID: ${teacherId}).`);
-                res.status(201).json({ teacher: newTeacherRows[0], username, tempPassword });
+                const newTeacher = newTeacherRows[0];
+                await logActivity(req, 'TEACHER_CREATED', teacherId.toString(), `${newTeacher.prenom} ${newTeacher.nom}`, `Profil enseignant créé pour ${newTeacher.prenom} ${newTeacher.nom} (ID: ${teacherId}).`);
+
+                if (sendEmail) {
+                    const { rows: instanceRows } = await client.query('SELECT name FROM instances WHERE id = $1', [req.user.instance_id]);
+                    const instanceName = instanceRows[0]?.name || 'ScolaLink';
+                    
+                    await sendCredentialEmail({
+                        email: newTeacher.email,
+                        username: newTeacher.username,
+                        password: tempPassword,
+                        instanceName: instanceName,
+                        role: 'Professeur'
+                    });
+                    res.status(201).json({ teacher: newTeacher, message: "Professeur créé et identifiants envoyés par email." });
+                } else {
+                    res.status(201).json({ teacher: newTeacher, username, tempPassword });
+                }
 
             } catch (error) {
                 await client.query('ROLLBACK');
@@ -1114,13 +1263,31 @@ async function startServer() {
             const teacher = rows[0];
             if (!teacher) return res.status(404).json({ message: 'Professeur non trouvé.' });
 
+            const { rows: userRows } = await req.db.query('SELECT username FROM users WHERE id = $1', [teacher.user_id]);
+            const username = userRows[0].username;
+
             const tempPassword = generateTempPassword();
             const hashedPassword = bcrypt.hashSync(tempPassword, 10);
-
             await req.db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPassword, teacher.user_id]);
+            
             await logActivity(req, 'TEACHER_PASSWORD_RESET', id.toString(), `${teacher.prenom} ${teacher.nom}`, `Mot de passe réinitialisé pour l'enseignant ${teacher.prenom} ${teacher.nom} (ID: ${id}).`);
             
-            res.json({ tempPassword });
+            if (teacher.email) {
+                const { rows: instanceRows } = await req.db.query('SELECT name FROM instances WHERE id = $1', [req.user.instance_id]);
+                const instanceName = instanceRows[0]?.name || 'ScolaLink';
+                
+                await sendCredentialEmail({
+                    email: teacher.email,
+                    username: username,
+                    password: tempPassword,
+                    instanceName: instanceName,
+                    role: 'Professeur',
+                    isReset: true
+                });
+                res.json({ message: `Un email avec le nouveau mot de passe a été envoyé à ${teacher.email}.` });
+            } else {
+                res.json({ username: username, tempPassword });
+            }
         }));
 
         app.delete('/api/teachers/:id', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
@@ -1129,8 +1296,10 @@ async function startServer() {
             const teacher = rows[0];
             if (!teacher) return res.status(404).json({ message: 'Professeur non trouvé.'});
             
-            await req.db.query('DELETE FROM teachers WHERE id = $1', [id]);
-            await logActivity(req, 'TEACHER_DELETED', id.toString(), `${teacher.prenom} ${teacher.nom}`, `Profil enseignant supprimé pour ${teacher.prenom} ${teacher.nom} (ID: ${id}).`);
+            // Delete the associated user, which will cascade delete the teacher record
+            await req.db.query('DELETE FROM users WHERE id = $1', [teacher.user_id]);
+
+            await logActivity(req, 'TEACHER_DELETED', id.toString(), `${teacher.prenom} ${teacher.nom}`, `Profil enseignant et compte utilisateur supprimés pour ${teacher.prenom} ${teacher.nom} (ID: ${id}).`);
             res.json({ message: 'Professeur et compte utilisateur associé supprimés.'});
         }));
         
@@ -2177,14 +2346,14 @@ async function startServer() {
                     }
                 }
 
-                const temp_password = generateTempPassword();
-                const password_hash = bcrypt.hashSync(temp_password, 10);
+                const tempPassword = generateTempPassword();
+                const password_hash = bcrypt.hashSync(tempPassword, 10);
 
                 await req.db.query(
                     'INSERT INTO student_users (student_id, username, password_hash, status) VALUES ($1, $2, $3, $4)',
                     [student.id, username, password_hash, 'temporary_password']
                 );
-                credentials.push({ prenom: student.prenom, nom: student.nom, username, temp_password });
+                credentials.push({ prenom: student.prenom, nom: student.nom, username, tempPassword });
             }
 
             res.status(201).json({
@@ -2350,8 +2519,8 @@ async function startServer() {
                 else username = `${baseUsername}${suffix++}`;
             }
 
-            const temp_password = generateTempPassword();
-            const password_hash = bcrypt.hashSync(temp_password, 10);
+            const tempPassword = generateTempPassword();
+            const password_hash = bcrypt.hashSync(tempPassword, 10);
 
             await req.db.query(
                 'INSERT INTO student_users (student_id, username, password_hash, status) VALUES ($1, $2, $3, $4)',
@@ -2359,24 +2528,24 @@ async function startServer() {
             );
             
             await logActivity(req, 'STUDENT_ACCOUNT_CREATED', studentId, `${student.prenom} ${student.nom}`, `Compte portail créé pour l'élève ${student.prenom} ${student.nom} (ID: ${studentId}).`);
-            res.status(201).json({ prenom: student.prenom, nom: student.nom, username, temp_password });
+            res.status(201).json({ prenom: student.prenom, nom: student.nom, username, tempPassword });
         }));
 
         app.put('/api/students/:studentId/reset-password', authenticateToken, requirePermission('student_portal:manage_accounts'), asyncHandler(async (req, res) => {
             const { studentId } = req.params;
             
-            const { rows: studentCheck } = await req.db.query('SELECT id FROM students WHERE id = $1 AND instance_id = $2', [studentId, req.user.instance_id]);
-            if (studentCheck.length === 0) return res.status(404).json({ message: 'Élève non trouvé.' });
+            const { rowCount } = await req.db.query('SELECT id FROM students WHERE id = $1 AND instance_id = $2', [studentId, req.user.instance_id]);
+            if (rowCount === 0) return res.status(404).json({ message: 'Élève non trouvé.' });
 
             const { rows: userRows } = await req.db.query('SELECT * FROM student_users WHERE student_id = $1', [studentId]);
             if (userRows.length === 0) return res.status(404).json({ message: 'Compte élève non trouvé.' });
             const studentUser = userRows[0];
             
-            const { rows: studentRows } = await req.db.query('SELECT prenom, nom FROM students WHERE id = $1', [studentId]);
+            const { rows: studentRows } = await req.db.query('SELECT prenom, nom, tutor_email FROM students WHERE id = $1', [studentId]);
             const student = studentRows[0];
 
-            const temp_password = generateTempPassword();
-            const password_hash = bcrypt.hashSync(temp_password, 10);
+            const tempPassword = generateTempPassword();
+            const password_hash = bcrypt.hashSync(tempPassword, 10);
 
             await req.db.query(
                 'UPDATE student_users SET password_hash = $1, status = $2 WHERE id = $3',
@@ -2384,7 +2553,22 @@ async function startServer() {
             );
 
             await logActivity(req, 'STUDENT_PASSWORD_RESET', studentId, `${student.prenom} ${student.nom}`, `Mot de passe du portail réinitialisé pour l'élève ${student.prenom} ${student.nom} (ID: ${studentId}).`);
-            res.json({ prenom: student.prenom, nom: student.nom, username: studentUser.username, temp_password });
+            
+            if (student.tutor_email) {
+                const { rows: instanceRows } = await req.db.query('SELECT name FROM instances WHERE id = $1', [req.user.instance_id]);
+                const instanceName = instanceRows[0]?.name || 'ScolaLink';
+                await sendCredentialEmail({
+                    email: student.tutor_email,
+                    username: studentUser.username,
+                    password: tempPassword,
+                    instanceName: instanceName,
+                    role: `Élève (${student.prenom} ${student.nom})`,
+                    isReset: true,
+                });
+                res.json({ message: `Un email avec le nouveau mot de passe a été envoyé au tuteur (${student.tutor_email}).` });
+            } else {
+                res.json({ prenom: student.prenom, nom: student.nom, username: studentUser.username, tempPassword });
+            }
         }));
         
         app.delete('/api/students/:studentId/account', authenticateToken, requirePermission('student_portal:manage_accounts'), asyncHandler(async (req, res) => {

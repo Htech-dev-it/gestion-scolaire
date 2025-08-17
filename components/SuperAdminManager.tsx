@@ -48,7 +48,7 @@ const SuperAdminManager: React.FC = () => {
     const { user: currentUser } = useAuth();
     const [superAdmins, setSuperAdmins] = useState<User[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [formState, setFormState] = useState({ username: '', password: '' });
+    const [formState, setFormState] = useState({ username: '', password: '', email: '', sendEmail: true });
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const [userToReset, setUserToReset] = useState<User | null>(null);
     const [credentials, setCredentials] = useState<{ username: string, tempPassword: string } | null>(null);
@@ -72,12 +72,12 @@ const SuperAdminManager: React.FC = () => {
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const newUser = await apiFetch('/superadmin/superadmins', {
+            const data = await apiFetch('/superadmin/superadmins', {
                 method: 'POST',
                 body: JSON.stringify(formState)
             });
-            addNotification({ type: 'success', message: `Super admin délégué '${newUser.username}' créé.` });
-            setFormState({ username: '', password: '' });
+            addNotification({ type: 'success', message: data.message || `Super admin délégué '${formState.username}' créé.` });
+            setFormState({ username: '', password: '', email: '', sendEmail: true });
             fetchSuperAdmins();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
@@ -88,7 +88,11 @@ const SuperAdminManager: React.FC = () => {
         if (!userToReset) return;
         try {
             const data = await apiFetch(`/superadmin/superadmins/${userToReset.id}/reset-password`, { method: 'PUT' });
-            setCredentials(data);
+            if (data.tempPassword) {
+                setCredentials(data);
+            } else {
+                addNotification({ type: 'success', message: data.message });
+            }
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {
@@ -116,9 +120,18 @@ const SuperAdminManager: React.FC = () => {
             
             <form onSubmit={handleCreate} className="space-y-3 p-4 border rounded-lg bg-slate-50 mb-6">
                 <h3 className="font-semibold">Ajouter un Super Admin Délégué</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <input type="text" placeholder="Nom d'utilisateur" value={formState.username} onChange={e => setFormState(s => ({...s, username: e.target.value}))} required className="w-full p-2 border rounded-md" />
                     <input type="password" placeholder="Mot de passe" value={formState.password} onChange={e => setFormState(s => ({...s, password: e.target.value}))} required className="w-full p-2 border rounded-md" />
+                </div>
+                <div>
+                     <input type="email" placeholder="Email (optionnel)" value={formState.email} onChange={e => setFormState(s => ({...s, email: e.target.value}))} className="w-full p-2 border rounded-md" />
+                </div>
+                <div className="flex items-center">
+                    <input id="sendEmailSuperAdmin" type="checkbox" checked={formState.sendEmail} onChange={e => setFormState(s => ({ ...s, sendEmail: e.target.checked }))} className="h-4 w-4 rounded" />
+                    <label htmlFor="sendEmailSuperAdmin" className="ml-2 text-sm">Envoyer les identifiants par email</label>
+                </div>
+                <div className="text-right">
                     <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">Ajouter</button>
                 </div>
             </form>

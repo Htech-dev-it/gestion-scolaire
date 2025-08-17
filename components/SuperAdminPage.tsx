@@ -389,7 +389,7 @@ const SuperAdminPage: React.FC = () => {
     const [instances, setInstances] = useState<InstanceWithAdmins[]>([]);
     const [announcements, setAnnouncements] = useState<Announcement[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [formState, setFormState] = useState({ name: '', admin_email: '', address: '', phone: '' });
+    const [formState, setFormState] = useState({ name: '', admin_email: '', address: '', phone: '', sendEmail: true });
     const [credentials, setCredentials] = useState<{ username: string, tempPassword: string } | null>(null);
     const [modalTitle, setModalTitle] = useState('');
     const [announcementForm, setAnnouncementForm] = useState<{ id: number | null, title: string, content: string, is_active: boolean, instance_id: number | null }>({ id: null, title: '', content: '', is_active: true, instance_id: null });
@@ -402,16 +402,11 @@ const SuperAdminPage: React.FC = () => {
     const [messageSummaries, setMessageSummaries] = useState<MessageSummary[]>([]);
     const [selectedInstanceForChat, setSelectedInstanceForChat] = useState<MessageSummary | null>(null);
     const [editingInstanceId, setEditingInstanceId] = useState<number | null>(null);
-    const [editFormState, setEditFormState] = useState<{ name: string; address: string | null; phone: string | null; email: string | null; }>({ name: '', address: '', phone: '', email: '' });
-
-    useEffect(() => {
-        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-        return () => clearInterval(timer);
-    }, []);
 
     const fetchData = useCallback(async () => {
+        setIsLoading(true);
         try {
-            const [statsData, instancesData, announcementsData, summaryData] = await Promise.all([
+            const [statsData, instancesData, announcementsData, summariesData] = await Promise.all([
                 apiFetch('/superadmin/dashboard-stats'),
                 apiFetch('/superadmin/instances'),
                 apiFetch('/superadmin/announcements'),
@@ -420,7 +415,7 @@ const SuperAdminPage: React.FC = () => {
             setStats(statsData);
             setInstances(instancesData);
             setAnnouncements(announcementsData);
-            setMessageSummaries(summaryData);
+            setMessageSummaries(summariesData);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {
@@ -429,52 +424,53 @@ const SuperAdminPage: React.FC = () => {
     }, [addNotification]);
 
     useEffect(() => {
-        setIsLoading(true);
         fetchData();
-        const intervalId = setInterval(fetchData, 5000); // Poll all data every 5 seconds
-        return () => clearInterval(intervalId);
     }, [fetchData]);
 
-    const totalUnreadCount = useMemo(() => 
-        messageSummaries.reduce((acc, summary) => acc + summary.unread_count, 0),
-    [messageSummaries]);
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 60 * 1000);
+        return () => clearInterval(timer);
+    }, []);
 
-    const handleCreateInstance = async (e: React.FormEvent) => {
+    const fetchMessageSummaries = useCallback(async () => {
+        try {
+            const summariesData = await apiFetch('/superadmin/messages/summary');
+            setMessageSummaries(summariesData);
+        } catch (error) {
+            console.error("Failed to refresh message summaries", error);
+        }
+    }, []);
+
+    const handleCreateInstance = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         try {
             const data = await apiFetch('/superadmin/instances', { method: 'POST', body: JSON.stringify(formState) });
-            addNotification({ type: 'success', message: `L'instance '${data.instance.name}' a été créée.` });
-            setCredentials(data.credentials);
-            setModalTitle("Nouvelle Instance Créée");
-            setFormState({ name: '', admin_email: '', address: '', phone: '' });
+            addNotification({ type: 'success', message: data.message || 'Instance créée avec succès.' });
+            if (data.credentials) {
+                setCredentials(data.credentials);
+                setModalTitle(`Identifiants pour ${data.instance.name}`);
+            }
+            setFormState({ name: '', admin_email: '', address: '', phone: '', sendEmail: true });
             fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
     };
+    
+    const handleUpdateInstanceDetails = async (instanceId: number, event: React.FormEvent<HTMLFormElement>) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const name = (form.elements.namedItem('name') as HTMLInputElement).value;
+        const address = (form.elements.namedItem('address') as HTMLInputElement).value;
+        const phone = (form.elements.namedItem('phone') as HTMLInputElement).value;
+        const email = (form.elements.namedItem('email') as HTMLInputElement).value;
 
-    const handleStartEdit = (instance: InstanceWithAdmins) => {
-        setEditingInstanceId(instance.id);
-        setEditFormState({
-            name: instance.name,
-            address: instance.address,
-            phone: instance.phone,
-            email: instance.email,
-        });
-    };
-
-    const handleCancelEdit = () => {
-        setEditingInstanceId(null);
-    };
-
-    const handleUpdateInstanceDetails = async () => {
-        if (!editingInstanceId) return;
         try {
-            await apiFetch(`/superadmin/instances/${editingInstanceId}/details`, {
+            await apiFetch(`/superadmin/instances/${instanceId}/details`, {
                 method: 'PUT',
-                body: JSON.stringify(editFormState)
+                body: JSON.stringify({ name, address, phone, email })
             });
-            addNotification({ type: 'success', message: 'Informations de l\'instance mises à jour.' });
+            addNotification({ type: 'success', message: 'Détails de l\'instance mis à jour.' });
             setEditingInstanceId(null);
             fetchData();
         } catch (error) {
@@ -482,65 +478,67 @@ const SuperAdminPage: React.FC = () => {
         }
     };
 
-    const handleToggleStatus = async (instance: InstanceWithAdmins, displayStatus: 'active' | 'suspended') => {
-        const newStatus = displayStatus === 'active' ? 'suspended' : 'active';
+    const handleToggleStatus = async (instance: InstanceWithAdmins) => {
+        const newStatus = instance.status === 'active' ? 'suspended' : 'active';
         try {
             await apiFetch(`/superadmin/instances/${instance.id}/status`, { method: 'PUT', body: JSON.stringify({ status: newStatus }) });
-            addNotification({ type: 'success', message: 'Statut mis à jour.' });
+            addNotification({ type: 'success', message: `Statut de ${instance.name} mis à jour.` });
             fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
     };
 
-    const handleSaveExpiration = async (date: string | null) => {
+    const handleScheduleSave = async (date: string | null) => {
         if (!instanceToSchedule) return;
         try {
             await apiFetch(`/superadmin/instances/${instanceToSchedule.id}/expires`, { method: 'PUT', body: JSON.stringify({ expires_at: date }) });
-            addNotification({ type: 'success', message: "Date d'expiration mise à jour." });
+            addNotification({ type: 'success', message: 'Date de suspension mise à jour.' });
+            setInstanceToSchedule(null);
             fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-        } finally {
-            setInstanceToSchedule(null);
         }
     };
-    
-    const handleDeleteRequest = (instance: InstanceWithAdmins) => setInstanceToDelete(instance);
-    const handleConfirmDeleteText = () => { if (instanceToDelete) { setPasswordConfirmInstance(instanceToDelete); setInstanceToDelete(null); } };
-    
-    const handleConfirmDeleteWithPassword = async (password: string) => {
+
+    const handleResetAdminPassword = async (admin: User) => {
+        try {
+            const data = await apiFetch(`/superadmin/users/${admin.id}/reset-password`, { method: 'PUT' });
+            if (data.tempPassword) {
+                setCredentials(data);
+                setModalTitle(`Nouveau mot de passe pour ${data.username}`);
+            }
+            addNotification({ type: 'success', message: data.message || `Mot de passe réinitialisé pour ${data.username}.` });
+        } catch (error) {
+            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+        }
+    };
+
+    const handleDeleteRequest = (instance: InstanceWithAdmins) => {
+        setInstanceToDelete(instance);
+        setPasswordConfirmInstance(null); // Reset password confirmation if it was open
+    };
+
+    const handleConfirmDeleteInstance = async (password: string) => {
         if (!passwordConfirmInstance) return;
         try {
             await apiFetch(`/superadmin/instances/${passwordConfirmInstance.id}`, { method: 'DELETE', body: JSON.stringify({ password }) });
-            addNotification({ type: 'success', message: `L'instance '${passwordConfirmInstance.name}' a été supprimée.` });
-            fetchData();
-        } catch (error) {
-             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-        } finally {
+            addNotification({ type: 'success', message: `L'instance ${passwordConfirmInstance.name} a été supprimée.` });
             setPasswordConfirmInstance(null);
-        }
-    };
-
-    const handleResetPassword = async (userId: number) => {
-        try {
-            const data = await apiFetch(`/superadmin/users/${userId}/reset-password`, { method: 'PUT' });
-            addNotification({ type: 'success', message: `Mot de passe réinitialisé pour ${data.username}.` });
-            setCredentials(data);
-            setModalTitle("Mot de Passe Réinitialisé");
+            setInstanceToDelete(null);
+            fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
     };
 
-    const handleAnnouncementSubmit = async (e: React.FormEvent) => {
+    const handleAnnouncementSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        const isEditing = announcementForm.id !== null;
+        const isEditing = !!announcementForm.id;
         const url = isEditing ? `/superadmin/announcements/${announcementForm.id}` : '/superadmin/announcements';
         const method = isEditing ? 'PUT' : 'POST';
-        const body = { ...announcementForm, instance_id: announcementForm.instance_id || null };
         try {
-            await apiFetch(url, { method, body: JSON.stringify(body) });
+            await apiFetch(url, { method, body: JSON.stringify(announcementForm) });
             addNotification({ type: 'success', message: `Annonce ${isEditing ? 'mise à jour' : 'créée'}.` });
             setAnnouncementForm({ id: null, title: '', content: '', is_active: true, instance_id: null });
             fetchData();
@@ -548,15 +546,19 @@ const SuperAdminPage: React.FC = () => {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
     };
-    
-    const handleToggleAnnouncement = async (announcement: Announcement) => {
-        try {
-            await apiFetch(`/superadmin/announcements/${announcement.id}`, { method: 'PUT', body: JSON.stringify({ ...announcement, is_active: !announcement.is_active, instance_id: announcement.instance_id || null }) });
-            addNotification({ type: 'success', message: `Annonce ${!announcement.is_active ? 'activée' : 'désactivée'}.` });
-            fetchData();
-        } catch (error) {
-            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-        }
+
+    const handleEditAnnouncement = (ann: Announcement) => {
+        setAnnouncementForm({
+            id: ann.id,
+            title: ann.title,
+            content: ann.content,
+            is_active: ann.is_active,
+            instance_id: ann.instance_id || null,
+        });
+    };
+
+    const handleDeleteAnnouncementRequest = (ann: Announcement) => {
+        setAnnouncementToDelete(ann);
     };
 
     const handleConfirmDeleteAnnouncement = async () => {
@@ -564,67 +566,160 @@ const SuperAdminPage: React.FC = () => {
         try {
             await apiFetch(`/superadmin/announcements/${announcementToDelete.id}`, { method: 'DELETE' });
             addNotification({ type: 'success', message: 'Annonce supprimée.' });
+            setAnnouncementToDelete(null);
             fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-        } finally {
-            setAnnouncementToDelete(null);
         }
     };
-    
-    const formatDate = (dateString: string | null) => dateString ? new Date(dateString).toLocaleString('fr-FR', { dateStyle: 'long', timeStyle: 'short' }) : null;
 
     const TabButton: React.FC<{ tabId: SuperAdminTab; children: React.ReactNode }> = ({ tabId, children }) => (
-        <button onClick={() => setActiveTab(tabId)} className={`relative px-4 py-2 font-medium text-sm rounded-md transition-colors whitespace-nowrap ${activeTab === tabId ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-100'}`}>
+        <button
+            onClick={() => setActiveTab(tabId)}
+            className={`w-full text-left px-4 py-2.5 font-medium text-sm rounded-lg transition-all duration-200 ${activeTab === tabId ? 'bg-blue-600 text-white shadow-md' : 'text-slate-600 hover:bg-blue-100 hover:text-blue-700'}`}
+        >
             {children}
-            {tabId === 'support' && totalUnreadCount > 0 && (
-                <span className="absolute -top-2 -right-2 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
-                    {totalUnreadCount}
-                </span>
-            )}
         </button>
     );
 
+    const renderAnnouncements = () => (
+        <div className="space-y-6">
+            <div className="bg-slate-50 p-4 rounded-lg border">
+                <h3 className="text-lg font-semibold mb-2">{announcementForm.id ? 'Modifier' : 'Créer'} une annonce</h3>
+                <form onSubmit={handleAnnouncementSubmit} className="space-y-4">
+                     <div>
+                        <label className="block text-sm font-medium">Titre</label>
+                        <input type="text" value={announcementForm.title} onChange={e => setAnnouncementForm(s => ({...s, title: e.target.value}))} required className="w-full p-2 border rounded-md" />
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium">Contenu</label>
+                        <textarea value={announcementForm.content} onChange={e => setAnnouncementForm(s => ({...s, content: e.target.value}))} required className="w-full p-2 border rounded-md" rows={4}></textarea>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium">Instance Cible</label>
+                         <select value={announcementForm.instance_id || ''} onChange={e => setAnnouncementForm(s => ({...s, instance_id: e.target.value ? Number(e.target.value) : null}))} className="w-full p-2 border rounded-md">
+                            <option value="">Toutes les instances</option>
+                            {instances.map(inst => <option key={inst.id} value={inst.id}>{inst.name}</option>)}
+                        </select>
+                    </div>
+                     <div className="flex items-center"><input type="checkbox" checked={announcementForm.is_active} onChange={e => setAnnouncementForm(s => ({...s, is_active: e.target.checked}))} className="h-4 w-4 rounded mr-2" /><label>Active</label></div>
+                    <div className="flex justify-end gap-2"><button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">{announcementForm.id ? 'Mettre à jour' : 'Publier'}</button>{announcementForm.id && <button type="button" onClick={() => setAnnouncementForm({ id: null, title: '', content: '', is_active: true, instance_id: null })} className="px-4 py-2 bg-slate-200 rounded-md">Annuler</button>}</div>
+                </form>
+            </div>
+             <div>
+                <h3 className="text-lg font-semibold mb-2">Annonces existantes</h3>
+                <div className="space-y-2">
+                    {announcements.map(ann => (<div key={ann.id} className="bg-white p-3 rounded-md shadow-sm flex justify-between items-center"><p className="font-medium">{ann.title} {!ann.is_active && <span className="text-xs text-red-500">(Inactive)</span>}</p><div className="flex gap-2"><button onClick={() => handleEditAnnouncement(ann)} className="px-3 py-1 text-xs text-blue-700 bg-blue-100 rounded-full">Modifier</button><button onClick={() => handleDeleteAnnouncementRequest(ann)} className="px-3 py-1 text-xs text-red-700 bg-red-100 rounded-full">Supprimer</button></div></div>))}
+                </div>
+            </div>
+        </div>
+    );
+
+    const renderInstanceManagement = () => (
+        <div className="space-y-8">
+            <div className="bg-slate-50 p-4 rounded-lg border">
+                <h3 className="text-lg font-semibold mb-2">Ajouter une nouvelle instance</h3>
+                <form onSubmit={handleCreateInstance} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" value={formState.name} onChange={e => setFormState(s => ({...s, name: e.target.value}))} placeholder="Nom de l'école" required className="p-2 border rounded-md" />
+                        <input type="email" value={formState.admin_email} onChange={e => setFormState(s => ({...s, admin_email: e.target.value}))} placeholder="Email de l'admin principal" required className="p-2 border rounded-md" />
+                    </div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" value={formState.address} onChange={e => setFormState(s => ({...s, address: e.target.value}))} placeholder="Adresse (optionnel)" className="p-2 border rounded-md" />
+                        <PhoneInput country={'ht'} value={formState.phone} onChange={phone => setFormState(s => ({...s, phone}))} />
+                    </div>
+                     <div className="flex items-center">
+                        <input id="sendEmail" type="checkbox" checked={formState.sendEmail} onChange={e => setFormState(s => ({...s, sendEmail: e.target.checked}))} className="h-4 w-4 rounded" />
+                        <label htmlFor="sendEmail" className="ml-2 text-sm text-slate-700">Envoyer les identifiants par email à l'admin</label>
+                    </div>
+                    <button type="submit" className="px-4 py-2 text-white bg-blue-600 rounded-md">Créer l'instance</button>
+                </form>
+            </div>
+             <div>
+                <h3 className="text-lg font-semibold mb-2">Instances existantes</h3>
+                <div className="space-y-4">
+                    {instances.map(instance => (
+                         <div key={instance.id} className={`p-4 rounded-lg shadow-md border ${editingInstanceId === instance.id ? 'border-blue-400' : 'bg-white'}`}>
+                            <div className="flex justify-between items-start flex-wrap gap-2">
+                                <div>
+                                    <h4 className="font-bold text-lg">{instance.name}</h4>
+                                    <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${instance.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{instance.status === 'active' ? 'Active' : 'Suspendue'}</span>
+                                    {instance.expires_at && <p className={`text-xs mt-1 ${new Date(instance.expires_at) < currentTime ? 'text-red-600 font-bold' : 'text-slate-500'}`}>Expire le: {new Date(instance.expires_at).toLocaleString('fr-FR')}</p>}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <button onClick={() => setEditingInstanceId(editingInstanceId === instance.id ? null : instance.id)} className="px-3 py-1 text-xs text-blue-700 bg-blue-100 rounded-full">Modifier</button>
+                                    <button onClick={() => handleToggleStatus(instance)} className="px-3 py-1 text-xs text-yellow-800 bg-yellow-200 rounded-full">{instance.status === 'active' ? 'Suspendre' : 'Activer'}</button>
+                                    <button onClick={() => setInstanceToSchedule(instance)} className="px-3 py-1 text-xs text-purple-700 bg-purple-100 rounded-full">Planifier</button>
+                                    {instance.admins.map(admin => <button key={admin.id} onClick={() => handleResetAdminPassword(admin)} className="px-3 py-1 text-xs text-gray-700 bg-gray-200 rounded-full">Réinitialiser MDP Admin</button>)}
+                                    {user?.role === 'superadmin' && <button onClick={() => handleDeleteRequest(instance)} className="px-3 py-1 text-xs text-white bg-red-600 rounded-full">Supprimer</button>}
+                                </div>
+                            </div>
+                             {editingInstanceId === instance.id && (
+                                <form onSubmit={(e) => handleUpdateInstanceDetails(instance.id, e)} className="mt-4 pt-4 border-t space-y-3">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <input name="name" defaultValue={instance.name} className="p-2 border rounded-md" />
+                                        <input name="email" type="email" defaultValue={instance.email || ''} className="p-2 border rounded-md" />
+                                        <input name="address" defaultValue={instance.address || ''} className="p-2 border rounded-md" />
+                                        <input name="phone" defaultValue={instance.phone || ''} className="p-2 border rounded-md" />
+                                    </div>
+                                    <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-md">Sauvegarder</button>
+                                </form>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+    
     return (
         <div className="p-4 md:p-8 max-w-7xl mx-auto">
-            <header className="mb-10"><h1 className="text-4xl font-bold text-gray-800 font-display">Portail Super Admin</h1><p className="text-lg text-slate-500 mt-2">Gestion centrale des instances de l'application.</p></header>
-            <div className="mb-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatCard title="Instances Totales" value={stats?.totalInstances ?? '...'} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>} />
-                <StatCard title="Instances Actives" value={stats?.activeInstances ?? '...'} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
-                <StatCard title="Utilisateurs" value={stats?.totalUsers ?? '...'} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M15 21v-1a6 6 0 00-1.78-4.125" /></svg>} />
-                <StatCard title="Élèves Actifs" value={stats?.totalStudents ?? '...'} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M17 20h5v-2a3 3 0 0 0-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 0 1 5-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 0 1 9.288 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>} />
+            <header className="mb-8">
+                <h1 className="text-4xl font-bold text-gray-800 font-display">Portail Super Administrateur</h1>
+                <p className="text-lg text-slate-500 mt-2">Gestion globale de la plateforme ScolaLink.</p>
+            </header>
+
+            {stats && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <StatCard title="Instances Totales" value={stats.totalInstances} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>} />
+                    <StatCard title="Instances Actives" value={stats.activeInstances} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
+                    <StatCard title="Utilisateurs (Écoles)" value={stats.totalUsers} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>} />
+                    <StatCard title="Élèves (Total)" value={stats.totalStudents} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 14l9-5-9-5-9 5 9 5z" /><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222" /></svg>} />
+                </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <aside className="md:col-span-1">
+                    <div className="bg-white p-4 rounded-xl shadow-md sticky top-24">
+                        <h3 className="text-lg font-semibold text-slate-800 font-display mb-3 px-2">Navigation</h3>
+                        <div className="space-y-1">
+                            <TabButton tabId="instances">Instances</TabButton>
+                            <TabButton tabId="announcements">Annonces</TabButton>
+                            <TabButton tabId="support">Support</TabButton>
+                            <TabButton tabId="backup">Sauvegardes</TabButton>
+                            <TabButton tabId="journal">Journal d'Activité</TabButton>
+                            {user?.role === 'superadmin' && <TabButton tabId="superadmins">Super Admins</TabButton>}
+                            <TabButton tabId="security">Sécurité</TabButton>
+                        </div>
+                    </div>
+                </aside>
+                <main className="md:col-span-3">
+                    {activeTab === 'instances' && <div className="bg-white p-6 rounded-xl shadow-md">{renderInstanceManagement()}</div>}
+                    {activeTab === 'announcements' && <div className="bg-white p-6 rounded-xl shadow-md">{renderAnnouncements()}</div>}
+                    {activeTab === 'support' && <SupportManager messageSummaries={messageSummaries} onSelectInstance={setSelectedInstanceForChat} />}
+                    {activeTab === 'backup' && <PlatformBackupManager user={user} />}
+                    {activeTab === 'journal' && <div className="bg-white p-6 rounded-xl shadow-md"><AuditLogViewer scope="superadmin" canDelete={user?.role === 'superadmin'} /></div>}
+                    {activeTab === 'superadmins' && user?.role === 'superadmin' && <div className="bg-white p-6 rounded-xl shadow-md"><SuperAdminManager /></div>}
+                    {activeTab === 'security' && <div className="bg-white p-6 rounded-xl shadow-md"><ChangePasswordForm /></div>}
+                </main>
             </div>
 
-            <div className="mb-6 border-b border-slate-200"><div className="flex items-center space-x-2 p-1 bg-slate-50 rounded-lg flex-wrap gap-1"><TabButton tabId="instances">Instances</TabButton><TabButton tabId="announcements">Annonces</TabButton><TabButton tabId="support">Support</TabButton>{user?.role === 'superadmin' && <TabButton tabId="superadmins">Super Admins</TabButton>}{(user?.role === 'superadmin' || user?.role === 'superadmin_delegate') && <TabButton tabId="security">Sécurité</TabButton>}<TabButton tabId="backup">Sauvegarde</TabButton><TabButton tabId="journal">Journal</TabButton></div></div>
-            
-            <main>
-                {activeTab === 'instances' && (
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-                        <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-md"><h2 className="text-xl font-semibold text-slate-700 font-display mb-4">Gestion des Instances ({instances.length})</h2>{isLoading ? <p>Chargement...</p> : (<div className="space-y-4">{instances.map((instance, index) => { const isExpired = instance.expires_at && currentTime > new Date(instance.expires_at); const displayStatus = isExpired ? 'suspended' : instance.status; return (<React.Fragment key={instance.id}><div className="border rounded-lg p-4 bg-slate-50"><div className="flex justify-between items-start flex-wrap gap-2"><div><h3 className="font-bold text-lg text-blue-800">{instance.name}</h3><span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${displayStatus === 'active' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{displayStatus === 'active' ? 'Actif' : 'Suspendu'}</span>{instance.expires_at && <p className="text-xs text-slate-500 mt-1">Expire le: {formatDate(instance.expires_at)}</p>}</div><div className="flex items-center gap-4"><div className="flex items-center gap-2"><span className="text-sm">Statut:</span><button onClick={() => handleToggleStatus(instance, displayStatus)} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${displayStatus === 'active' ? 'bg-green-600' : 'bg-gray-300'}`}><span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${displayStatus === 'active' ? 'translate-x-6' : 'translate-x-1'}`} /></button></div><button onClick={() => setInstanceToSchedule(instance)} className="px-2 py-1 text-xs text-blue-800 bg-blue-200 rounded-md hover:bg-blue-300">Planifier</button>{user?.role === 'superadmin' && <button onClick={() => handleDeleteRequest(instance)} className="px-2 py-1 text-xs text-white bg-red-600 rounded-md hover:bg-red-700">Supprimer</button>}</div></div><div className="mt-4 border-t pt-2"><h4 className="text-sm font-semibold text-slate-600">Détails de l'Instance</h4> {editingInstanceId === instance.id ? (<div className="text-sm space-y-2 mt-2"><input value={editFormState.name} onChange={e => setEditFormState(s => ({...s, name: e.target.value}))} placeholder="Nom" className="w-full p-1 border rounded-md" /><input value={editFormState.address || ''} onChange={e => setEditFormState(s => ({...s, address: e.target.value}))} placeholder="Adresse" className="w-full p-1 border rounded-md" /><PhoneInput country={'ht'} value={editFormState.phone || ''} onChange={phone => setEditFormState(s => ({...s, phone}))} inputProps={{ name: 'phone', placeholder: 'Téléphone' }} /><input value={editFormState.email || ''} onChange={e => setEditFormState(s => ({...s, email: e.target.value}))} placeholder="Email" className="w-full p-1 border rounded-md" /><div className="flex justify-end gap-2"><button onClick={handleCancelEdit} className="px-3 py-1 text-xs bg-slate-200 rounded">Annuler</button><button onClick={handleUpdateInstanceDetails} className="px-3 py-1 text-xs bg-blue-600 text-white rounded">Sauvegarder</button></div></div>) : (<div className="text-sm space-y-1 mt-1"><p><strong>Adresse:</strong> {instance.address || 'N/A'}</p><p><strong>Téléphone:</strong> {instance.phone || 'N/A'}</p><p><strong>Email:</strong> {instance.email || 'N/A'}</p><button onClick={() => handleStartEdit(instance)} className="px-2 py-1 text-xs text-blue-800 bg-blue-100 rounded-md hover:bg-blue-200 mt-1">Modifier</button></div>)}</div><div className="mt-4 border-t pt-2"><h4 className="text-sm font-semibold text-slate-600">Administrateurs</h4>{instance.admins.length > 0 ? (<ul className="text-sm space-y-1 mt-1">{instance.admins.map(admin => (<li key={admin.id} className="flex justify-between items-center"><span>{admin.username}</span><button onClick={() => handleResetPassword(admin.id)} className="px-2 py-1 text-xs text-yellow-800 bg-yellow-200 rounded-md hover:bg-yellow-300">Réinitialiser MDP</button></li>))}</ul>) : <p className="text-sm italic text-slate-500">Aucun admin.</p>}</div></div>{index < instances.length - 1 && <hr className="my-4 border-t-2 border-amber-400" />}</React.Fragment>)})}</div>)}</div>
-                        <div className="lg:col-span-1"><div className="bg-white p-6 rounded-xl shadow-md sticky top-24"><h2 className="text-xl font-semibold text-slate-700 font-display mb-4">Créer une Nouvelle Instance</h2><form onSubmit={handleCreateInstance} className="space-y-4"><div><label htmlFor="name" className="block text-sm font-medium text-slate-700">Nom de l'école</label><input id="name" type="text" value={formState.name} onChange={e => setFormState(s => ({...s, name: e.target.value}))} required className="mt-1 w-full p-2 border rounded-md" /></div><div><label htmlFor="admin_email" className="block text-sm font-medium text-slate-700">Email de l'Admin Principal</label><input id="admin_email" type="email" value={formState.admin_email} onChange={e => setFormState(s => ({...s, admin_email: e.target.value}))} required className="mt-1 w-full p-2 border rounded-md" /></div><div><label htmlFor="address" className="block text-sm font-medium text-slate-700">Adresse</label><input id="address" type="text" value={formState.address} onChange={e => setFormState(s => ({...s, address: e.target.value}))} className="mt-1 w-full p-2 border rounded-md" /></div><div><label htmlFor="phone" className="block text-sm font-medium text-slate-700">Téléphone</label><PhoneInput country={'ht'} value={formState.phone} onChange={phone => setFormState(s => ({...s, phone}))} containerClass="mt-1" inputProps={{id: 'phone', name: 'phone'}} /></div><button type="submit" className="w-full py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Créer l'Instance</button></form></div></div>
-                    </div>
-                )}
-                {activeTab === 'announcements' && (
-                    <div className="bg-white p-6 rounded-xl shadow-md"><h2 className="text-xl font-semibold text-slate-700 font-display mb-4">Gestion des Annonces</h2><form onSubmit={handleAnnouncementSubmit} className="space-y-3 p-4 border rounded-lg bg-slate-50 mb-6"><h3 className="font-semibold">{announcementForm.id ? 'Modifier' : 'Nouvelle'} Annonce</h3><input type="text" placeholder="Titre" value={announcementForm.title} onChange={e => setAnnouncementForm(f => ({...f, title: e.target.value}))} required className="w-full p-2 border rounded-md" /><textarea placeholder="Contenu..." value={announcementForm.content} onChange={e => setAnnouncementForm(f => ({...f, content: e.target.value}))} required className="w-full p-2 border rounded-md" rows={3}></textarea><div><label className="block text-sm font-medium text-slate-700">Cibler une instance (optionnel)</label><select value={announcementForm.instance_id || ''} onChange={e => setAnnouncementForm(f => ({...f, instance_id: e.target.value ? Number(e.target.value) : null}))} className="w-full p-2 border rounded-md bg-white"><option value="">Annonce Globale (toutes les instances)</option>{instances.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select></div><div className="flex justify-end gap-2">{announcementForm.id && <button type="button" onClick={() => setAnnouncementForm({id: null, title: '', content: '', is_active: true, instance_id: null})} className="px-4 py-2 bg-slate-200 rounded-md">Annuler</button>}<button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">{announcementForm.id ? 'Mettre à jour' : 'Publier'}</button></div></form><div className="space-y-2">{announcements.map(announcement => (<div key={announcement.id} className="flex justify-between items-center p-2 border-b"><div><p className={`font-semibold ${announcement.is_active ? 'text-slate-800' : 'text-slate-400 line-through'}`}>{announcement.title}</p><p className="text-xs text-slate-500">{new Date(announcement.created_at).toLocaleDateString('fr-FR')}</p><p className="text-xs text-blue-600 font-semibold">Cible: {instances.find(i => i.id === announcement.instance_id)?.name || 'Globale'}</p></div><div className="flex items-center gap-2"><button onClick={() => handleToggleAnnouncement(announcement)} className={`px-2 py-1 text-xs rounded-md ${announcement.is_active ? 'bg-yellow-200 text-yellow-800' : 'bg-green-200 text-green-800'}`}>{announcement.is_active ? 'Désactiver' : 'Activer'}</button><button onClick={() => setAnnouncementForm({id: announcement.id, title: announcement.title, content: announcement.content, is_active: announcement.is_active, instance_id: announcement.instance_id || null})} className="p-1 text-blue-600 hover:bg-blue-100 rounded-full" title="Modifier"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button><button onClick={() => setAnnouncementToDelete(announcement)} className="p-1 text-red-600 hover:bg-red-100 rounded-full" title="Supprimer"><svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button></div></div>))}</div></div>
-                )}
-                 {activeTab === 'support' && <SupportManager messageSummaries={messageSummaries} onSelectInstance={setSelectedInstanceForChat} />}
-                 {activeTab === 'superadmins' && user?.role === 'superadmin' && <div className="bg-white p-6 rounded-xl shadow-md"><SuperAdminManager /></div>}
-                 {activeTab === 'backup' && <PlatformBackupManager user={user} />}
-                 {activeTab === 'journal' && <div className="bg-white p-6 rounded-xl shadow-md"><AuditLogViewer scope="superadmin" canDelete={user?.role === 'superadmin'} /></div>}
-                 {activeTab === 'security' && (user?.role === 'superadmin' || user?.role === 'superadmin_delegate') && (
-                    <div className="bg-white p-6 rounded-xl shadow-md">
-                        <h2 className="text-xl font-semibold text-slate-700 font-display mb-4">Changer mon mot de passe</h2>
-                        <ChangePasswordForm />
-                    </div>
-                 )}
-            </main>
-
+            <ChatModal isOpen={!!selectedInstanceForChat} onClose={() => setSelectedInstanceForChat(null)} instance={selectedInstanceForChat} user={user} onChatUpdate={fetchMessageSummaries} />
             {credentials && <CredentialsModal credentials={credentials} onClose={() => setCredentials(null)} title={modalTitle} />}
-            <ScheduleModal isOpen={!!instanceToSchedule} onClose={() => setInstanceToSchedule(null)} onSave={handleSaveExpiration} instance={instanceToSchedule} />
-            <DeleteInstanceModal isOpen={!!instanceToDelete} onClose={() => setInstanceToDelete(null)} onConfirm={handleConfirmDeleteText} instance={instanceToDelete} />
-            <PasswordConfirmationModal isOpen={!!passwordConfirmInstance} onClose={() => setPasswordConfirmInstance(null)} onConfirm={handleConfirmDeleteWithPassword} instanceName={passwordConfirmInstance?.name || ''} />
-            <ConfirmationModal isOpen={!!announcementToDelete} onClose={() => setAnnouncementToDelete(null)} onConfirm={handleConfirmDeleteAnnouncement} title="Supprimer l'Annonce" message={`Êtes-vous sûr de vouloir supprimer l'annonce : "${announcementToDelete?.title}" ? Cette action est irréversible.`} />
-            <ChatModal isOpen={!!selectedInstanceForChat} onClose={() => setSelectedInstanceForChat(null)} instance={selectedInstanceForChat} user={user} onChatUpdate={fetchData} />
+            {announcementToDelete && <ConfirmationModal isOpen={!!announcementToDelete} onClose={() => setAnnouncementToDelete(null)} onConfirm={handleConfirmDeleteAnnouncement} title="Supprimer l'annonce" message={`Confirmez-vous la suppression de l'annonce "${announcementToDelete.title}" ?`} />}
+            {instanceToSchedule && <ScheduleModal isOpen={!!instanceToSchedule} onClose={() => setInstanceToSchedule(null)} onSave={handleScheduleSave} instance={instanceToSchedule} />}
+            {passwordConfirmInstance && <PasswordConfirmationModal isOpen={!!passwordConfirmInstance} onClose={() => setPasswordConfirmInstance(null)} onConfirm={handleConfirmDeleteInstance} instanceName={passwordConfirmInstance.name} />}
+            {instanceToDelete && user?.role === 'superadmin' && <DeleteInstanceModal isOpen={!!instanceToDelete && !passwordConfirmInstance} onClose={() => setInstanceToDelete(null)} onConfirm={() => setPasswordConfirmInstance(instanceToDelete)} instance={instanceToDelete} />}
         </div>
     );
 };

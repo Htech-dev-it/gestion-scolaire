@@ -66,11 +66,18 @@ Assurez-vous que les logiciels suivants sont installés sur votre machine :
 2.  Créez une nouvelle base de données. Nommez-la `arawak`.
 3.  Créez un nouveau fichier `.env` dans le dossier `backend/` avec le contenu suivant, en remplaçant par vos informations :
     ```env
+    # --- Configuration Base de Données ---
     PGHOST=localhost
     PGPORT=5432
     PGDATABASE=arawak
     PGUSER=postgres
     PGPASSWORD=votre_mot_de_passe_postgres
+
+    # --- Configuration Email (Brevo) ---
+    # Récupéré depuis votre compte Brevo > SMTP & API
+    BREVO_SMTP_LOGIN="94e0f0001@smtp-brevo.com"
+    BREVO_SMTP_KEY="f2RmsXSYA9dzLqWP"
+    EMAIL_FROM="votre_adresse_email_validée_sur_brevo@exemple.com"
     ```
 
 ### ⭐️ Étape 3 : Configuration du PATH pour `pg_dump` (TRÈS IMPORTANT)

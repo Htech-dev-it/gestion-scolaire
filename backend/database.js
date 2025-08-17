@@ -206,6 +206,13 @@ async function setup() {
             await client.query('ALTER TABLE students ADD COLUMN nisu VARCHAR(255)');
         }
 
+        // --- Specific migration for 'users' table to add 'email' ---
+        if (await tableExists(client, 'users') && !await columnExists(client, 'users', 'email')) {
+            console.log("Migration: Ajout de 'email' à la table 'users'.");
+            await client.query('ALTER TABLE users ADD COLUMN email TEXT');
+            console.log("Colonne 'email' ajoutée à 'users'.");
+        }
+
         // --- Step 4: Schema Migration - Add 'instance_id' to all relevant tables ---
         const tablesToMigrate = [
             'users', 'students', 'school_years', 'subjects', 'teachers', 
