@@ -164,7 +164,7 @@ const isPrincipalSuperAdmin = (req, res, next) => {
 };
 
 const isAnySuperAdmin = (req, res, next) => {
-    if (req.user && (req.user.role === 'superadmin' || user.role === 'superadmin_delegate')) {
+    if (req.user && (req.user.role === 'superadmin' || req.user.role === 'superadmin_delegate')) {
         next();
     } else {
         res.status(403).json({ message: 'Accès refusé. Action réservée aux Super Administrateurs.' });
@@ -432,18 +432,39 @@ async function startServer() {
         }));
         
         app.post('/api/register', authenticateToken, requirePermission('user:manage'), asyncHandler(async (req, res) => {
-            const { username, password } = req.body;
+            const { username, password, roleIds } = req.body;
             if (!username || !password) return res.status(400).json({ message: 'Nom d\'utilisateur et mot de passe requis' });
             
-            const { rows: existingUserRows } = await req.db.query('SELECT * FROM users WHERE username = $1 AND instance_id = $2', [username, req.user.instance_id]);
-            if (existingUserRows.length > 0) return res.status(409).json({ message: 'Nom d\'utilisateur déjà utilisé.' });
-            
-            const hashedPassword = bcrypt.hashSync(password, 10);
-            const { rows } = await req.db.query('INSERT INTO users (username, password_hash, role, instance_id) VALUES ($1, $2, $3, $4) RETURNING id', [username, hashedPassword, 'standard', req.user.instance_id]);
-            
-            await logActivity(req, 'USER_CREATED', rows[0].id, username, `Compte utilisateur '${username}' créé.`);
-            
-            res.status(201).json({ message: `Utilisateur '${username}' créé avec succès.` });
+            const client = await req.db.connect();
+            try {
+                await client.query('BEGIN');
+                
+                const { rows: existingUserRows } = await client.query('SELECT * FROM users WHERE username = $1 AND instance_id = $2', [username, req.user.instance_id]);
+                if (existingUserRows.length > 0) {
+                    await client.query('ROLLBACK');
+                    return res.status(409).json({ message: 'Nom d\'utilisateur déjà utilisé.' });
+                }
+                
+                const hashedPassword = bcrypt.hashSync(password, 10);
+                const userResult = await client.query('INSERT INTO users (username, password_hash, role, instance_id) VALUES ($1, $2, $3, $4) RETURNING id', [username, hashedPassword, 'standard', req.user.instance_id]);
+                const newUserId = userResult.rows[0].id;
+
+                if (roleIds && Array.isArray(roleIds) && roleIds.length > 0) {
+                    const insertRolesQuery = 'INSERT INTO user_roles (user_id, role_id) VALUES ' + roleIds.map((_, i) => `($1, $${i + 2})`).join(',');
+                    await client.query(insertRolesQuery, [newUserId, ...roleIds]);
+                }
+                
+                await client.query('COMMIT');
+                
+                await logActivity(req, 'USER_CREATED', newUserId, username, `Compte utilisateur '${username}' créé.`);
+                
+                res.status(201).json({ message: `Utilisateur '${username}' créé avec succès.` });
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            } finally {
+                client.release();
+            }
         }));
 
         app.delete('/api/delete-user/:id', authenticateToken, requirePermission('user:manage'), asyncHandler(async (req, res) => {
@@ -562,7 +583,7 @@ async function startServer() {
                 SELECT
                     r.*,
                     (
-                        SELECT json_agg(p.*)
+                        SELECT json_agg(p.* ORDER BY p.category, p.description)
                         FROM role_permissions rp
                         JOIN permissions p ON rp.permission_id = p.id
                         WHERE rp.role_id = r.id

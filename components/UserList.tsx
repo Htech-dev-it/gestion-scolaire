@@ -5,6 +5,7 @@ import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
 import ConfirmationModal from './ConfirmationModal';
 import { User, Role } from '../types';
+import Tooltip from './Tooltip';
 
 const CredentialsModal: React.FC<{
     credentials: { username: string; tempPassword: string };
@@ -164,12 +165,8 @@ const ManageRolesModal: React.FC<{
                             disabledReason = 'Un rôle supérieur inclut déjà cette permission.';
                         }
 
-                        return (
-                             <label 
-                                key={role.id} 
-                                className={`flex items-center space-x-3 p-2 rounded transition-colors ${isDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-slate-100'}`}
-                                title={disabledReason}
-                            >
+                        const roleLabel = (
+                            <label className={`flex items-center space-x-3 p-2 rounded transition-colors ${isDisabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-slate-100'}`}>
                                 <input
                                     type="checkbox"
                                     checked={selectedRoleIds.has(role.id)}
@@ -180,6 +177,16 @@ const ManageRolesModal: React.FC<{
                                 <span>{role.name}</span>
                             </label>
                         );
+                        
+                        if (isDisabled) {
+                            return (
+                                <Tooltip key={role.id} text={disabledReason}>
+                                    <div>{roleLabel}</div>
+                                </Tooltip>
+                            );
+                        }
+                        
+                        return <div key={role.id}>{roleLabel}</div>;
                     })}
                 </div>
                  <div className="mt-4 pt-4 border-t text-xs text-slate-500 space-y-1">

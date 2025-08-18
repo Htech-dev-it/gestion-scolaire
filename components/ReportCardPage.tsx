@@ -414,7 +414,7 @@ const TemplateRenderer: React.FC<{
                     <div className="text-center mb-4">
                         {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="Logo" className="h-20 print:h-14 mx-auto mb-2 object-contain" />}
                         <h1 className="text-xl font-bold uppercase">{schoolInfo?.name}</h1>
-                        {/* <p className="text-xs">{`Année Académique ${year.name}`}</p> */}
+                        <p className="text-xs">{`Année Académique ${year.name}`}</p>
                         <p className="text-xs">{schoolInfo?.address}</p>
                         <p className="text-xs">{schoolInfo?.phone}</p>
                         {schoolInfo?.email && <p className="text-xs">{schoolInfo.email}</p>}
@@ -489,7 +489,7 @@ const TemplateRenderer: React.FC<{
                     <div className="text-center mb-4">
                         {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="Logo" className="h-16 print:h-12 mx-auto mb-2 object-contain" />}
                         <h1 className="text-lg font-bold uppercase">{schoolInfo?.name}</h1>
-                        {/* <p className="text-xs">{`Année Académique ${year.name}`}</p> */}
+                        <p className="text-xs">{`Année Académique ${year.name}`}</p>
                         <p className="text-xs">{schoolInfo?.address}</p>
                         <p className="text-xs">{schoolInfo?.phone}</p>
                         {schoolInfo?.email && <p className="text-xs">{schoolInfo.email}</p>}
@@ -620,7 +620,7 @@ const TemplateRenderer: React.FC<{
 const ReportCardPage: React.FC = () => {
     const { addNotification } = useNotification();
     const { selectedYear, classes } = useSchoolYear();
-    const { user } = useAuth();
+    const { user, hasPermission } = useAuth();
     
     const [academicPeriods, setAcademicPeriods] = useState<AcademicPeriod[]>([]);
     const [selectedPeriodId, setSelectedPeriodId] = useState<string>('');
@@ -976,7 +976,7 @@ const ReportCardPage: React.FC = () => {
                             <div key={enrollment.id} className={`bg-white shadow-lg student-report-block template-${template}`}>
                                 <div className="flex justify-between items-center p-2 bg-slate-50 border-b no-print">
                                     <h3 className="font-bold text-slate-700">{enrollment.student?.prenom} {enrollment.student?.nom}</h3>
-                                    {(user?.role === 'admin' || user?.role === 'teacher') && (
+                                    {(hasPermission('grade:create') || user?.role === 'teacher') && (
                                         <button onClick={() => setModalEnrollment(enrollment)} className="px-3 py-1 text-sm font-medium text-indigo-600 bg-indigo-100 rounded-md hover:bg-indigo-200 transition">
                                             Modifier les Notes
                                         </button>

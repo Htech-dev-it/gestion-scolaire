@@ -16,6 +16,37 @@ if (process.env.DATABASE_URL) {
   pool = new Pool();
 }
 
+const ROLE_TEMPLATES = [
+    {
+        name: 'Administrateur Principal',
+        permissionKeys: ['student:read', 'student:create', 'student:update', 'student:delete', 'student:archive', 'enrollment:create', 'enrollment:update_class', 'enrollment:update_payment', 'report:financial', 'report:attendance', 'report_card:generate', 'grade:read', 'grade:create', 'appreciation:create', 'student_portal:manage_access', 'student_portal:manage_accounts', 'settings:manage_academic', 'settings:manage_teachers', 'settings:manage_timetable', 'user:manage', 'role:manage']
+    },
+    {
+        name: 'Directeur des Opérations',
+        permissionKeys: ['student:read', 'student:create', 'student:update', 'student:delete', 'student:archive', 'enrollment:create', 'enrollment:update_class', 'enrollment:update_payment', 'report:financial', 'report:attendance', 'report_card:generate', 'grade:read', 'grade:create', 'appreciation:create', 'student_portal:manage_access', 'student_portal:manage_accounts', 'settings:manage_teachers', 'settings:manage_timetable']
+    },
+    {
+        name: 'Secrétaire Pédagogique',
+        permissionKeys: ['student:read', 'student:create', 'student:update', 'student:delete', 'student:archive', 'enrollment:create', 'enrollment:update_class', 'enrollment:update_payment', 'report:financial', 'report:attendance', 'report_card:generate', 'grade:read', 'appreciation:create', 'student_portal:manage_access', 'student_portal:manage_accounts', 'settings:manage_teachers', 'settings:manage_timetable']
+    },
+    {
+        name: 'Comptable / Gestionnaire des Paiements',
+        permissionKeys: ['student:read', 'enrollment:update_payment', 'report:financial', 'student_portal:manage_access']
+    },
+     {
+        name: 'Gestionnaire des Professeurs',
+        permissionKeys: ['settings:manage_teachers']
+    },
+    {
+        name: 'Gestionnaire d\'Emploi du Temps',
+        permissionKeys: ['settings:manage_timetable']
+    },
+    {
+        name: 'Gestionnaire du Portail Élève',
+        permissionKeys: ['student:read', 'student_portal:manage_accounts']
+    },
+];
+
 
 // --- Helper Functions ---
 
@@ -385,8 +416,8 @@ async function setup() {
         console.log("Migration: Vérification des permissions pour les rôles par défaut (v2.1)...");
         
         const keyRolesPermissions = {
-            'Directeur des Opérations': ['student:read', 'student:create', 'student:update', 'student:delete', 'student:archive', 'enrollment:create', 'enrollment:update_class', 'enrollment:update_payment', 'report:financial', 'report:attendance', 'report_card:generate', 'grade:read', 'grade:create', 'appreciation:create', 'student_portal:manage_access', 'student_portal:manage_accounts', 'settings:manage_teachers'],
-            'Secrétaire Pédagogique': ['student:read', 'student:create', 'student:update', 'student:delete', 'student:archive', 'enrollment:create', 'enrollment:update_class', 'enrollment:update_payment', 'report:financial', 'report:attendance', 'report_card:generate', 'grade:read', 'grade:create', 'appreciation:create', 'student_portal:manage_access', 'student_portal:manage_accounts', 'settings:manage_teachers'],
+            'Directeur des Opérations': ['student:read', 'student:create', 'student:update', 'student:delete', 'student:archive', 'enrollment:create', 'enrollment:update_class', 'enrollment:update_payment', 'report:financial', 'report:attendance', 'report_card:generate', 'grade:read', 'grade:create', 'appreciation:create', 'student_portal:manage_access', 'student_portal:manage_accounts', 'settings:manage_teachers', 'settings:manage_timetable'],
+            'Secrétaire Pédagogique': ['student:read', 'student:create', 'student:update', 'student:delete', 'student:archive', 'enrollment:create', 'enrollment:update_class', 'enrollment:update_payment', 'report:financial', 'report:attendance', 'report_card:generate', 'grade:read', 'appreciation:create', 'student_portal:manage_access', 'student_portal:manage_accounts', 'settings:manage_teachers', 'settings:manage_timetable'],
             'Comptable / Gestionnaire des Paiements': ['student:read', 'enrollment:update_payment', 'report:financial', 'student_portal:manage_access']
         };
 
@@ -412,7 +443,59 @@ async function setup() {
             }
         }
         
+        // --- Specific fix for Secrétaire Pédagogique role ---
+        console.log("Migration Fix: Assurer que 'Secrétaire Pédagogique' n'a PAS la permission 'grade:create'...");
+        const { rows: gradeCreatePermRows } = await client.query("SELECT id FROM permissions WHERE key = 'grade:create'");
+        if (gradeCreatePermRows.length > 0) {
+            const gradeCreatePermissionId = gradeCreatePermRows[0].id;
+            const { rows: secretaryRoles } = await client.query("SELECT id FROM roles WHERE name = 'Secrétaire Pédagogique'");
+            
+            if (secretaryRoles.length > 0) {
+                const secretaryRoleIds = secretaryRoles.map(r => r.id);
+                const placeholders = secretaryRoleIds.map((_, i) => `$${i + 2}`).join(',');
+        
+                const deleteResult = await client.query(
+                    `DELETE FROM role_permissions WHERE permission_id = $1 AND role_id IN (${placeholders})`,
+                    [gradeCreatePermissionId, ...secretaryRoleIds]
+                );
+        
+                if (deleteResult.rowCount > 0) {
+                    console.log(`  -> ${deleteResult.rowCount} 'grade:create' permission(s) retirée(s) du rôle 'Secrétaire Pédagogique'.`);
+                }
+            }
+        }
+        // --- End of specific fix ---
+        
         console.log("Migration des rôles terminée.");
+        
+        // --- Step 7: Seed Default Roles for each instance ---
+        console.log("Peuplement des rôles par défaut pour toutes les instances...");
+        const { rows: allInstances } = await client.query('SELECT id FROM instances');
+        const { rows: allPermissions } = await client.query('SELECT id, key FROM permissions');
+        const permissionMap = new Map(allPermissions.map(p => [p.key, p.id]));
+
+        for (const instance of allInstances) {
+            for (const template of ROLE_TEMPLATES) {
+                const roleResult = await client.query(
+                    'INSERT INTO roles (name, instance_id) VALUES ($1, $2) ON CONFLICT (name, instance_id) DO UPDATE SET name = EXCLUDED.name RETURNING id',
+                    [template.name, instance.id]
+                );
+                const roleId = roleResult.rows[0].id;
+                
+                const permissionIds = template.permissionKeys
+                    .map(key => permissionMap.get(key))
+                    .filter(id => id !== undefined);
+
+                if (permissionIds.length > 0) {
+                    const insertPermsQuery = 'INSERT INTO role_permissions (role_id, permission_id) VALUES ' +
+                                            permissionIds.map((_, i) => `($1, $${i + 2})`).join(',') +
+                                            ' ON CONFLICT DO NOTHING';
+                    await client.query(insertPermsQuery, [roleId, ...permissionIds]);
+                }
+            }
+        }
+        console.log("Rôles par défaut peuplés.");
+
 
         await client.query('COMMIT');
         
