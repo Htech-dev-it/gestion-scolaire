@@ -1948,7 +1948,7 @@ async function startServer() {
         }));
         
         // --- NEW: CLASS FINANCIALS ROUTES ---
-        app.get('/api/class-financials', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
+        app.get('/api/class-financials', authenticateToken, requirePermission('enrollment:create'), asyncHandler(async (req, res) => {
             const { yearId } = req.query;
             if (!yearId) return res.status(400).json({ message: "Year ID is required." });
 
