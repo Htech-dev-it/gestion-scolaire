@@ -402,6 +402,7 @@ const SuperAdminPage: React.FC = () => {
     const [messageSummaries, setMessageSummaries] = useState<MessageSummary[]>([]);
     const [selectedInstanceForChat, setSelectedInstanceForChat] = useState<MessageSummary | null>(null);
     const [editingInstanceId, setEditingInstanceId] = useState<number | null>(null);
+    const [editingFormState, setEditingFormState] = useState<{ name: string; address: string; phone: string; email: string; } | null>(null);
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
@@ -456,22 +457,32 @@ const SuperAdminPage: React.FC = () => {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
     };
-    
-    const handleUpdateInstanceDetails = async (instanceId: number, event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        const form = event.currentTarget;
-        const name = (form.elements.namedItem('name') as HTMLInputElement).value;
-        const address = (form.elements.namedItem('address') as HTMLInputElement).value;
-        const phone = (form.elements.namedItem('phone') as HTMLInputElement).value;
-        const email = (form.elements.namedItem('email') as HTMLInputElement).value;
 
+    const handleStartEditing = (instance: InstanceWithAdmins) => {
+        if (editingInstanceId === instance.id) {
+            setEditingInstanceId(null);
+            setEditingFormState(null);
+        } else {
+            setEditingInstanceId(instance.id);
+            setEditingFormState({
+                name: instance.name,
+                address: instance.address || '',
+                phone: instance.phone || '',
+                email: instance.email || '',
+            });
+        }
+    };
+    
+    const handleUpdateInstanceDetails = async (instanceId: number) => {
+        if (!editingFormState) return;
         try {
             await apiFetch(`/superadmin/instances/${instanceId}/details`, {
                 method: 'PUT',
-                body: JSON.stringify({ name, address, phone, email })
+                body: JSON.stringify(editingFormState)
             });
             addNotification({ type: 'success', message: 'Détails de l\'instance mis à jour.' });
             setEditingInstanceId(null);
+            setEditingFormState(null);
             fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
@@ -647,20 +658,24 @@ const SuperAdminPage: React.FC = () => {
                                     {instance.expires_at && <p className={`text-xs mt-1 ${new Date(instance.expires_at) < currentTime ? 'text-red-600 font-bold' : 'text-slate-500'}`}>Expire le: {new Date(instance.expires_at).toLocaleString('fr-FR')}</p>}
                                 </div>
                                 <div className="flex flex-wrap gap-2">
-                                    <button onClick={() => setEditingInstanceId(editingInstanceId === instance.id ? null : instance.id)} className="px-3 py-1 text-xs text-blue-700 bg-blue-100 rounded-full">Modifier</button>
+                                    <button onClick={() => handleStartEditing(instance)} className="px-3 py-1 text-xs text-blue-700 bg-blue-100 rounded-full">Modifier</button>
                                     <button onClick={() => handleToggleStatus(instance)} className="px-3 py-1 text-xs text-yellow-800 bg-yellow-200 rounded-full">{instance.status === 'active' ? 'Suspendre' : 'Activer'}</button>
                                     <button onClick={() => setInstanceToSchedule(instance)} className="px-3 py-1 text-xs text-purple-700 bg-purple-100 rounded-full">Planifier</button>
                                     {instance.admins.map(admin => <button key={admin.id} onClick={() => handleResetAdminPassword(admin)} className="px-3 py-1 text-xs text-gray-700 bg-gray-200 rounded-full">Réinitialiser MDP Admin</button>)}
                                     {user?.role === 'superadmin' && <button onClick={() => handleDeleteRequest(instance)} className="px-3 py-1 text-xs text-white bg-red-600 rounded-full">Supprimer</button>}
                                 </div>
                             </div>
-                             {editingInstanceId === instance.id && (
-                                <form onSubmit={(e) => handleUpdateInstanceDetails(instance.id, e)} className="mt-4 pt-4 border-t space-y-3">
+                             {editingInstanceId === instance.id && editingFormState && (
+                                <form onSubmit={(e) => { e.preventDefault(); handleUpdateInstanceDetails(instance.id); }} className="mt-4 pt-4 border-t space-y-3">
                                     <div className="grid grid-cols-2 gap-4">
-                                        <input name="name" defaultValue={instance.name} className="p-2 border rounded-md" />
-                                        <input name="email" type="email" defaultValue={instance.email || ''} className="p-2 border rounded-md" />
-                                        <input name="address" defaultValue={instance.address || ''} className="p-2 border rounded-md" />
-                                        <input name="phone" defaultValue={instance.phone || ''} className="p-2 border rounded-md" />
+                                        <input name="name" value={editingFormState.name} onChange={e => setEditingFormState(s => s ? {...s, name: e.target.value} : null)} className="p-2 border rounded-md" />
+                                        <input name="email" type="email" value={editingFormState.email} onChange={e => setEditingFormState(s => s ? {...s, email: e.target.value} : null)} className="p-2 border rounded-md" />
+                                        <input name="address" value={editingFormState.address} onChange={e => setEditingFormState(s => s ? {...s, address: e.target.value} : null)} className="p-2 border rounded-md" />
+                                        <PhoneInput 
+                                            country={'ht'} 
+                                            value={editingFormState.phone} 
+                                            onChange={phone => setEditingFormState(s => s ? {...s, phone} : null)} 
+                                        />
                                     </div>
                                     <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded-md">Sauvegarder</button>
                                 </form>
@@ -708,7 +723,7 @@ const SuperAdminPage: React.FC = () => {
                     {activeTab === 'announcements' && <div className="bg-white p-6 rounded-xl shadow-md">{renderAnnouncements()}</div>}
                     {activeTab === 'support' && <SupportManager messageSummaries={messageSummaries} onSelectInstance={setSelectedInstanceForChat} />}
                     {activeTab === 'backup' && <PlatformBackupManager user={user} />}
-                    {activeTab === 'journal' && <div className="bg-white p-6 rounded-xl shadow-md"><AuditLogViewer scope="superadmin" canDelete={user?.role === 'superadmin'} /></div>}
+                    {activeTab === 'journal' && <div className="bg-white p-6 rounded-xl shadow-md"><AuditLogViewer scope="superadmin" user={user} /></div>}
                     {activeTab === 'superadmins' && user?.role === 'superadmin' && <div className="bg-white p-6 rounded-xl shadow-md"><SuperAdminManager /></div>}
                     {activeTab === 'security' && <div className="bg-white p-6 rounded-xl shadow-md"><ChangePasswordForm /></div>}
                 </main>

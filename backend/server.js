@@ -277,6 +277,7 @@ async function startServer() {
             next();
         });
         
+        // --- NEW: Automatic Audit Log Pruning ---
         const pruneOldLogs = async () => {
             try {
                 const client = await dbPool.connect();
@@ -294,6 +295,7 @@ async function startServer() {
             }
         };
 
+        // Run once on startup, then every 24 hours
         pruneOldLogs();
         setInterval(pruneOldLogs, 24 * 60 * 60 * 1000); // 24 hours
 
@@ -1103,54 +1105,28 @@ async function startServer() {
             });
         }));
 
-        app.post('/api/admin/audit-logs/delete-by-date', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
-            const { startDate, endDate } = req.body;
-            if (!startDate || !endDate) return res.status(400).json({ message: 'Les dates de début et de fin sont requises.' });
-
-            const result = await req.db.query(
-                "DELETE FROM audit_logs WHERE instance_id = $1 AND timestamp >= $2 AND timestamp <= $3",
-                [req.user.instance_id, startDate, endDate + 'T23:59:59.999Z']
-            );
-            await logActivity(req, 'AUDIT_LOGS_DELETED_BY_DATE', null, null, `${result.rowCount} journaux supprimés pour la période du ${startDate} au ${endDate}.`);
-            res.json({ message: `${result.rowCount} enregistrement(s) supprimé(s).` });
+        app.delete('/api/superadmin/audit-logs/delete-bulk', authenticateToken, isPrincipalSuperAdmin, asyncHandler(async (req, res) => {
+            const { ids } = req.body;
+            if (!ids || !Array.isArray(ids) || ids.length === 0) {
+                return res.status(400).json({ message: 'IDs are required.' });
+            }
+            const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+            await req.db.query(`DELETE FROM audit_logs WHERE id IN (${placeholders}) AND instance_id IS NULL`, ids);
+            await logActivity(req, 'SUPERADMIN_LOGS_DELETED_BULK', null, null, `${ids.length} log entries deleted.`);
+            res.json({ message: `${ids.length} log entries deleted.` });
         }));
         
-        app.post('/api/superadmin/audit-logs/delete-by-date', authenticateToken, isPrincipalSuperAdmin, asyncHandler(async (req, res) => {
+        app.delete('/api/superadmin/audit-logs/delete-by-date', authenticateToken, isPrincipalSuperAdmin, asyncHandler(async (req, res) => {
             const { startDate, endDate } = req.body;
-            if (!startDate || !endDate) return res.status(400).json({ message: 'Les dates de début et de fin sont requises.' });
-
+            if (!startDate || !endDate) {
+                return res.status(400).json({ message: 'Start and end dates are required.' });
+            }
             const result = await req.db.query(
-                "DELETE FROM audit_logs WHERE instance_id IS NULL AND timestamp >= $1 AND timestamp <= $2",
+                "DELETE FROM audit_logs WHERE timestamp >= $1 AND timestamp <= $2 AND instance_id IS NULL RETURNING id",
                 [startDate, endDate + 'T23:59:59.999Z']
             );
-            await logActivity(req, 'SUPERADMIN_LOGS_DELETED_BY_DATE', null, null, `${result.rowCount} journaux supprimés pour la période du ${startDate} au ${endDate}.`);
-            res.json({ message: `${result.rowCount} enregistrement(s) supprimé(s).` });
-        }));
-
-        app.post('/api/admin/audit-logs/delete-bulk', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
-            const { ids } = req.body;
-            if (!ids || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: 'Aucun ID de journal fourni.' });
-
-            const placeholders = ids.map((_, i) => `$${i + 2}`).join(',');
-            const result = await req.db.query(
-                `DELETE FROM audit_logs WHERE instance_id = $1 AND id IN (${placeholders})`,
-                [req.user.instance_id, ...ids]
-            );
-            await logActivity(req, 'AUDIT_LOGS_DELETED_BULK', null, null, `${result.rowCount} journaux sélectionnés supprimés.`);
-            res.json({ message: `${result.rowCount} enregistrement(s) supprimé(s).` });
-        }));
-
-        app.post('/api/superadmin/audit-logs/delete-bulk', authenticateToken, isPrincipalSuperAdmin, asyncHandler(async (req, res) => {
-            const { ids } = req.body;
-            if (!ids || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: 'Aucun ID de journal fourni.' });
-
-            const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-            const result = await req.db.query(
-                `DELETE FROM audit_logs WHERE instance_id IS NULL AND id IN (${placeholders})`,
-                [...ids]
-            );
-            await logActivity(req, 'SUPERADMIN_LOGS_DELETED_BULK', null, null, `${result.rowCount} journaux sélectionnés supprimés.`);
-            res.json({ message: `${result.rowCount} enregistrement(s) supprimé(s).` });
+            await logActivity(req, 'SUPERADMIN_LOGS_DELETED_BY_DATE', null, null, `${result.rowCount} log entries deleted for date range.`);
+            res.json({ message: `${result.rowCount} log entries deleted.` });
         }));
 
         // --- TEACHER ROUTES ---
@@ -1734,9 +1710,9 @@ async function startServer() {
                 if (oldClassName !== name) {
                     const yearsInInstanceSubquery = `SELECT id FROM school_years WHERE instance_id = $1`;
 
-                    await client.query(`UPDATE enrollments SET "className" = $1 WHERE "className" = $2 AND year_id IN (${yearsInInstanceSubquery})`, [name, oldClassName, req.user.instance_id]);
-                    await client.query(`UPDATE class_subjects SET class_name = $1 WHERE class_name = $2 AND year_id IN (${yearsInInstanceSubquery})`, [name, oldClassName, req.user.instance_id]);
-                    await client.query(`UPDATE teacher_assignments SET class_name = $1 WHERE class_name = $2 AND year_id IN (${yearsInInstanceSubquery})`, [name, oldClassName, req.user.instance_id]);
+                    await client.query(`UPDATE enrollments SET "className" = $2 WHERE "className" = $3 AND year_id IN (${yearsInInstanceSubquery})`, [req.user.instance_id, name, oldClassName]);
+                    await client.query(`UPDATE class_subjects SET class_name = $2 WHERE class_name = $3 AND year_id IN (${yearsInInstanceSubquery})`, [req.user.instance_id, name, oldClassName]);
+                    await client.query(`UPDATE teacher_assignments SET class_name = $2 WHERE class_name = $3 AND year_id IN (${yearsInInstanceSubquery})`, [req.user.instance_id, name, oldClassName]);
                     await client.query('UPDATE students SET classe_ref = $1 WHERE classe_ref = $2 AND instance_id = $3', [name, oldClassName, req.user.instance_id]);
                 }
                 

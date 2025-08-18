@@ -414,7 +414,7 @@ const TemplateRenderer: React.FC<{
                     <div className="text-center mb-4">
                         {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="Logo" className="h-20 print:h-14 mx-auto mb-2 object-contain" />}
                         <h1 className="text-xl font-bold uppercase">{schoolInfo?.name}</h1>
-                        <p className="text-xs">{`Année Académique ${year.name}`}</p>
+                        {/* <p className="text-xs">{`Année Académique ${year.name}`}</p> */}
                         <p className="text-xs">{schoolInfo?.address}</p>
                         <p className="text-xs">{schoolInfo?.phone}</p>
                         {schoolInfo?.email && <p className="text-xs">{schoolInfo.email}</p>}
@@ -422,8 +422,14 @@ const TemplateRenderer: React.FC<{
                     <h2 className="text-center text-sm font-bold my-2 uppercase">{`BULLETIN: ${selectedPeriod?.name}`}</h2>
                     
                     <div className="bg-white p-3 rounded-xl shadow-lg my-4 flex items-center gap-4">
-                        <div className="flex-shrink-0 h-12 w-12 rounded-full bg-gradient-to-br from-sky-200 to-indigo-200 flex items-center justify-center font-bold text-xl text-indigo-800">
-                            {enrollment.student?.prenom[0]}{enrollment.student?.nom[0]}
+                        <div className="flex-shrink-0">
+                            {enrollment.student?.photo_url ? (
+                                <img src={enrollment.student.photo_url} alt={`${enrollment.student.prenom} ${enrollment.student.nom}`} className="h-12 w-12 rounded-full object-cover shadow-md" />
+                            ) : (
+                                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-sky-200 to-indigo-200 flex items-center justify-center font-bold text-xl text-indigo-800">
+                                    {enrollment.student?.prenom?.[0] || ''}{enrollment.student?.nom?.[0] || ''}
+                                </div>
+                            )}
                         </div>
                         <div>
                             <p className="text-sm font-bold text-gray-800">{enrollment.student?.prenom} {enrollment.student?.nom}</p>
@@ -483,11 +489,21 @@ const TemplateRenderer: React.FC<{
                     <div className="text-center mb-4">
                         {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="Logo" className="h-16 print:h-12 mx-auto mb-2 object-contain" />}
                         <h1 className="text-lg font-bold uppercase">{schoolInfo?.name}</h1>
-                        <p className="text-xs">{`Bulletin Périodique - ${selectedPeriod?.name}`}</p>
+                        {/* <p className="text-xs">{`Année Académique ${year.name}`}</p> */}
+                        <p className="text-xs">{schoolInfo?.address}</p>
+                        <p className="text-xs">{schoolInfo?.phone}</p>
+                        {schoolInfo?.email && <p className="text-xs">{schoolInfo.email}</p>}
                     </div>
+                    <h2 className="text-center text-sm font-bold my-2 uppercase">{`BULLETIN: ${selectedPeriod?.name}`}</h2>
                     <div className="bg-white p-2.5 rounded-lg shadow-sm my-3 flex items-center gap-3">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-800">
-                            {enrollment.student?.prenom[0]}{enrollment.student?.nom[0]}
+                        <div className="flex-shrink-0">
+                            {enrollment.student?.photo_url ? (
+                                <img src={enrollment.student.photo_url} alt={`${enrollment.student.prenom} ${enrollment.student.nom}`} className="h-10 w-10 rounded-full object-cover shadow-sm" />
+                            ) : (
+                                <div className="h-10 w-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-800">
+                                    {enrollment.student?.prenom?.[0] || ''}{enrollment.student?.nom?.[0] || ''}
+                                </div>
+                            )}
                         </div>
                         <div>
                             <p className="text-sm font-bold text-gray-800">{enrollment.student?.prenom} {enrollment.student?.nom}</p>
