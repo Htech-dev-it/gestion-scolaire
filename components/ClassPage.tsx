@@ -51,14 +51,22 @@ const PaymentDetailModal: React.FC<{
         printWindow.document.write(`
             <html>
                 <head>
-                    <title>Relevé Financier - ${enrollment.student?.prenom} ${enrollment.student?.nom}</title>
+                    <title></title>
                     <script src="https://cdn.tailwindcss.com"></script>
                     <style>
-                        body { font-family: 'Inter', sans-serif; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-                        @page { size: A4 portrait; margin: 20mm; }
+                        @page { 
+                            size: A4 portrait; 
+                            margin: 0; 
+                        }
+                        body { 
+                            font-family: 'Inter', sans-serif; 
+                            -webkit-print-color-adjust: exact !important; 
+                            print-color-adjust: exact !important; 
+                            margin: 20mm;
+                        }
                     </style>
                 </head>
-                <body class="p-4">
+                <body>
                     ${printContent.innerHTML}
                 </body>
             </html>

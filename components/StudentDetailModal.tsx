@@ -112,7 +112,7 @@ const StudentDetailModal: React.FC<StudentDetailModalProps> = ({ isOpen, onClose
     printWindow.document.write(`
         <html>
             <head>
-                <title>Fiche de l'élève: ${student.prenom} ${student.nom}</title>
+                <title></title>
                 <style>
                     body {
                       font-family: Arial, sans-serif;
@@ -152,6 +152,7 @@ const StudentDetailModal: React.FC<StudentDetailModalProps> = ({ isOpen, onClose
                             padding: 20mm;
                             justify-content: flex-start;
                             box-sizing: border-box;
+                            margin: 0;
                         }
                         @page { size: A4 portrait; margin: 0; }
                         .sheet-container { width: 100%; border: none; box-shadow: none; border-radius: 0; }

@@ -130,25 +130,29 @@ const AllStudentsTable: React.FC<AllStudentsTableProps> = ({ students, selectedI
     printWindow.document.write(`
         <html>
             <head>
-                <title>Liste des Élèves</title>
+                <title></title>
                 <style>
-                    body { font-family: Arial, sans-serif; }
+                    @page { 
+                        size: portrait; 
+                        margin: 0; 
+                    }
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        margin: 0.75in;
+                        -webkit-print-color-adjust: exact; 
+                        print-color-adjust: exact;
+                    }
                     .header { text-align: center; margin-bottom: 20px; }
                     .header h1 { margin: 0; }
                     .header p { margin: 2px 0; font-size: 10pt; }
                     table { width: 100%; border-collapse: collapse; font-size: 10pt; margin-top: 20px; }
                     th, td { border: 1px solid #ccc; padding: 6px; text-align: left; }
                     th { background-color: #f2f2f2; }
-                    @media print {
-                        @page { size: portrait; margin: 0.75in; }
-                        body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-                    }
                 </style>
             </head>
             <body>
                 <div class="header">
                     <h1>${schoolInfo?.name || ''}</h1>
-                    <p>${schoolInfo?.address || ''}</p>
                     <h2>Liste des Élèves${classFilter !== 'all' ? ` - Classe: ${classFilter}` : ''}</h2>
                     <p>Date d'impression: ${new Date().toLocaleDateString('fr-FR')}</p>
                 </div>
@@ -257,7 +261,7 @@ const handlePrintSheets = () => {
   printWindow.document.write(`
       <html>
           <head>
-              <title>Fiches des Élèves</title>
+              <title></title>
               <style>
                   body {
                     font-family: Arial, sans-serif;

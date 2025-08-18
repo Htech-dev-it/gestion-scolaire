@@ -77,6 +77,20 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
     const [currentEnrollment, setCurrentEnrollment] = useState<Enrollment>(initialEnrollment);
     const [appreciations, setAppreciations] = useState<Record<number, string>>({}); // Record<enrollmentId, appreciationText>
     const appreciationSaveTimeout = useRef<number | null>(null);
+    const [isPrintMenuOpen, setIsPrintMenuOpen] = useState(false);
+    const printMenuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (printMenuRef.current && !printMenuRef.current.contains(event.target as Node)) {
+                setIsPrintMenuOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
     
     const getAppreciationText = (avg: number) => {
         if (avg >= 90) return 'Excellent travail.'; if (avg >= 80) return 'Très bon travail.'; if (avg >= 70) return 'Bon travail.';
@@ -215,61 +229,84 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
     };
-
-    const handlePrint = () => {
-        const reportsHtml = classRoster.map(enrollment => {
-             const grades = subjectDetails?.gradesByEnrollment[enrollment.id] || [];
-             const totalScore = grades.reduce((sum, g) => sum + Number(g.score), 0);
-             const totalMaxScore = grades.reduce((sum, g) => sum + Number(g.max_score), 0);
-             const average = totalMaxScore > 0 ? (totalScore / totalMaxScore) * 100 : 0;
-             const appreciation = appreciations[enrollment.id] || '';
-            return `
-                <div class="report-page">
-                    <div class="text-center mb-4 border-b-2 border-gray-800 pb-2">
-                        ${schoolInfo?.logo_url ? `<img src="${schoolInfo.logo_url}" alt="Logo" class="h-16 mx-auto mb-2" />` : ''}
-                        <h1 class="text-xl font-bold font-display">${schoolInfo?.name || ''}</h1>
-                         <p class="text-xs text-slate-600">${schoolInfo?.address || ''}</p>
-                         <p class="text-xs text-slate-600">${schoolInfo?.phone || ''} | ${schoolInfo?.email || ''}</p>
-                    </div>
-                    <h2 class="text-center text-lg font-semibold my-2 font-display uppercase">RAPPORT DE NOTES : ${subjectName} - ${selectedPeriod?.name}</h2>
-                    <div class="grid grid-cols-2 gap-x-4 text-sm bg-gray-50 p-3 rounded-lg border my-2">
-                        <p><strong>Élève:</strong> ${enrollment.student?.prenom} ${enrollment.student?.nom}</p>
-                        <p><strong>Classe:</strong> ${enrollment.className}</p>
-                        <p><strong>Année Scolaire:</strong> ${year.name}</p>
-                    </div>
-                    <table class="w-full text-sm my-4">
-                        <thead class="border-b-2 border-slate-300"><tr><th class="p-1 text-left font-semibold">Évaluation</th><th class="p-1 w-20 text-center font-semibold">Note</th><th class="p-1 w-20 text-center font-semibold">Sur</th></tr></thead>
-                        <tbody>${grades.map(g => `<tr class="border-b border-slate-100"><td class="p-1">${g.evaluation_name}</td><td class="p-1 text-center font-mono">${g.score}</td><td class="p-1 text-center font-mono">${g.max_score}</td></tr>`).join('')}</tbody>
-                    </table>
-                    <div class="text-right font-bold text-lg mt-4">Note Finale: ${totalScore.toFixed(2)} / ${totalMaxScore.toFixed(2)} (${average.toFixed(2)}%)</div>
-                    <div class="mt-4">
-                        <h4 class="font-semibold text-sm">Appréciation du Professeur</h4>
-                        <div class="p-2 border rounded-md bg-slate-50 min-h-[50px] whitespace-pre-wrap">${appreciation}</div>
-                    </div>
-                    <div class="mt-8 pt-8 flex justify-end items-end text-xs text-center">
-                        <div class="w-1/3"><div class="border-t border-gray-500 pt-1">Signature du Titulaire</div></div>
-                    </div>
+    
+    const generateReportHtml = (enrollment: Enrollment) => {
+        const grades = subjectDetails?.gradesByEnrollment[enrollment.id] || [];
+        const totalScore = grades.reduce((sum, g) => sum + Number(g.score), 0);
+        const totalMaxScore = grades.reduce((sum, g) => sum + Number(g.max_score), 0);
+        const average = totalMaxScore > 0 ? (totalScore / totalMaxScore) * 100 : 0;
+        const appreciation = appreciations[enrollment.id] || '';
+        return `
+            <div class="report-page">
+                <div class="text-center mb-4 border-b-2 border-gray-800 pb-2">
+                    ${schoolInfo?.logo_url ? `<img src="${schoolInfo.logo_url}" alt="Logo" class="h-16 mx-auto mb-2" />` : ''}
+                    <h1 class="text-xl font-bold font-display">${schoolInfo?.name || ''}</h1>
+                     <p class="text-xs text-slate-600">${schoolInfo?.address || ''}</p>
+                     <p class="text-xs text-slate-600">${schoolInfo?.phone || ''} | ${schoolInfo?.email || ''}</p>
                 </div>
-            `;
-        }).join('');
-
+                <h2 class="text-center text-lg font-semibold my-2 font-display uppercase">RAPPORT DE NOTES : ${subjectName} - ${selectedPeriod?.name}</h2>
+                <div class="grid grid-cols-2 gap-x-4 text-sm bg-gray-50 p-3 rounded-lg border my-2">
+                    <p><strong>Élève:</strong> ${enrollment.student?.prenom} ${enrollment.student?.nom}</p>
+                    <p><strong>Classe:</strong> ${enrollment.className}</p>
+                    <p><strong>Année Scolaire:</strong> ${year.name}</p>
+                </div>
+                <table class="w-full text-sm my-4">
+                    <thead class="border-b-2 border-slate-300"><tr><th class="p-1 text-left font-semibold">Évaluation</th><th class="p-1 w-20 text-center font-semibold">Note</th><th class="p-1 w-20 text-center font-semibold">Sur</th></tr></thead>
+                    <tbody>${grades.map(g => `<tr class="border-b border-slate-100"><td class="p-1">${g.evaluation_name}</td><td class="p-1 text-center font-mono">${g.score}</td><td class="p-1 text-center font-mono">${g.max_score}</td></tr>`).join('')}</tbody>
+                </table>
+                <div class="text-right font-bold text-lg mt-4">Note Finale: ${totalScore.toFixed(2)} / ${totalMaxScore.toFixed(2)} (${average.toFixed(2)}%)</div>
+                <div class="mt-4">
+                    <h4 class="font-semibold text-sm">Appréciation du Professeur</h4>
+                    <div class="p-2 border rounded-md bg-slate-50 min-h-[50px] whitespace-pre-wrap">${appreciation}</div>
+                </div>
+                <div class="mt-8 pt-8 flex justify-end items-end text-xs text-center">
+                    <div class="w-1/3"><div class="border-t border-gray-500 pt-1">Signature du Titulaire</div></div>
+                </div>
+            </div>
+        `;
+    };
+    
+    const printHtml = (htmlContent: string) => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
         printWindow.document.write(`
-            <html><head><title>Rapports de Notes</title>
+            <html><head><title>.</title>
             <script src="https://cdn.tailwindcss.com"></script>
             <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
             <style>
-                @page { size: letter portrait; margin: 0; }
-                body { font-family: 'Roboto', sans-serif; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                @page { 
+                    size: letter portrait; 
+                    margin: 10mm; /* Apply margin to all pages */
+                }
+                body { 
+                    font-family: 'Roboto', sans-serif; 
+                    -webkit-print-color-adjust: exact !important; 
+                    print-color-adjust: exact !important; 
+                    margin: 0 !important; /* Remove body margin to let @page handle it */
+                }
                 h1, h2, h3, h4, .font-display { font-family: 'Montserrat', sans-serif; }
-                .report-page { page-break-after: always; padding: 15mm; box-sizing: border-box; }
+                .report-page { page-break-after: always; box-sizing: border-box; }
                 .report-page:last-child { page-break-after: auto; }
             </style>
-            </head><body>${reportsHtml}</body></html>`);
+            </head><body>${htmlContent}</body></html>`);
         printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => { printWindow.print(); printWindow.close(); }, 250);
+        
+        // Use onload to ensure all styles are loaded before triggering print
+        printWindow.onload = () => {
+            printWindow.focus();
+            printWindow.print();
+            printWindow.close();
+        };
+    };
+
+    const handleSinglePrint = () => {
+        const singleReportHtml = generateReportHtml(currentEnrollment);
+        printHtml(singleReportHtml);
+    };
+
+    const handleBulkPrint = () => {
+        const allReportsHtml = classRoster.map(enrollment => generateReportHtml(enrollment)).join('');
+        printHtml(allReportsHtml);
     };
 
     if (!isOpen) return null;
@@ -287,19 +324,19 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
          <div>
             <div className="text-center mb-4 border-b-2 border-gray-800 pb-2">
                 {schoolInfo?.logo_url && <img src={schoolInfo.logo_url} alt="Logo" className="h-16 mx-auto mb-2" />}
-                <h1 className="text-xl font-bold font-display">${schoolInfo?.name}</h1>
-                <p className="text-xs text-slate-600">${schoolInfo?.address}</p>
-                <p className="text-xs text-slate-600">${schoolInfo?.phone} | ${schoolInfo?.email}</p>
+                <h1 className="text-xl font-bold font-display">{schoolInfo?.name}</h1>
+                <p className="text-xs text-slate-600">{schoolInfo?.address}</p>
+                <p className="text-xs text-slate-600">{schoolInfo?.phone} | {schoolInfo?.email}</p>
             </div>
             <h2 className="text-center text-lg font-semibold my-2 font-display uppercase">{`RAPPORT DE NOTES : ${subjectName} - ${selectedPeriod?.name}`}</h2>
             <div className="grid grid-cols-2 gap-x-4 text-sm bg-gray-50 p-3 rounded-lg border my-2">
-                <p><strong>Élève:</strong> ${currentEnrollment.student?.prenom} ${currentEnrollment.student?.nom}</p>
-                <p><strong>Classe:</strong> ${currentEnrollment.className}</p>
-                <p><strong>Année Scolaire:</strong> ${year.name}</p>
+                <p><strong>Élève:</strong> {currentEnrollment.student?.prenom} {currentEnrollment.student?.nom}</p>
+                <p><strong>Classe:</strong> {currentEnrollment.className}</p>
+                <p><strong>Année Scolaire:</strong> {year.name}</p>
             </div>
             <table className="w-full text-sm my-4">
                 <thead className="border-b-2 border-slate-300"><tr><th className="p-1 text-left font-semibold">Évaluation</th><th className="p-1 w-20 text-center font-semibold">Note</th><th className="p-1 w-20 text-center font-semibold">Sur</th></tr></thead>
-                <tbody>{currentGrades.map(g => (<tr key={g.id} className="border-b border-slate-100"><td className="p-1">${g.evaluation_name}</td><td className="p-1 text-center font-mono">${g.score}</td><td className="p-1 text-center font-mono">${g.max_score}</td></tr>))}</tbody>
+                <tbody>{currentGrades.map(g => (<tr key={g.id} className="border-b border-slate-100"><td className="p-1">{g.evaluation_name}</td><td className="p-1 text-center font-mono">{g.score}</td><td className="p-1 text-center font-mono">{g.max_score}</td></tr>))}</tbody>
             </table>
             <div className="text-right font-bold text-lg mt-4">{`Note Finale: ${totalScore.toFixed(2)} / ${totalMaxScore.toFixed(2)} (${average.toFixed(2)}%)`}</div>
             <div className="mt-4">
@@ -339,7 +376,39 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
                     </div>
                     <div className="flex items-center gap-2">
                         {academicPeriods.length > 0 && <select value={selectedPeriod?.id || ''} onChange={e => setSelectedPeriod(academicPeriods.find(p => p.id === Number(e.target.value)) || null)} className="py-2 px-3 border rounded-md">{academicPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>}
-                        <button onClick={handlePrint} className="p-2 px-4 text-white bg-green-600 rounded-md hover:bg-green-700">Imprimer le Rapport</button>
+                        
+                        <div className="relative" ref={printMenuRef}>
+                            <button
+                                onClick={() => setIsPrintMenuOpen(prev => !prev)}
+                                className="p-2 px-4 text-white bg-green-600 rounded-md hover:bg-green-700 flex items-center gap-2"
+                            >
+                                Imprimer
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                            </button>
+                            {isPrintMenuOpen && (
+                                <div className="absolute right-0 mt-2 w-56 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                                    <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
+                                        <button
+                                            onClick={() => { handleSinglePrint(); setIsPrintMenuOpen(false); }}
+                                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                            role="menuitem"
+                                        >
+                                            Imprimer pour cet élève
+                                        </button>
+                                        <button
+                                            onClick={() => { handleBulkPrint(); setIsPrintMenuOpen(false); }}
+                                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                            role="menuitem"
+                                        >
+                                            Imprimer pour toute la classe
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-200 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg></button>
                     </div>
                 </div>

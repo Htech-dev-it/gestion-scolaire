@@ -602,9 +602,10 @@ const ClassFinancialsManager: React.FC = () => {
 
 const ClassManager: React.FC = () => {
     const { addNotification } = useNotification();
-    const { classes, refreshYears } = useSchoolYear(); // refreshYears is a proxy for refreshing all context data
+    const { classes, refreshYears } = useSchoolYear();
     const [newClassName, setNewClassName] = useState('');
     const [editingClass, setEditingClass] = useState<ClassDefinition | null>(null);
+    const [classToDelete, setClassToDelete] = useState<ClassDefinition | null>(null);
 
     const handleAddOrUpdate = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -626,14 +627,20 @@ const ClassManager: React.FC = () => {
         }
     };
     
-    const handleDelete = async (classId: number) => {
-        if (!window.confirm("Êtes-vous sûr ? Supprimer une classe est impossible si des élèves y sont ou ont été inscrits.")) return;
+    const handleDeleteRequest = (classDef: ClassDefinition) => {
+        setClassToDelete(classDef);
+    };
+    
+    const handleConfirmDelete = async () => {
+        if (!classToDelete) return;
         try {
-            await apiFetch(`/classes/${classId}`, { method: 'DELETE' });
+            await apiFetch(`/classes/${classToDelete.id}`, { method: 'DELETE' });
             addNotification({ type: 'success', message: 'Classe supprimée.' });
             refreshYears();
         } catch (error) {
              if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+        } finally {
+            setClassToDelete(null);
         }
     };
 
@@ -651,11 +658,20 @@ const ClassManager: React.FC = () => {
                         <span className="font-medium">{c.name}</span>
                         <div className="flex gap-2">
                             <button onClick={() => setEditingClass(c)} className="p-2 text-blue-500 hover:bg-blue-100 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" /></svg></button>
-                            <button onClick={() => handleDelete(c.id)} className="p-2 text-red-500 hover:bg-red-100 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
+                            <button onClick={() => handleDeleteRequest(c)} className="p-2 text-red-500 hover:bg-red-100 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button>
                         </div>
                     </li>
                 ))}
             </ul>
+            {classToDelete && (
+                <ConfirmationModal
+                    isOpen={!!classToDelete}
+                    onClose={() => setClassToDelete(null)}
+                    onConfirm={handleConfirmDelete}
+                    title={`Supprimer la classe ${classToDelete.name}`}
+                    message="Êtes-vous sûr ? Supprimer une classe est impossible si des élèves y sont ou ont été inscrits."
+                />
+            )}
         </div>
     );
 }
@@ -782,6 +798,14 @@ const AdminPage: React.FC = () => {
                            <TabButton activeTab={activeTab} tabId="financials" onClick={setActiveTab}>Frais Scolaire</TabButton>
                            <TabButton activeTab={activeTab} tabId="promotion" onClick={setActiveTab}>Promotion des Élèves</TabButton>
                            <TabButton activeTab={activeTab} tabId="resources" onClick={setActiveTab}>Ressources Pédagogiques</TabButton>
+                           {hasPermission('user:manage') && (
+                               <ReactRouterDOM.Link
+                                   to="/admin/users"
+                                   className="w-full text-left block px-4 py-2.5 font-medium text-sm rounded-lg transition-all duration-200 text-slate-600 hover:bg-blue-100 hover:text-blue-700"
+                               >
+                                   Utilisateurs
+                               </ReactRouterDOM.Link>
+                           )}
                            {hasPermission('role:manage') && <TabButton activeTab={activeTab} tabId="roles" onClick={setActiveTab}>Rôles & Permissions</TabButton>}
                            <TabButton activeTab={activeTab} tabId="journal" onClick={setActiveTab}>Journal d'Activité</TabButton>
                            <TabButton activeTab={activeTab} tabId="security" onClick={setActiveTab}>Sécurité</TabButton>
