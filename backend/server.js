@@ -2278,6 +2278,41 @@ async function startServer() {
             const { enrollment, ...profileData } = req.body;
             let { id, nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref, sexe, nisu } = profileData;
             const instance_id = req.user.instance_id;
+
+            // --- BACKEND VALIDATION ---
+            if (!nom || !prenom || !sexe || !date_of_birth || !address || !classe_ref) {
+                return res.status(400).json({ message: "Les champs Nom, Prénom, Sexe, Date de Naissance, Adresse, et Classe de Référence sont obligatoires." });
+            }
+            
+            const { rows: existingStudent } = await req.db.query(
+                'SELECT id FROM students WHERE LOWER(nom) = LOWER($1) AND LOWER(prenom) = LOWER($2) AND instance_id = $3',
+                [nom.trim(), prenom.trim(), instance_id]
+            );
+
+            if (existingStudent.length > 0) {
+                return res.status(409).json({ message: `Un élève nommé ${prenom} ${nom} existe déjà.` });
+            }
+
+            const getAge = (dob) => {
+                const birthDate = new Date(dob);
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const m = today.getMonth() - birthDate.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) { age--; }
+                return age;
+            };
+            
+            const age = getAge(date_of_birth);
+            const normalizedClassName = classe_ref.toUpperCase().replace(/\s/g, '');
+
+            const ageRules = { '7AF': 10, '8AF': 11, '9AF': 13, 'NSI': 13, 'NS1': 13, 'NSII': 14, 'NS2': 14, 'NSIII': 15, 'NS3': 15, 'NSIV': 16, 'NS4': 16 };
+            
+            const minAge = ageRules[normalizedClassName];
+
+            if (minAge !== undefined && age < minAge) {
+                return res.status(400).json({ message: `L'âge de l'élève (${age} ans) est insuffisant pour la classe ${classe_ref}. L'âge minimum requis est de ${minAge} ans.` });
+            }
+            // --- END VALIDATION ---
         
             let finalNisu = nisu ? nisu.toUpperCase() : generateTemporaryNISU({ nom, prenom, sexe, date_of_birth });
         
@@ -2328,6 +2363,40 @@ async function startServer() {
             const { id } = req.params;
             const { mppa, enrollmentId, ...profileData } = req.body;
             const { nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref, sexe, nisu } = profileData;
+            const instance_id = req.user.instance_id;
+
+            // --- BACKEND VALIDATION FOR UPDATE ---
+            if (!nom || !prenom || !sexe || !date_of_birth || !address || !classe_ref) {
+                return res.status(400).json({ message: "Les champs Nom, Prénom, Sexe, Date de Naissance, Adresse, et Classe de Référence sont obligatoires." });
+            }
+
+            const { rows: existingStudent } = await req.db.query(
+                'SELECT id FROM students WHERE LOWER(nom) = LOWER($1) AND LOWER(prenom) = LOWER($2) AND instance_id = $3 AND id != $4',
+                [nom.trim(), prenom.trim(), instance_id, id]
+            );
+
+            if (existingStudent.length > 0) {
+                return res.status(409).json({ message: `Un autre élève nommé ${prenom} ${nom} existe déjà.` });
+            }
+            
+            // Age validation for class change on update
+            const getAge = (dob) => {
+                const birthDate = new Date(dob);
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const m = today.getMonth() - birthDate.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) { age--; }
+                return age;
+            };
+            const age = getAge(date_of_birth);
+            const normalizedClassName = classe_ref.toUpperCase().replace(/\s/g, '');
+            const ageRules = { '7AF': 10, '8AF': 11, '9AF': 13, 'NSI': 13, 'NS1': 13, 'NSII': 14, 'NS2': 14, 'NSIII': 15, 'NS3': 15, 'NSIV': 16, 'NS4': 16 };
+            const minAge = ageRules[normalizedClassName];
+
+            if (minAge !== undefined && age < minAge) {
+                return res.status(400).json({ message: `L'âge de l'élève (${age} ans) est insuffisant pour la classe ${classe_ref}. L'âge minimum requis est de ${minAge} ans.` });
+            }
+            // --- END VALIDATION ---
         
             let finalNisu = nisu ? nisu.toUpperCase() : generateTemporaryNISU({ nom, prenom, sexe, date_of_birth });
 
