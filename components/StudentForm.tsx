@@ -14,11 +14,13 @@ interface StudentFormProps {
   selectedYear: SchoolYear | null;
 }
 
-const InputField: React.FC<{ label: string; name: keyof Omit<StudentFormState, 'photo_url' | 'classe_ref' | 'enrollNow' | 'enrollmentClassName' | 'enrollmentMppa' | 'enrollmentId' | 'date_of_birth' | 'tutor_phone' | 'blood_group' | 'allergies' | 'illnesses' | 'sexe' | 'hasNisu' | 'nisu'>; value: string | number | null; onChange: (e: ChangeEvent<HTMLInputElement>) => void; type?: string; placeholder?: string; }> = 
-  ({ label, name, value, onChange, type = 'text', placeholder }) => (
+const InputField: React.FC<{ label: string; name: keyof Omit<StudentFormState, 'photo_url' | 'classe_ref' | 'enrollNow' | 'enrollmentClassName' | 'enrollmentMppa' | 'enrollmentId' | 'date_of_birth' | 'tutor_phone' | 'blood_group' | 'allergies' | 'illnesses' | 'sexe' | 'hasNisu' | 'nisu'>; value: string | number | null; onChange: (e: ChangeEvent<HTMLInputElement>) => void; type?: string; placeholder?: string; required?: boolean; }> = 
+  ({ label, name, value, onChange, type = 'text', placeholder, required = false }) => (
   <div>
-    <label htmlFor={name} className="block text-sm font-medium text-slate-700">{label}</label>
-    <input type={type} id={name} name={name} value={value || ''} onChange={onChange} placeholder={placeholder}
+    <label htmlFor={name} className="block text-sm font-medium text-slate-700">
+      {label}{required && <span className="text-red-500 ml-1">*</span>}
+    </label>
+    <input type={type} id={name} name={name} value={value || ''} onChange={onChange} placeholder={placeholder} required={required}
       className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition"
     />
   </div>
@@ -93,14 +95,14 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
 
         <fieldset className="space-y-4">
           <legend className="text-base font-semibold text-slate-500 mb-2 -ml-1">Informations Personnelles</legend>
-          <InputField label="Nom" name="nom" value={formState.nom} onChange={handleChange} placeholder="Ex: DUPONT" />
-          <InputField label="Prénom" name="prenom" value={formState.prenom} onChange={handleChange} placeholder="Ex: Jean" />
+          <InputField label="Nom" name="nom" value={formState.nom} onChange={handleChange} placeholder="Ex: DUPONT" required />
+          <InputField label="Prénom" name="prenom" value={formState.prenom} onChange={handleChange} placeholder="Ex: Jean" required />
           
           <div>
-            <label className="block text-sm font-medium text-slate-700">Sexe</label>
+            <label className="block text-sm font-medium text-slate-700">Sexe<span className="text-red-500 ml-1">*</span></label>
             <div className="mt-1 flex items-center space-x-4">
                 <label className="flex items-center">
-                    <input type="radio" name="sexe" value="M" checked={formState.sexe === 'M'} onChange={handleChange} className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500" />
+                    <input type="radio" name="sexe" value="M" checked={formState.sexe === 'M'} onChange={handleChange} className="h-4 w-4 text-blue-600 border-gray-300 focus:ring-blue-500" required />
                     <span className="ml-2 text-sm text-slate-700">Masculin</span>
                 </label>
                 <label className="flex items-center">
@@ -111,13 +113,14 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
           </div>
 
            <div>
-            <label htmlFor="classe_ref" className="block text-sm font-medium text-slate-700">Classe de Référence</label>
+            <label htmlFor="classe_ref" className="block text-sm font-medium text-slate-700">Classe de Référence<span className="text-red-500 ml-1">*</span></label>
             <select
               id="classe_ref"
               name="classe_ref"
               value={formState.classe_ref || ''}
               onChange={handleChange}
               className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition"
+              required
             >
               <option value="">Non spécifiée</option>
               {classes.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
@@ -129,9 +132,10 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
             id="date_of_birth"
             value={formState.date_of_birth || ''}
             onChange={(dateValue) => setFormState(prev => ({ ...prev, date_of_birth: dateValue || null }))}
+            required
           />
 
-          <InputField label="Adresse" name="address" value={formState.address} onChange={handleChange} placeholder="Ex: 12, Rue de la Paix" />
+          <InputField label="Adresse" name="address" value={formState.address} onChange={handleChange} placeholder="Ex: 12, Rue de la Paix" required />
         </fieldset>
 
         <fieldset className="space-y-2 pt-4 border-t">

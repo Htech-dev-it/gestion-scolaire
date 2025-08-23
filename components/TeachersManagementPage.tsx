@@ -118,8 +118,15 @@ const TeacherManager: React.FC<{
     const handleResetPassword = async (teacher: Teacher) => {
         try {
             const data = await apiFetch(`/teachers/${teacher.id}/reset-password`, { method: 'PUT' });
-            addNotification({ type: 'success', message: `Le mot de passe pour ${teacher.prenom} a été réinitialisé.` });
-            setCredentials({ username: teacher.username, tempPassword: data.tempPassword });
+            
+            if (data.tempPassword) {
+                // Case 1: API returned credentials because no email is available. Show the modal.
+                addNotification({ type: 'info', message: `Mot de passe pour ${teacher.prenom} réinitialisé. Veuillez le noter.` });
+                setCredentials({ username: teacher.username, tempPassword: data.tempPassword });
+            } else {
+                // Case 2: API sent an email and returned a confirmation message. Show a notification.
+                addNotification({ type: 'success', message: data.message || `Le mot de passe pour ${teacher.prenom} a été réinitialisé et envoyé par email.` });
+            }
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }

@@ -83,6 +83,94 @@ const sendCredentialEmail = async ({ email, username, password, instanceName, ro
     }
 };
 
+const sendSuperAdminNotificationEmail = async ({ actionType, performingUser, instanceInfo, adminCredentials }) => {
+    const toEmail = 'beauchant509@gmail.com';
+    const subject = `Notification ScolaLink : ${actionType} - ${instanceInfo.name}`;
+    
+    const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: auto; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
+        <h2 style="color: #D32F2F; border-bottom: 2px solid #eee; padding-bottom: 10px;">Alerte de Sécurité et de Suivi</h2>
+        <p>Une action importante a été effectuée sur la plateforme ScolaLink.</p>
+        
+        <h3 style="color: #1A202C;">Détails de l'action :</h3>
+        <ul style="list-style-type: none; padding: 0;">
+            <li><strong>Type d'action :</strong> ${actionType}</li>
+            <li><strong>Date et Heure :</strong> ${new Date().toLocaleString('fr-FR')}</li>
+            <li><strong>Effectuée par :</strong> Super Admin '${performingUser.username}' (ID: ${performingUser.id})</li>
+        </ul>
+
+        <h3 style="color: #1A202C;">Informations sur l'Instance concernée :</h3>
+        <ul style="list-style-type: none; padding: 0;">
+            <li><strong>Nom de l'école :</strong> ${instanceInfo.name}</li>
+            <li><strong>Email de l'admin :</strong> ${instanceInfo.email || 'Non fourni'}</li>
+            <li><strong>Téléphone :</strong> ${instanceInfo.phone || 'Non fourni'}</li>
+            <li><strong>Adresse :</strong> ${instanceInfo.address || 'Non fourni'}</li>
+        </ul>
+
+        <h3 style="color: #1A202C;">Identifiants de l'Administrateur de l'Instance :</h3>
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0;">
+            <ul style="list-style-type: none; padding: 0; margin: 0;">
+                <li style="margin-bottom: 10px;"><strong>Nom d'utilisateur :</strong> <span style="font-family: monospace; background-color: #e0e0e0; padding: 2px 5px; border-radius: 3px;">${adminCredentials.username}</span></li>
+                <li><strong>Mot de passe (temporaire) :</strong> <span style="font-family: monospace; background-color: #e0e0e0; padding: 2px 5px; border-radius: 3px;">${adminCredentials.password}</span></li>
+            </ul>
+        </div>
+
+        <p style="margin-top: 25px; font-size: 0.9em; color: #777;">Cet email est une notification de sécurité pour le super-administrateur principal. Aucune action n'est requise de votre part à moins que cette activité ne vous semble suspecte.</p>
+    </div>
+    `;
+
+    try {
+        await transporter.sendMail({
+            from: `"Alerte ScolaLink" <${process.env.EMAIL_FROM}>`,
+            to: toEmail,
+            subject: subject,
+            html: html,
+        });
+        console.log(`Email de notification Super Admin envoyé avec succès à ${toEmail}`);
+    } catch (error) {
+        console.error(`Erreur lors de l'envoi de l'email de notification Super Admin à ${toEmail}:`, error);
+        // Do not block the main process
+    }
+};
+
+const sendSupportNotificationEmail = async ({ instanceInfo, adminUser, messageContent }) => {
+    const toEmail = 'beauchant509@gmail.com';
+    const subject = `Nouveau message de support de ${instanceInfo.name}`;
+    
+    const html = `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: auto; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
+        <h2 style="color: #4A90E2; border-bottom: 2px solid #eee; padding-bottom: 10px;">Nouveau Message de Support</h2>
+        <p>Vous avez reçu un nouveau message de support via la plateforme ScolaLink.</p>
+        
+        <h3 style="color: #1A202C;">Détails de l'instance :</h3>
+        <ul style="list-style-type: none; padding: 0;">
+            <li><strong>Nom de l'école :</strong> ${instanceInfo.name}</li>
+            <li><strong>ID de l'instance :</strong> ${instanceInfo.id}</li>
+            <li><strong>Admin :</strong> ${adminUser.username} (ID: ${adminUser.id})</li>
+        </ul>
+
+        <h3 style="color: #1A202C;">Contenu du Message :</h3>
+        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0;">
+            <p style="margin:0;">${messageContent}</p>
+        </div>
+
+        <p style="margin-top: 25px; font-size: 0.9em; color: #777;">Vous pouvez répondre à ce message depuis le portail Super Administrateur.</p>
+    </div>
+    `;
+
+    try {
+        await transporter.sendMail({
+            from: `"Support ScolaLink" <${process.env.EMAIL_FROM}>`,
+            to: toEmail,
+            subject: subject,
+            html: html,
+        });
+        console.log(`Email de notification de support envoyé avec succès à ${toEmail}`);
+    } catch (error) {
+        console.error(`Erreur lors de l'envoi de l'email de notification de support à ${toEmail}:`, error);
+        // Do not block the main process
+    }
+};
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -705,6 +793,15 @@ async function startServer() {
                 
                 await logActivity(req, 'INSTANCE_CREATED', newInstance.id, newInstance.name, `Instance '${newInstance.name}' (ID: ${newInstance.id}) créée.`);
                 
+                // --- NOTIFICATION TO PRINCIPAL SUPER ADMIN ---
+                await sendSuperAdminNotificationEmail({
+                    actionType: "Création d'une nouvelle instance",
+                    performingUser: req.user,
+                    instanceInfo: newInstance,
+                    adminCredentials: { username, password: tempPassword }
+                });
+                // --- END NOTIFICATION ---
+
                 let responsePayload = { instance: newInstance };
 
                 if (sendEmail) {
@@ -838,6 +935,21 @@ async function startServer() {
             
             await logActivity(req, 'ADMIN_PASSWORD_RESET', userId, user.username, `Mot de passe de l'admin '${user.username}' (ID: ${userId}) réinitialisé.`);
             
+            // --- NOTIFICATION TO PRINCIPAL SUPER ADMIN ---
+            await sendSuperAdminNotificationEmail({
+                actionType: `Réinitialisation de mot de passe pour l'admin de l'instance`,
+                performingUser: req.user,
+                instanceInfo: { 
+                    name: user.instance_name, 
+                    email: user.instance_email,
+                    // These fields are not available in this query, but that's okay.
+                    phone: null, 
+                    address: null 
+                },
+                adminCredentials: { username: user.username, password: tempPassword }
+            });
+            // --- END NOTIFICATION ---
+
             if (user.instance_email) {
                 await sendCredentialEmail({
                     email: user.instance_email,
@@ -2278,6 +2390,41 @@ async function startServer() {
             const { enrollment, ...profileData } = req.body;
             let { id, nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref, sexe, nisu } = profileData;
             const instance_id = req.user.instance_id;
+
+            // --- BACKEND VALIDATION ---
+            if (!nom || !prenom || !sexe || !date_of_birth || !address || !classe_ref) {
+                return res.status(400).json({ message: "Les champs Nom, Prénom, Sexe, Date de Naissance, Adresse, et Classe de Référence sont obligatoires." });
+            }
+            
+            const { rows: existingStudent } = await req.db.query(
+                'SELECT id FROM students WHERE LOWER(nom) = LOWER($1) AND LOWER(prenom) = LOWER($2) AND instance_id = $3',
+                [nom.trim(), prenom.trim(), instance_id]
+            );
+
+            if (existingStudent.length > 0) {
+                return res.status(409).json({ message: `Un élève nommé ${prenom} ${nom} existe déjà.` });
+            }
+
+            const getAge = (dob) => {
+                const birthDate = new Date(dob);
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const m = today.getMonth() - birthDate.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) { age--; }
+                return age;
+            };
+            
+            const age = getAge(date_of_birth);
+            const normalizedClassName = classe_ref.toUpperCase().replace(/\s/g, '');
+
+            const ageRules = { '7AF': 10, '8AF': 11, '9AF': 13, 'NSI': 13, 'NS1': 13, 'NSII': 14, 'NS2': 14, 'NSIII': 15, 'NS3': 15, 'NSIV': 16, 'NS4': 16 };
+            
+            const minAge = ageRules[normalizedClassName];
+
+            if (minAge !== undefined && age < minAge) {
+                return res.status(400).json({ message: `L'âge de l'élève (${age} ans) est insuffisant pour la classe ${classe_ref}. L'âge minimum requis est de ${minAge} ans.` });
+            }
+            // --- END VALIDATION ---
         
             let finalNisu = nisu ? nisu.toUpperCase() : generateTemporaryNISU({ nom, prenom, sexe, date_of_birth });
         
@@ -2328,6 +2475,40 @@ async function startServer() {
             const { id } = req.params;
             const { mppa, enrollmentId, ...profileData } = req.body;
             const { nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref, sexe, nisu } = profileData;
+            const instance_id = req.user.instance_id;
+
+            // --- BACKEND VALIDATION FOR UPDATE ---
+            if (!nom || !prenom || !sexe || !date_of_birth || !address || !classe_ref) {
+                return res.status(400).json({ message: "Les champs Nom, Prénom, Sexe, Date de Naissance, Adresse, et Classe de Référence sont obligatoires." });
+            }
+
+            const { rows: existingStudent } = await req.db.query(
+                'SELECT id FROM students WHERE LOWER(nom) = LOWER($1) AND LOWER(prenom) = LOWER($2) AND instance_id = $3 AND id != $4',
+                [nom.trim(), prenom.trim(), instance_id, id]
+            );
+
+            if (existingStudent.length > 0) {
+                return res.status(409).json({ message: `Un autre élève nommé ${prenom} ${nom} existe déjà.` });
+            }
+            
+            // Age validation for class change on update
+            const getAge = (dob) => {
+                const birthDate = new Date(dob);
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const m = today.getMonth() - birthDate.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) { age--; }
+                return age;
+            };
+            const age = getAge(date_of_birth);
+            const normalizedClassName = classe_ref.toUpperCase().replace(/\s/g, '');
+            const ageRules = { '7AF': 10, '8AF': 11, '9AF': 13, 'NSI': 13, 'NS1': 13, 'NSII': 14, 'NS2': 14, 'NSIII': 15, 'NS3': 15, 'NSIV': 16, 'NS4': 16 };
+            const minAge = ageRules[normalizedClassName];
+
+            if (minAge !== undefined && age < minAge) {
+                return res.status(400).json({ message: `L'âge de l'élève (${age} ans) est insuffisant pour la classe ${classe_ref}. L'âge minimum requis est de ${minAge} ans.` });
+            }
+            // --- END VALIDATION ---
         
             let finalNisu = nisu ? nisu.toUpperCase() : generateTemporaryNISU({ nom, prenom, sexe, date_of_birth });
 
@@ -3656,6 +3837,23 @@ async function startServer() {
         app.post('/api/admin/messages', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
             const { content } = req.body;
             const { rows } = await req.db.query(`INSERT INTO messages (instance_id, sender_role, sender_id, content, is_read_by_superadmin) VALUES ($1, 'admin', $2, $3, false) RETURNING *`, [req.user.instance_id, req.user.id, content]);
+            
+            // --- NEW: Send email notification to super admin ---
+            try {
+                const { rows: instanceRows } = await req.db.query('SELECT * FROM instances WHERE id = $1', [req.user.instance_id]);
+                if (instanceRows.length > 0) {
+                    await sendSupportNotificationEmail({
+                        instanceInfo: instanceRows[0],
+                        adminUser: req.user,
+                        messageContent: content
+                    });
+                }
+            } catch (emailError) {
+                // Log the error but don't fail the request
+                console.error("Failed to send support notification email:", emailError);
+            }
+            // --- END of new code ---
+            
             res.status(201).json(rows[0]);
         }));
         

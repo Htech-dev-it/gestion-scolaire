@@ -169,7 +169,6 @@ La sécurité est une priorité fondamentale de la plateforme, assurée par un s
 - **Pagination Côté Serveur** pour gérer de grands volumes de données.
 - **Stockage Externe des Fichiers** pour une base de données allégée.
 - **Chargement Différé (`Lazy Loading`)** pour un chargement initial plus rapide.
-- **Impressions Professionnelles** : Génération de documents (bulletins, fiches) sans les en-têtes et pieds de page du navigateur pour un rendu propre.
 
 ---
 

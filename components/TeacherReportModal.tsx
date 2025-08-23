@@ -270,7 +270,7 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
         printWindow.document.write(`
-            <html><head><title>.</title>
+            <html><head><title></title>
             <script src="https://cdn.tailwindcss.com"></script>
             <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
             <style>
