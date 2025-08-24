@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
@@ -6,8 +6,6 @@ import type { Location, FullScheduleSlot, FullTeacherAssignment } from '../types
 import ConfirmationModal from './ConfirmationModal';
 
 // --- Time Helpers ---
-const timeSlots = Array.from({ length: 11 }, (_, i) => `${(8 + i).toString().padStart(2, '0')}:00`); // 08:00 to 18:00
-
 const timeToMinutes = (time: string) => {
     const [hours, minutes] = time.split(':').map(Number);
     return hours * 60 + minutes;
@@ -119,6 +117,26 @@ const TimetableManager: React.FC = () => {
     const [locationToDelete, setLocationToDelete] = useState<Location | null>(null);
     const [modalState, setModalState] = useState<{ isOpen: boolean; day?: number; startTime?: string; slot?: FullScheduleSlot | null }>({ isOpen: false });
     const [slotToDelete, setSlotToDelete] = useState<FullScheduleSlot | null>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    const { timeSlots, gridStartHour } = useMemo(() => {
+        let minHour = 7;
+        let maxHour = 18;
+
+        if (schedule.length > 0) {
+            const startMinutes = schedule.map(s => timeToMinutes(s.start_time));
+            const endMinutes = schedule.map(s => timeToMinutes(s.end_time));
+
+            const scheduleMinHour = Math.floor(Math.min(...startMinutes) / 60);
+            const scheduleMaxHour = Math.ceil(Math.max(...endMinutes) / 60);
+
+            minHour = Math.min(minHour, scheduleMinHour);
+            maxHour = Math.max(maxHour, scheduleMaxHour);
+        }
+
+        const slots = Array.from({ length: maxHour - minHour + 1 }, (_, i) => `${(minHour + i).toString().padStart(2, '0')}:00`);
+        return { timeSlots: slots, gridStartHour: minHour };
+    }, [schedule]);
 
     const fetchData = useCallback(async () => {
         if (!selectedYear) return;
@@ -142,6 +160,17 @@ const TimetableManager: React.FC = () => {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    useEffect(() => {
+        if (scrollContainerRef.current && !isLoading) {
+            const sevenAmIndex = timeSlots.indexOf('07:00');
+            if (sevenAmIndex !== -1) {
+                scrollContainerRef.current.scrollTop = sevenAmIndex * 64; // 64 is the height of a row
+            } else {
+                scrollContainerRef.current.scrollTop = 0; // Otherwise scroll to top
+            }
+        }
+    }, [isLoading, timeSlots]);
     
     const handleLocationSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -242,80 +271,87 @@ const TimetableManager: React.FC = () => {
             </div>
             
             <h2 className="text-xl font-semibold text-slate-700 font-display">Emploi du Temps - {selectedYear?.name}</h2>
-             <div className="mt-4 border rounded-lg bg-white overflow-x-auto">
-                <div className="flex min-w-[1000px]">
-                    {/* Time Column */}
-                    <div className="w-24 flex-shrink-0 bg-slate-50">
-                        <div className="h-12 flex items-center justify-center text-xs font-semibold text-slate-600 uppercase border-b border-r border-slate-200">Heure</div>
-                        {timeSlots.map(time => (
-                            <div key={time} className="h-24 flex justify-center items-start pt-2 text-sm font-semibold text-slate-700 border-b border-r border-slate-200">
-                                {time}
+            <div className="mt-4 border rounded-lg bg-white min-w-[1000px] flex flex-col">
+                {/* Header */}
+                <div className="flex flex-shrink-0">
+                    <div className="w-24 flex-shrink-0 h-12 flex items-center justify-center text-xs font-semibold text-slate-600 uppercase border-b border-r border-slate-200">Heure</div>
+                    <div className="flex-grow grid grid-cols-6">
+                        {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map((day) => (
+                            <div key={day} className="h-12 flex items-center justify-center text-xs font-semibold text-slate-600 uppercase border-b border-r border-slate-200 last:border-r-0">
+                                {day}
                             </div>
                         ))}
                     </div>
+                </div>
 
-                    {/* Schedule Grid */}
-                    <div className="flex-grow grid grid-cols-6">
-                        {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map((day, dayIndex) => (
-                            <div key={day} className="border-r border-slate-200 relative">
-                                <div className="h-12 flex items-center justify-center text-xs font-semibold text-slate-600 uppercase border-b border-slate-200">{day}</div>
-                                
-                                {/* Layer for clickable background cells */}
-                                <div className="absolute top-12 inset-x-0 bottom-0 z-0">
+                {/* Scrollable Body */}
+                <div ref={scrollContainerRef} className="overflow-y-auto" style={{ height: '44rem' }}>
+                    <div className="flex">
+                        {/* Time Column */}
+                        <div className="w-24 flex-shrink-0 bg-slate-50">
+                            {timeSlots.map(time => (
+                                <div key={time} className="h-16 flex justify-center items-start pt-2 text-sm font-semibold text-slate-700 border-b border-r border-slate-200">
+                                    {time}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Schedule Grid */}
+                        <div className="flex-grow grid grid-cols-6 relative">
+                             {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map((day, dayIndex) => (
+                                <div key={day} className="border-r border-slate-200 last:border-r-0">
                                     {timeSlots.map((time) => (
                                         <div 
-                                            key={time} 
-                                            className="h-24 border-b border-slate-200 group"
+                                            key={time}
+                                            className="h-16 border-b border-slate-200 group cursor-pointer"
                                             onClick={() => setModalState({ isOpen: true, day: dayIndex + 1, startTime: time, slot: null })}
                                         >
-                                            <div className="w-full h-full opacity-0 group-hover:opacity-100 bg-green-100/50 flex items-center justify-center transition-opacity cursor-pointer" aria-label={`Ajouter un créneau le ${day} à ${time}`}>
+                                           <div className="w-full h-full opacity-0 group-hover:opacity-100 bg-green-100/50 flex items-center justify-center transition-opacity" aria-label={`Ajouter un créneau le ${day} à ${time}`}>
                                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
-                                
-                                {/* Layer for scheduled slots */}
-                                <div className="absolute top-12 inset-x-0 bottom-0 z-10 pointer-events-none">
-                                    {schedule.filter(slot => slot.day_of_week === dayIndex + 1).map(slot => {
-                                        const startMinutes = timeToMinutes(slot.start_time);
-                                        const endMinutes = timeToMinutes(slot.end_time);
-                                        const durationMinutes = endMinutes - startMinutes;
-                                        const topOffset = ((startMinutes - timeToMinutes('08:00')) / 60) * 96;
-                                        let height = (durationMinutes / 60) * 96;
+                            ))}
+                            {/* Scheduled slots layer */}
+                            {schedule.map(slot => {
+                                const startMinutes = timeToMinutes(slot.start_time);
+                                const endMinutes = timeToMinutes(slot.end_time);
+                                const durationMinutes = endMinutes - startMinutes;
+                                const topOffset = ((startMinutes - timeToMinutes(`${gridStartHour.toString().padStart(2, '0')}:00`)) / 60) * 64;
+                                let height = (durationMinutes / 60) * 64;
 
-                                        if (height <= 0) {
-                                            height = 24;
-                                        }
+                                if (height <= 0) height = 16;
 
-                                        return (
-                                            <div key={slot.id}
-                                                style={{ top: `${topOffset}px`, height: `${height}px` }}
-                                                className="absolute left-1 right-1 bg-blue-100 border-l-4 border-blue-500 rounded-md shadow-sm group cursor-pointer flex flex-col pointer-events-auto hover:z-20 hover:shadow-lg transition-all overflow-hidden"
-                                                onClick={() => setModalState({ isOpen: true, day: slot.day_of_week, startTime: slot.start_time.substring(0,5), slot })}
-                                                title="Cliquez pour modifier"
-                                            >
-                                                <div className="p-1 flex-grow overflow-hidden text-xs flex flex-col">
-                                                    <p className="font-bold text-blue-800 truncate" title={slot.subject_name}>{slot.subject_name}</p>
-                                                    <p className="text-slate-600 truncate">{slot.start_time.substring(0, 5)} - {slot.end_time.substring(0, 5)}</p>
-                                                    <p className="text-slate-500 italic truncate" title={slot.location_name || 'N/A'}>
-                                                        {slot.location_name || 'N/A'}
-                                                    </p>
-                                                    <p className="text-slate-500 truncate" title={`${slot.teacher_prenom} ${slot.teacher_nom}`}>
-                                                        {slot.teacher_prenom} {slot.teacher_nom}
-                                                    </p>
-                                                </div>
-                                                <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={(e) => { e.stopPropagation(); setSlotToDelete(slot); }} className="p-1 bg-red-100 text-red-600 rounded-full" title="Supprimer">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        ))}
+                                const left = `calc(${(slot.day_of_week - 1) * (100 / 6)}% + 4px)`;
+                                const width = `calc(${(100 / 6)}% - 8px)`;
+
+                                return (
+                                    <div key={slot.id}
+                                        style={{ top: `${topOffset}px`, height: `${height}px`, left, width }}
+                                        className="absolute bg-blue-100 border-l-4 border-blue-500 rounded-md shadow-sm group cursor-pointer flex flex-col pointer-events-auto hover:z-20 hover:shadow-lg transition-all overflow-hidden"
+                                        onClick={() => setModalState({ isOpen: true, day: slot.day_of_week, startTime: slot.start_time.substring(0,5), slot })}
+                                        title="Cliquez pour modifier"
+                                    >
+                                        <div className="p-1 flex-grow overflow-hidden text-xs flex flex-col">
+                                            <p className="font-bold text-blue-800 truncate" title={slot.subject_name}>{slot.subject_name}</p>
+                                            <p className="text-slate-600 truncate">{slot.start_time.substring(0, 5)} - {slot.end_time.substring(0, 5)}</p>
+                                            <p className="text-slate-500 italic truncate" title={slot.location_name || 'N/A'}>
+                                                {slot.location_name || 'N/A'}
+                                            </p>
+                                            <p className="text-slate-500 truncate" title={`${slot.teacher_prenom} ${slot.teacher_nom}`}>
+                                                {slot.teacher_prenom} {slot.teacher_nom}
+                                            </p>
+                                        </div>
+                                        <div className="absolute top-1 right-1 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button onClick={(e) => { e.stopPropagation(); setSlotToDelete(slot); }} className="p-1 bg-red-100 text-red-600 rounded-full" title="Supprimer">
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" /></svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 </div>
             </div>

@@ -73,8 +73,6 @@ const AllStudentsTable: React.FC<AllStudentsTableProps> = ({ students, selectedI
   
   const filteredAndSortedStudents = useMemo(() => {
     let sortableStudents = [...students]
-        // This filtering is now mostly handled by the backend. 
-        // We keep a client-side search for immediate responsiveness within the current page.
         .filter(student => `${student.prenom} ${student.nom} ${student.nisu}`.toLowerCase().includes(searchTerm.toLowerCase()));
 
     if (sortConfig !== null) {
@@ -91,7 +89,6 @@ const AllStudentsTable: React.FC<AllStudentsTableProps> = ({ students, selectedI
 
   const showBulkEnrollButton = useMemo(() => {
       if (selectedIds.size === 0) return false;
-      // Show if every selected student is not enrolled
       return students.every(s => !selectedIds.has(s.id) || !s.enrollment);
   }, [selectedIds, students]);
 
@@ -108,8 +105,6 @@ const AllStudentsTable: React.FC<AllStudentsTableProps> = ({ students, selectedI
   };
 
   const handlePrintList = () => {
-    // Note: This only prints the current page of students.
-    // A full report feature would require a different backend endpoint.
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
         alert("Veuillez autoriser les pop-ups pour imprimer.");
@@ -132,16 +127,8 @@ const AllStudentsTable: React.FC<AllStudentsTableProps> = ({ students, selectedI
             <head>
                 <title></title>
                 <style>
-                    @page { 
-                        size: portrait; 
-                        margin: 0; 
-                    }
-                    body { 
-                        font-family: Arial, sans-serif; 
-                        margin: 0.75in;
-                        -webkit-print-color-adjust: exact; 
-                        print-color-adjust: exact;
-                    }
+                    @page { size: portrait; margin: 0; }
+                    body { font-family: Arial, sans-serif; margin: 0.75in; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
                     .header { text-align: center; margin-bottom: 20px; }
                     .header h1 { margin: 0; }
                     .header p { margin: 2px 0; font-size: 10pt; }
@@ -190,6 +177,31 @@ const handlePrintSheets = () => {
       const textColor = '#1e3a8a';
       return `<div style="width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; background-color: ${color}; color: ${textColor}; border: 2px solid #eee;">${initials}</div>`;
   };
+
+  const getMedicalNotesHtml = (notes: string | null): string => {
+        if (!notes) return '<div class="notes"><span style="font-style: italic; color: #94a3b8;">Aucune note.</span></div>';
+        try {
+            const parsed = JSON.parse(notes);
+            if (typeof parsed === 'object' && parsed !== null && ('blood_group' in parsed || 'allergies' in parsed || 'illnesses' in parsed)) {
+                if (!parsed.blood_group && !parsed.allergies && !parsed.illnesses) {
+                    return '<div class="notes"><span style="font-style: italic; color: #94a3b8;">Aucune note.</span></div>';
+                }
+                return `
+                    <div class="detail-grid">
+                        <div class="detail-label">Groupe Sanguin:</div>
+                        <div class="detail-value">${parsed.blood_group || 'Non renseigné'}</div>
+                        <div class="detail-label">Allergies:</div>
+                        <div class="detail-value">${parsed.allergies || 'Non renseigné'}</div>
+                        <div class="detail-label">Maladies Connues:</div>
+                        <div class="detail-value">${parsed.illnesses || 'Non renseigné'}</div>
+                    </div>
+                `;
+            }
+            return `<div class="notes">${notes}</div>`;
+        } catch (e) {
+            return `<div class="notes">${notes}</div>`;
+        }
+    };
 
   const sheetsHtml = selectedStudents.map(student => {
       const avatarHtml = getAvatarHtml(student);
@@ -247,7 +259,7 @@ const handlePrintSheets = () => {
 
                 <div class="section">
                     <h3>Notes Médicales</h3>
-                    <div class="notes">${student.medical_notes || 'Aucune note.'}</div>
+                    ${getMedicalNotesHtml(student.medical_notes)}
                 </div>
 
                 <div class="print-footer">
@@ -300,13 +312,7 @@ const handlePrintSheets = () => {
                   .section { margin-top: 25px; }
                   .section h3 { font-size: 13pt; margin-bottom: 12px; border-bottom: 1px solid #e0e0e0; padding-bottom: 6px; color: #333; }
                   
-                  .detail-grid {
-                      display: grid;
-                      grid-template-columns: 180px 1fr;
-                      gap: 12px 16px;
-                      line-height: 1.6;
-                      font-size: 11pt;
-                  }
+                  .detail-grid { display: grid; grid-template-columns: 180px 1fr; gap: 12px 16px; line-height: 1.6; font-size: 11pt; }
                   .detail-label { font-weight: bold; color: #444; }
                   .detail-value { color: #111; }
                   
@@ -374,31 +380,7 @@ const handlePrintSheets = () => {
               <input type="checkbox" checked={showArchived} onChange={(e) => onShowArchivedChange(e.target.checked)} className="h-4 w-4 rounded" />
               <span>Inclure les archivés</span>
             </label>
-            <div className="flex items-center gap-2">
-                <button
-                    onClick={() => {
-                        const student = students.find(s => s.id === Array.from(selectedIds)[0]);
-                        if (student) onEditRequest(student);
-                    }}
-                    disabled={selectedIds.size !== 1}
-                    className="px-3 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-lg shadow-sm hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    Modifier
-                </button>
-                <button
-                    onClick={() => {
-                        const student = students.find(s => s.id === Array.from(selectedIds)[0]);
-                        if (student?.enrollment) {
-                            navigate(`/class/${student.enrollment.className}`);
-                        }
-                    }}
-                    disabled={selectedIds.size !== 1 || !students.find(s => s.id === Array.from(selectedIds)[0])?.enrollment}
-                    className="px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                    Paiements
-                </button>
-                <button onClick={handlePrintList} className="px-4 py-2 text-sm font-medium text-white bg-gray-600 rounded-lg shadow-sm hover:bg-gray-700">Imprimer la liste</button>
-            </div>
+             <button onClick={handlePrintList} className="px-4 py-2 text-sm font-medium text-white bg-gray-600 rounded-lg shadow-sm hover:bg-gray-700">Imprimer la liste</button>
         </div>
       </div>
 
@@ -424,6 +406,7 @@ const handlePrintSheets = () => {
         <table className="min-w-full divide-y divide-slate-200">
           <thead className="bg-slate-50">
             <tr>
+              <th scope="col" className="px-2 py-3 no-print"></th>
               <th scope="col" className="p-4 no-print"><input type="checkbox" onChange={handleSelectAll(filteredAndSortedStudents)} checked={filteredAndSortedStudents.length > 0 && selectedIds.size === filteredAndSortedStudents.length} className="h-4 w-4 text-blue-600 rounded" /></th>
               <th scope="col" className="px-2 py-3 text-left"></th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">NISU</th>
@@ -437,40 +420,54 @@ const handlePrintSheets = () => {
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
             {isLoading ? (
-                <tr><td colSpan={9} className="text-center py-10 text-slate-500">Chargement...</td></tr>
+                <tr><td colSpan={10} className="text-center py-10 text-slate-500">Chargement...</td></tr>
             ) : filteredAndSortedStudents.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-10 text-slate-500">Aucun élève ne correspond à vos critères.</td></tr>
-            ) : filteredAndSortedStudents.map((student) => (
-                <tr key={student.id} onDoubleClick={() => onEditRequest(student)} className={`hover:bg-blue-50 cursor-pointer ${selectedIds.has(student.id) ? 'bg-blue-100' : 'even:bg-gray-50'} ${student.status === 'archived' ? 'opacity-60' : ''}`}>
-                  <td className="p-4 no-print"><input type="checkbox" checked={selectedIds.has(student.id)} onChange={() => handleSelectOne(student.id)} className="h-4 w-4 text-blue-600 rounded" /></td>
-                  <td className="px-2 py-2">
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); setLightboxStudent(student); }}
-                        className="rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform duration-200 hover:scale-110"
-                        aria-label={`Agrandir la photo de ${student.prenom} ${student.nom}`}
-                    >
-                        <Avatar student={student} />
-                    </button>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-500">{student.nisu || '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{student.nom}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{student.prenom}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-center">{student.sexe || '-'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                    <div className="flex items-center gap-2">
-                        {student.enrollment ? (
-                            <span className="h-2 w-2 rounded-full bg-green-500" title="Inscrit"></span>
-                        ) : (
-                            <span className="h-2 w-2 rounded-full bg-slate-400" title="Non-inscrit"></span>
-                        )}
-                        <span className="font-medium">{student.enrollment?.className || student.classe_ref || '-'}</span>
-                         {student.status === 'archived' && <span className="ml-2 text-xs font-bold text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">Archivé</span>}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{formatDate(student.date_of_birth)}</td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right`}>{student.enrollment ? `${Number(student.enrollment?.mppa).toFixed(2)}$` : '-'}</td>
-                </tr>
-              ))}
+                <tr><td colSpan={10} className="text-center py-10 text-slate-500">Aucun élève ne correspond à vos critères.</td></tr>
+            ) : filteredAndSortedStudents.map((student) => {
+                const hasScholarship = student.enrollment?.adjustments?.some(adj => adj.amount < 0);
+                return (
+                    <tr key={student.id} onDoubleClick={() => onEditRequest(student)} className={`hover:bg-blue-50 cursor-pointer ${selectedIds.has(student.id) ? 'bg-blue-100' : 'even:bg-gray-50'} ${student.status === 'archived' ? 'opacity-60' : ''}`}>
+                      <td className="px-2 py-2 no-print">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onEditRequest(student); }}
+                          className="p-2 text-slate-500 hover:bg-slate-200 hover:text-blue-600 rounded-full transition-colors"
+                          title="Modifier le profil"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                              <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </td>
+                      <td className="p-4 no-print"><input type="checkbox" checked={selectedIds.has(student.id)} onChange={() => handleSelectOne(student.id)} className="h-4 w-4 text-blue-600 rounded" /></td>
+                      <td className="px-2 py-2">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setLightboxStudent(student); }}
+                            className="rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-transform duration-200 hover:scale-110"
+                            aria-label={`Agrandir la photo de ${student.prenom} ${student.nom}`}
+                        >
+                            <Avatar student={student} />
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-500">{student.nisu || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 flex items-center gap-2">
+                          {student.nom}
+                          {hasScholarship && <span title="Cet élève bénéficie d'une bourse ou réduction">🎓</span>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{student.prenom}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-center">{student.sexe || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                        <div className="flex items-center gap-2">
+                            {student.enrollment ? (<span className="h-2 w-2 rounded-full bg-green-500" title="Inscrit"></span>) : (<span className="h-2 w-2 rounded-full bg-slate-400" title="Non-inscrit"></span>)}
+                            <span className="font-medium">{student.enrollment?.className || student.classe_ref || '-'}</span>
+                             {student.status === 'archived' && <span className="ml-2 text-xs font-bold text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full">Archivé</span>}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{formatDate(student.date_of_birth)}</td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right`}>{student.enrollment ? `${Number(student.enrollment?.mppa).toFixed(2)}$` : '-'}</td>
+                    </tr>
+                );
+            })}
           </tbody>
         </table>
       </div>

@@ -163,9 +163,13 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
                       name="nisu"
                       value={formState.nisu || ''}
                       onChange={e => setFormState(prev => ({ ...prev, nisu: e.target.value.toUpperCase() }))}
-                      placeholder="Entrez le code officiel"
-                      className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition"
+                      placeholder="ARMA19740412G0500065"
+                      className="font-mono mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition"
+                      maxLength={20}
+                      pattern="[A-Z]{4}\d{8}[A-Z]\d{7}"
+                      title="Le format doit être: 4 lettres, 8 chiffres, 1 lettre, 7 chiffres (20 caractères au total)."
                   />
+                  <p className="text-xs text-slate-500 mt-1">Format attendu: 4 lettres, 8 chiffres, 1 lettre, 7 chiffres (ex: ARMA19740412G0500065).</p>
               </div>
           )}
         </fieldset>
@@ -263,8 +267,23 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
           <legend className="text-base font-semibold text-slate-500 mb-2 -ml-1">Notes Médicales</legend>
            <div>
             <label htmlFor="blood_group" className="block text-sm font-medium text-slate-700">Groupe Sanguin</label>
-            <input type="text" id="blood_group" name="blood_group" value={formState.blood_group || ''} onChange={handleChange} placeholder="Ex: O+" 
-              className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition" />
+            <select
+              id="blood_group"
+              name="blood_group"
+              value={formState.blood_group || ''}
+              onChange={handleChange}
+              className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm transition"
+            >
+                <option value="">Non spécifié</option>
+                <option value="A+">A+</option>
+                <option value="A-">A-</option>
+                <option value="B+">B+</option>
+                <option value="B-">B-</option>
+                <option value="AB+">AB+</option>
+                <option value="AB-">AB-</option>
+                <option value="O+">O+</option>
+                <option value="O-">O-</option>
+            </select>
           </div>
           <div>
               <label htmlFor="allergies" className="block text-sm font-medium text-slate-700">Allergies</label>

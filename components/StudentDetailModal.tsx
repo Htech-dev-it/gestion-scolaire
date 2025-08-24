@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { StudentProfile, Instance } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 
@@ -35,6 +35,27 @@ const DetailRow: React.FC<{ label: string, value: string | null | undefined }> =
 const StudentDetailModal: React.FC<StudentDetailModalProps> = ({ isOpen, onClose, student, instanceInfo }) => {
   const { addNotification } = useNotification();
   
+  const medicalInfo = useMemo(() => {
+    if (!student?.medical_notes) {
+        return { blood_group: null, allergies: null, illnesses: null, raw: null };
+    }
+    try {
+        const parsed = JSON.parse(student.medical_notes);
+        if (typeof parsed === 'object' && parsed !== null && ('blood_group' in parsed || 'allergies' in parsed || 'illnesses' in parsed)) {
+            return {
+                blood_group: parsed.blood_group,
+                allergies: parsed.allergies,
+                illnesses: parsed.illnesses,
+                raw: null,
+            };
+        }
+        return { blood_group: null, allergies: null, illnesses: null, raw: student.medical_notes };
+    } catch (e) {
+        return { blood_group: null, allergies: null, illnesses: null, raw: student.medical_notes };
+    }
+  }, [student?.medical_notes]);
+
+
   if (!isOpen || !student) return null;
 
   const formatDate = (dateString: string | null) => {
@@ -60,6 +81,31 @@ const StudentDetailModal: React.FC<StudentDetailModalProps> = ({ isOpen, onClose
         const color = colors[((studentToPrint.nom?.charCodeAt(0) || 0) + (studentToPrint.prenom?.charCodeAt(0) || 0)) % colors.length];
         const textColor = '#1e3a8a';
         return `<div style="width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; background-color: ${color}; color: ${textColor}; border: 2px solid #eee;">${initials}</div>`;
+    };
+    
+    const getMedicalNotesHtml = (notes: string | null): string => {
+        if (!notes) return '<div class="notes"><span style="font-style: italic; color: #94a3b8;">Aucune note.</span></div>';
+        try {
+            const parsed = JSON.parse(notes);
+            if (typeof parsed === 'object' && parsed !== null && ('blood_group' in parsed || 'allergies' in parsed || 'illnesses' in parsed)) {
+                if (!parsed.blood_group && !parsed.allergies && !parsed.illnesses) {
+                    return '<div class="notes"><span style="font-style: italic; color: #94a3b8;">Aucune note.</span></div>';
+                }
+                return `
+                    <div class="detail-grid">
+                        <div class="detail-label">Groupe Sanguin:</div>
+                        <div class="detail-value">${parsed.blood_group || 'Non renseigné'}</div>
+                        <div class="detail-label">Allergies:</div>
+                        <div class="detail-value">${parsed.allergies || 'Non renseigné'}</div>
+                        <div class="detail-label">Maladies Connues:</div>
+                        <div class="detail-value">${parsed.illnesses || 'Non renseigné'}</div>
+                    </div>
+                `;
+            }
+            return `<div class="notes">${notes}</div>`;
+        } catch (e) {
+            return `<div class="notes">${notes}</div>`;
+        }
     };
   
     const sheetHtml = `
@@ -100,7 +146,7 @@ const StudentDetailModal: React.FC<StudentDetailModalProps> = ({ isOpen, onClose
 
           <div class="section">
               <h3>Notes Médicales</h3>
-              <div class="notes">${student.medical_notes || 'Aucune note.'}</div>
+              ${getMedicalNotesHtml(student.medical_notes)}
           </div>
 
           <div class="print-footer">
@@ -216,9 +262,21 @@ const StudentDetailModal: React.FC<StudentDetailModalProps> = ({ isOpen, onClose
 
             <div>
                 <h4 className="text-base font-semibold text-slate-600 mb-2">Notes Médicales</h4>
-                <div className="text-sm text-slate-800 whitespace-pre-wrap bg-slate-50 p-3 rounded-md">
-                    {student.medical_notes || <span className="italic text-slate-400">Aucune note.</span>}
-                </div>
+                 {medicalInfo.raw ? (
+                    <div className="text-sm text-slate-800 whitespace-pre-wrap bg-slate-50 p-3 rounded-md">
+                        {medicalInfo.raw}
+                    </div>
+                ) : (medicalInfo.blood_group || medicalInfo.allergies || medicalInfo.illnesses) ? (
+                    <dl>
+                        <DetailRow label="Groupe Sanguin" value={medicalInfo.blood_group} />
+                        <DetailRow label="Allergies" value={medicalInfo.allergies} />
+                        <DetailRow label="Maladies Connues" value={medicalInfo.illnesses} />
+                    </dl>
+                ) : (
+                    <div className="text-sm text-slate-800 bg-slate-50 p-3 rounded-md">
+                        <span className="italic text-slate-400">Aucune note.</span>
+                    </div>
+                )}
             </div>
         </div>
         

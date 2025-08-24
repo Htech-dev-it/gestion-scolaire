@@ -526,7 +526,6 @@ const ProgrammeManager: React.FC = () => {
 const ClassFinancialsManager: React.FC = () => {
     const { addNotification } = useNotification();
     const { selectedYear, classes } = useSchoolYear();
-    // Use undefined to represent an empty/unset field
     const [classFinancials, setClassFinancials] = useState<Record<string, number | undefined>>({});
 
     const fetchFinancials = useCallback(async () => {
@@ -552,7 +551,7 @@ const ClassFinancialsManager: React.FC = () => {
         
         const financialsPayload = classes.map(c => ({
             class_name: c.name,
-            mppa: classFinancials[c.name] ?? null, // If undefined, send null
+            mppa: classFinancials[c.name] ?? null,
         }));
         
         const payload = {
@@ -572,25 +571,43 @@ const ClassFinancialsManager: React.FC = () => {
         <div>
              <h2 className="text-xl font-semibold text-slate-700 font-display">Frais de Scolarité par Classe</h2>
              <p className="text-sm text-slate-500 mt-1 mb-4">Définissez le montant à payer (MPPA) par défaut pour chaque classe pour l'année {selectedYear?.name}. Ce montant sera utilisé lors des nouvelles inscriptions.</p>
-             <div className="space-y-3">
-                 {classes.map(c => (
-                     <div key={c.id} className="grid grid-cols-2 gap-4 items-center p-2 rounded-md even:bg-slate-50">
-                         <label htmlFor={`mppa-${c.id}`} className="font-medium">{c.name}</label>
-                         <input
-                            id={`mppa-${c.id}`}
-                            type="number"
-                            value={classFinancials[c.name] ?? ''} // Show empty string if undefined
-                            placeholder="Montant"
-                            onChange={e => {
-                                const value = e.target.value;
-                                setClassFinancials(prev => ({...prev, [c.name]: value === '' ? undefined : Number(value)}));
-                            }}
-                            className="w-full p-2 border rounded-md"
-                         />
-                     </div>
-                 ))}
-             </div>
-             <div className="text-right mt-6 pt-4 border-t">
+             <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <table className="min-w-full">
+                    <thead className="bg-slate-100">
+                        <tr>
+                            <th className="p-3 text-left text-sm font-semibold text-slate-700 w-1/3">
+                                CLASSE
+                            </th>
+                            <th className="p-3 text-left text-sm font-semibold text-slate-700">
+                                MONTANT (MPPA) PAR DÉFAUT
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-slate-200">
+                        {classes.map(c => (
+                            <tr key={c.id}>
+                                <td className="p-3 font-medium text-slate-800">
+                                    {c.name}
+                                </td>
+                                <td className="p-3">
+                                    <input
+                                        id={`mppa-${c.id}`}
+                                        type="number"
+                                        value={classFinancials[c.name] ?? ''}
+                                        placeholder="Montant"
+                                        onChange={e => {
+                                            const value = e.target.value;
+                                            setClassFinancials(prev => ({...prev, [c.name]: value === '' ? undefined : Number(value)}));
+                                        }}
+                                        className="w-48 p-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                     />
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+             <div className="text-right mt-6 pt-4 border-t border-slate-200">
                  <button onClick={handleSaveFinancials} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 shadow-sm transition-all">
                      Sauvegarder les Frais
                  </button>

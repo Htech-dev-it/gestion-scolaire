@@ -112,6 +112,7 @@ export interface StudentWithEnrollment extends StudentProfile {
         id: number;
         className: string;
         mppa: number;
+        adjustments?: Adjustment[];
     }
 }
 

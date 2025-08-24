@@ -96,7 +96,7 @@ const sendSuperAdminNotificationEmail = async ({ actionType, performingUser, ins
         <ul style="list-style-type: none; padding: 0;">
             <li><strong>Type d'action :</strong> ${actionType}</li>
             <li><strong>Date et Heure :</strong> ${new Date().toLocaleString('fr-FR')}</li>
-            <li><strong>Effectuée par :</strong> Super Admin '${performingUser.username}' (ID: ${performingUser.id})</li>
+            <li><strong>Effectuée par :</strong> Super Admin '${performingUser.username}'</li>
         </ul>
 
         <h3 style="color: #1A202C;">Informations sur l'Instance concernée :</h3>
@@ -2338,11 +2338,17 @@ async function startServer() {
             const baseQuery = `
                 FROM students s
                 LEFT JOIN enrollments e ON s.id = e.student_id AND e.year_id = $1
+                LEFT JOIN class_financials cf ON e."className" = cf.class_name AND e.year_id = cf.year_id AND s.instance_id = cf.instance_id
             `;
             
             const countQuery = `SELECT COUNT(DISTINCT s.id) as total ${baseQuery}${whereClause}`;
             const dataQuery = `
-                SELECT s.*, e.id as enrollment_id, e."className", e.mppa
+                SELECT 
+                    s.*, 
+                    e.id as enrollment_id, 
+                    e."className", 
+                    COALESCE(NULLIF(e.mppa, 0), cf.mppa, 0) as mppa,
+                    e.adjustments
                 ${baseQuery}
                 ${whereClause}
                 ORDER BY s.nom, s.prenom
@@ -2358,7 +2364,7 @@ async function startServer() {
             ]);
             
             const total = parseInt(countResult.rows[0].total, 10);
-            const students = dataResult.rows.map(s => ({ ...s, enrollment: s.enrollment_id ? { id: s.enrollment_id, className: s.className, mppa: s.mppa } : undefined }));
+            const students = dataResult.rows.map(s => ({ ...s, enrollment: s.enrollment_id ? { id: s.enrollment_id, className: s.className, mppa: s.mppa, adjustments: s.adjustments || [] } : undefined }));
 
             res.json({
                 students,
@@ -2903,7 +2909,9 @@ async function startServer() {
             if (!yearId || !className) return res.status(400).json({ message: "Année et classe requises." });
 
             const query = `
-                SELECT e.*,
+                SELECT
+                    e.id, e.student_id, e.year_id, e."className", e.payments, e.grades_access_enabled, e.adjustments,
+                    COALESCE(NULLIF(e.mppa, 0), cf.mppa, 0) as mppa,
                     json_build_object(
                         'id', s.id, 'nom', s.nom, 'prenom', s.prenom, 'date_of_birth', s.date_of_birth,
                         'address', s.address, 'photo_url', s.photo_url, 'tutor_name', s.tutor_name,
@@ -2912,6 +2920,7 @@ async function startServer() {
                     ) as student
                 FROM enrollments e
                 JOIN students s ON e.student_id = s.id
+                LEFT JOIN class_financials cf ON e."className" = cf.class_name AND e.year_id = cf.year_id AND s.instance_id = cf.instance_id
                 WHERE e.year_id = $1 AND e."className" = $2 AND s.status = 'active' AND s.instance_id = $3
                 ORDER BY s.nom, s.prenom
             `;
@@ -2954,11 +2963,20 @@ async function startServer() {
             if (balanceFilter === 'nonzero') { conditions.push(`${balanceCondition} > 0`); }
             
             const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
-            const baseQuery = `FROM enrollments e JOIN students s ON e.student_id = s.id JOIN school_years y ON e.year_id = y.id ${whereClause}`;
+            const baseQuery = `
+                FROM enrollments e 
+                JOIN students s ON e.student_id = s.id 
+                JOIN school_years y ON e.year_id = y.id 
+                LEFT JOIN class_financials cf ON e."className" = cf.class_name AND e.year_id = cf.year_id AND s.instance_id = cf.instance_id
+                ${whereClause}
+            `;
 
             const countQuery = `SELECT COUNT(*) as total ${baseQuery}`;
             const dataQuery = `
-                SELECT e.*, s.nom, s.prenom, y.name as year_name 
+                SELECT 
+                    e.id, e.student_id, e.year_id, e."className", e.payments, e.grades_access_enabled, e.adjustments,
+                    s.nom, s.prenom, y.name as year_name,
+                    COALESCE(NULLIF(e.mppa, 0), cf.mppa, 0) as mppa
                 ${baseQuery}
                 ORDER BY y.name DESC, s.nom, s.prenom
                 LIMIT $${paramIndex++} OFFSET $${paramIndex++}
