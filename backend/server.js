@@ -389,7 +389,8 @@ async function startServer() {
 
         // --- AUTH & USER MANAGEMENT ---
         app.post('/api/login', asyncHandler(async (req, res) => {
-            const { username, password } = req.body;
+            const username = req.body.username?.trim();
+            const password = req.body.password?.trim();
             const client = await req.db.connect();
         
             try {
@@ -520,7 +521,10 @@ async function startServer() {
         }));
         
         app.post('/api/register', authenticateToken, requirePermission('user:manage'), asyncHandler(async (req, res) => {
-            const { username, password, roleIds } = req.body;
+            let { username, password, roleIds } = req.body;
+            username = username?.trim();
+            password = password?.trim();
+
             if (!username || !password) return res.status(400).json({ message: 'Nom d\'utilisateur et mot de passe requis' });
             
             const client = await req.db.connect();
@@ -625,7 +629,8 @@ async function startServer() {
 
 
         app.put('/api/user/change-password', authenticateToken, asyncHandler(async (req, res) => {
-            const { currentPassword, newPassword } = req.body;
+            const currentPassword = req.body.currentPassword?.trim();
+            const newPassword = req.body.newPassword?.trim();
             const { id: userId, username } = req.user;
             
             const { rows } = await req.db.query('SELECT * FROM users WHERE id = $1', [userId]);
@@ -684,7 +689,8 @@ async function startServer() {
         }));
 
         app.post('/api/roles', authenticateToken, requirePermission('role:manage'), asyncHandler(async (req, res) => {
-            const { name, permissionIds } = req.body;
+            let { name, permissionIds } = req.body;
+            name = name?.trim();
             const client = await req.db.connect();
             try {
                 await client.query('BEGIN');
@@ -707,7 +713,8 @@ async function startServer() {
 
         app.put('/api/roles/:id', authenticateToken, requirePermission('role:manage'), asyncHandler(async (req, res) => {
             const { id } = req.params;
-            const { name, permissionIds } = req.body;
+            let { name, permissionIds } = req.body;
+            name = name?.trim();
             const client = await req.db.connect();
             try {
                 await client.query('BEGIN');
@@ -767,7 +774,11 @@ async function startServer() {
         }));
 
         app.post('/api/superadmin/instances', authenticateToken, isAnySuperAdmin, asyncHandler(async (req, res) => {
-            const { name, admin_email, address, phone, sendEmail } = req.body;
+            let { name, admin_email, address, phone, sendEmail } = req.body;
+            name = name?.trim();
+            admin_email = admin_email?.trim();
+            address = address?.trim();
+            phone = phone?.trim();
             const client = await req.db.connect();
             let tempPassword; // Make it available in the outer scope
             let username = 'admin'; // Default admin username
@@ -831,7 +842,11 @@ async function startServer() {
 
         app.put('/api/superadmin/instances/:id/details', authenticateToken, isAnySuperAdmin, asyncHandler(async (req, res) => {
             const { id } = req.params;
-            const { name, address, phone, email } = req.body;
+            let { name, address, phone, email } = req.body;
+            name = name?.trim();
+            address = address?.trim();
+            phone = phone?.trim();
+            email = email?.trim();
             
             if (!name) {
                 return res.status(400).json({ message: 'Le nom de l\'instance est requis.' });
@@ -894,7 +909,7 @@ async function startServer() {
 
         app.delete('/api/superadmin/instances/:id', authenticateToken, isPrincipalSuperAdmin, asyncHandler(async (req, res) => {
             const { id } = req.params;
-            const { password } = req.body;
+            const password = req.body.password?.trim();
 
             if (!password) {
                 return res.status(400).json({ message: "Le mot de passe est requis pour la suppression." });
@@ -978,7 +993,11 @@ async function startServer() {
         }));
 
         app.post('/api/superadmin/superadmins', authenticateToken, isPrincipalSuperAdmin, asyncHandler(async(req, res) => {
-            const { username, password, email, sendEmail } = req.body;
+            let { username, password, email, sendEmail } = req.body;
+            username = username?.trim();
+            password = password?.trim();
+            email = email?.trim();
+            
             if (!username || !password) return res.status(400).json({ message: 'Nom d\'utilisateur et mot de passe requis.' });
             
             const { rows: existing } = await req.db.query('SELECT id FROM users WHERE username = $1', [username]);
@@ -1061,7 +1080,9 @@ async function startServer() {
         }));
 
         app.post('/api/superadmin/announcements', authenticateToken, isAnySuperAdmin, asyncHandler(async (req, res) => {
-            const { title, content, instance_id } = req.body;
+            let { title, content, instance_id } = req.body;
+            title = title?.trim();
+            content = content?.trim();
             const { rows } = await req.db.query(
                 'INSERT INTO announcements (title, content, instance_id) VALUES ($1, $2, $3) RETURNING *',
                 [title, content, instance_id || null]
@@ -1073,7 +1094,9 @@ async function startServer() {
 
         app.put('/api/superadmin/announcements/:id', authenticateToken, isAnySuperAdmin, asyncHandler(async (req, res) => {
             const { id } = req.params;
-            const { title, content, is_active, instance_id } = req.body;
+            let { title, content, is_active, instance_id } = req.body;
+            title = title?.trim();
+            content = content?.trim();
             const { rows } = await req.db.query(
                 'UPDATE announcements SET title = $1, content = $2, is_active = $3, instance_id = $4 WHERE id = $5 RETURNING *',
                 [title, content, is_active, instance_id || null, id]
@@ -1128,7 +1151,11 @@ async function startServer() {
         }));
         
         app.put('/api/instance/current', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
-            const { name, address, phone, email, logo_url, passing_grade } = req.body;
+            let { name, address, phone, email, logo_url, passing_grade } = req.body;
+            name = name?.trim();
+            address = address?.trim();
+            phone = phone?.trim();
+            email = email?.trim();
             await req.db.query(
                 'UPDATE instances SET name = $1, address = $2, phone = $3, email = $4, logo_url = $5, passing_grade = $6 WHERE id = $7',
                 [name, address, phone, email, logo_url, passing_grade, req.user.instance_id]
@@ -1274,7 +1301,12 @@ async function startServer() {
         }));
 
         app.post('/api/teachers', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
-            const { nom, prenom, email, phone, nif, sendEmail } = req.body;
+            let { nom, prenom, email, phone, nif, sendEmail } = req.body;
+            nom = nom?.trim();
+            prenom = prenom?.trim();
+            email = email?.trim();
+            phone = phone?.trim();
+            nif = nif?.trim();
 
             if (!nom || !prenom || !email || !phone || !nif) {
                 return res.status(400).json({ message: 'Tous les champs (Prénom, Nom, Email, Téléphone, NIF) sont obligatoires.' });
@@ -1338,7 +1370,12 @@ async function startServer() {
 
         app.put('/api/teachers/:id', authenticateToken, requirePermission('settings:manage_teachers'), asyncHandler(async (req, res) => {
             const { id } = req.params;
-            const { nom, prenom, email, phone, nif } = req.body;
+            let { nom, prenom, email, phone, nif } = req.body;
+            nom = nom?.trim();
+            prenom = prenom?.trim();
+            email = email?.trim();
+            phone = phone?.trim();
+            nif = nif?.trim();
             const instanceId = req.user.instance_id;
         
             if (!nom || !prenom || !email || !phone || !nif) {
@@ -1735,7 +1772,8 @@ async function startServer() {
         }));
 
         app.post('/api/school-years', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
-            const { name } = req.body;
+            let { name } = req.body;
+            name = name?.trim();
             const { rows } = await req.db.query('INSERT INTO school_years (name, instance_id) VALUES ($1, $2) RETURNING id', [name, req.user.instance_id]);
             res.status(201).json({ id: rows[0].id, name, is_current: false });
         }));
@@ -1782,7 +1820,8 @@ async function startServer() {
         }));
 
         app.post('/api/classes', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
-            const { name } = req.body;
+            let { name } = req.body;
+            name = name?.trim();
             if (!name) return res.status(400).json({ message: 'Le nom de la classe est requis.' });
 
             try {
@@ -1827,7 +1866,8 @@ async function startServer() {
 
         app.put('/api/classes/:id', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { id } = req.params;
-            const { name } = req.body;
+            let { name } = req.body;
+            name = name?.trim();
             if (!name) return res.status(400).json({ message: 'Le nom de la classe est requis.' });
             
             const client = await req.db.connect();
@@ -1901,7 +1941,8 @@ async function startServer() {
         }));
 
         app.post('/api/academic-periods', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
-            const { year_id, name } = req.body;
+            let { year_id, name } = req.body;
+            name = name?.trim();
             if (!year_id || !name) return res.status(400).json({ message: 'Year ID and name are required.' });
             
             const { rowCount } = await req.db.query('SELECT 1 FROM school_years WHERE id = $1 AND instance_id = $2', [year_id, req.user.instance_id]);
@@ -1919,7 +1960,8 @@ async function startServer() {
 
         app.put('/api/academic-periods/:id', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { id } = req.params;
-            const { name } = req.body;
+            let { name } = req.body;
+            name = name?.trim();
             const { rows } = await req.db.query(
                 `UPDATE academic_periods ap SET name = $1
                  FROM school_years sy
@@ -1952,7 +1994,8 @@ async function startServer() {
         }));
 
         app.post('/api/subjects', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
-            const { name } = req.body;
+            let { name } = req.body;
+            name = name?.trim();
             if (!name) return res.status(400).json({ message: 'Le nom de la matière est requis.' });
             try {
                 const { rows } = await req.db.query('INSERT INTO subjects (name, instance_id) VALUES ($1, $2) RETURNING id', [name, req.user.instance_id]);
@@ -1966,7 +2009,8 @@ async function startServer() {
         
         app.put('/api/subjects/:id', authenticateToken, requirePermission('settings:manage_academic'), asyncHandler(async (req, res) => {
             const { id } = req.params;
-            const { name } = req.body;
+            let { name } = req.body;
+            name = name?.trim();
             if (!name) return res.status(400).json({ message: 'Le nom de la matière est requis.' });
             const { rowCount } = await req.db.query('UPDATE subjects SET name = $1 WHERE id = $2 AND instance_id = $3', [name, id, req.user.instance_id]);
             if (rowCount === 0) return res.status(404).json({ message: 'Matière non trouvée ou accès refusé.' });
@@ -2195,7 +2239,8 @@ async function startServer() {
         }));
 
         app.post('/api/grades', authenticateToken, canManageGrades, asyncHandler(async (req, res) => {
-            const { enrollment_id, subject_id, period_id, evaluation_name, score, max_score } = req.body;
+            let { enrollment_id, subject_id, period_id, evaluation_name, score, max_score } = req.body;
+            evaluation_name = evaluation_name?.trim();
             
             if (!enrollment_id || !subject_id || !period_id || !evaluation_name || score === undefined || max_score === undefined) {
                 return res.status(400).json({ message: 'Données de note incomplètes.' });
@@ -2227,7 +2272,8 @@ async function startServer() {
 
         app.put('/api/grades/:id', authenticateToken, canManageGrades, asyncHandler(async (req, res) => {
             const { id } = req.params;
-            const { evaluation_name, score, max_score } = req.body;
+            let { evaluation_name, score, max_score } = req.body;
+            evaluation_name = evaluation_name?.trim();
             
             if (score > max_score || max_score <= 0) {
                 return res.status(400).json({ message: "La note ne peut pas être supérieure à son maximum et le maximum doit être positif." });
@@ -2395,6 +2441,17 @@ async function startServer() {
         app.post('/api/students', authenticateToken, requirePermission('student:create'), asyncHandler(async (req, res) => {
             const { enrollment, ...profileData } = req.body;
             let { id, nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref, sexe, nisu } = profileData;
+            
+            // Trim string fields
+            nom = nom?.trim();
+            prenom = prenom?.trim();
+            address = address?.trim();
+            tutor_name = tutor_name?.trim();
+            tutor_phone = tutor_phone?.trim();
+            tutor_email = tutor_email?.trim();
+            classe_ref = classe_ref?.trim();
+            nisu = nisu?.trim();
+
             const instance_id = req.user.instance_id;
 
             // --- BACKEND VALIDATION ---
@@ -2404,7 +2461,7 @@ async function startServer() {
             
             const { rows: existingStudent } = await req.db.query(
                 'SELECT id FROM students WHERE LOWER(nom) = LOWER($1) AND LOWER(prenom) = LOWER($2) AND instance_id = $3',
-                [nom.trim(), prenom.trim(), instance_id]
+                [nom, prenom, instance_id]
             );
 
             if (existingStudent.length > 0) {
@@ -2480,7 +2537,18 @@ async function startServer() {
         app.put('/api/students/:id', authenticateToken, requirePermission('student:update'), asyncHandler(async (req, res) => {
             const { id } = req.params;
             const { mppa, enrollmentId, ...profileData } = req.body;
-            const { nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref, sexe, nisu } = profileData;
+            let { nom, prenom, date_of_birth, address, photo_url, tutor_name, tutor_phone, tutor_email, medical_notes, classe_ref, sexe, nisu } = profileData;
+            
+            // Trim string fields
+            nom = nom?.trim();
+            prenom = prenom?.trim();
+            address = address?.trim();
+            tutor_name = tutor_name?.trim();
+            tutor_phone = tutor_phone?.trim();
+            tutor_email = tutor_email?.trim();
+            classe_ref = classe_ref?.trim();
+            nisu = nisu?.trim();
+
             const instance_id = req.user.instance_id;
 
             // --- BACKEND VALIDATION FOR UPDATE ---
@@ -2490,7 +2558,7 @@ async function startServer() {
 
             const { rows: existingStudent } = await req.db.query(
                 'SELECT id FROM students WHERE LOWER(nom) = LOWER($1) AND LOWER(prenom) = LOWER($2) AND instance_id = $3 AND id != $4',
-                [nom.trim(), prenom.trim(), instance_id, id]
+                [nom, prenom, instance_id, id]
             );
 
             if (existingStudent.length > 0) {
@@ -2645,7 +2713,8 @@ async function startServer() {
         }));
         
         app.put('/api/student/change-password', authenticateToken, isStudent, asyncHandler(async (req, res) => {
-            const { currentPassword, newPassword } = req.body;
+            const currentPassword = req.body.currentPassword?.trim();
+            const newPassword = req.body.newPassword?.trim();
             const { id: studentUserId, username } = req.user;
 
             const { rows } = await req.db.query('SELECT * FROM student_users WHERE id = $1', [studentUserId]);
@@ -3252,7 +3321,8 @@ async function startServer() {
         });
 
         app.post('/api/appreciations', authenticateToken, canManageAppreciations, asyncHandler(async (req, res) => {
-            const { enrollment_id, subject_id, period_id, text } = req.body;
+            let { enrollment_id, subject_id, period_id, text } = req.body;
+            text = text?.trim();
             // Security check
             const { rows } = await req.db.query('SELECT s.instance_id FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.id = $1', [enrollment_id]);
             if (rows.length === 0 || rows[0].instance_id !== req.user.instance_id) return res.status(403).json({ message: 'Accès refusé.' });
@@ -3265,7 +3335,8 @@ async function startServer() {
         }));
 
         app.post('/api/general-appreciations', authenticateToken, canManageAppreciations, asyncHandler(async (req, res) => {
-            const { enrollment_id, period_id, text } = req.body;
+            let { enrollment_id, period_id, text } = req.body;
+            text = text?.trim();
              // Security check
             const { rows } = await req.db.query('SELECT s.instance_id FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.id = $1', [enrollment_id]);
             if (rows.length === 0 || rows[0].instance_id !== req.user.instance_id) return res.status(403).json({ message: 'Accès refusé.' });
@@ -3463,7 +3534,8 @@ async function startServer() {
         }));
 
         app.post('/api/locations', authenticateToken, requirePermission('settings:manage_timetable'), asyncHandler(async (req, res) => {
-            const { name, capacity } = req.body;
+            let { name, capacity } = req.body;
+            name = name?.trim();
             const { rows } = await req.db.query(
                 'INSERT INTO locations (name, capacity, instance_id) VALUES ($1, $2, $3) RETURNING *',
                 [name, capacity || null, req.user.instance_id]
@@ -3473,11 +3545,12 @@ async function startServer() {
 
         app.put('/api/locations/:id', authenticateToken, requirePermission('settings:manage_timetable'), asyncHandler(async (req, res) => {
             const { id } = req.params;
-            const { name } = req.body;
-            if (!name || !name.trim()) {
+            let { name } = req.body;
+            name = name?.trim();
+            if (!name) {
                 return res.status(400).json({ message: 'Le nom de la salle est requis.' });
             }
-            const { rows } = await req.db.query('UPDATE locations SET name = $1 WHERE id = $2 AND instance_id = $3 RETURNING *', [name.trim(), id, req.user.instance_id]);
+            const { rows } = await req.db.query('UPDATE locations SET name = $1 WHERE id = $2 AND instance_id = $3 RETURNING *', [name, id, req.user.instance_id]);
             if (rows.length === 0) {
                 return res.status(404).json({ message: 'Salle non trouvée.' });
             }
@@ -3737,7 +3810,10 @@ async function startServer() {
         }));
 
         app.post('/api/resources', authenticateToken, isStaff, asyncHandler(async (req, res) => {
-            const { assignment_id, resource_type, title, url, file_name, mime_type, file_content } = req.body;
+            let { assignment_id, resource_type, title, url, file_name, mime_type, file_content } = req.body;
+            title = title?.trim();
+            url = url?.trim();
+            file_name = file_name?.trim();
             
             const { rows: assignmentCheck } = await req.db.query(`SELECT 1 FROM teacher_assignments ta JOIN teachers t ON ta.teacher_id = t.id WHERE ta.id = $1 AND t.instance_id = $2`, [assignment_id, req.user.instance_id]);
             if(assignmentCheck.length === 0) return res.status(403).json({ message: 'Assignation non autorisée.' });
@@ -3751,7 +3827,9 @@ async function startServer() {
 
         app.put('/api/resources/:id', authenticateToken, isStaff, asyncHandler(async (req, res) => {
             const { id } = req.params;
-            const { title, url } = req.body;
+            let { title, url } = req.body;
+            title = title?.trim();
+            url = url?.trim();
         
             const { rowCount } = await req.db.query(
                 `UPDATE resources r SET title = $1, url = $2
@@ -3789,7 +3867,9 @@ async function startServer() {
         }));
 
         app.put('/api/superadmin/settings', authenticateToken, isAnySuperAdmin, asyncHandler(async (req, res) => {
-            const { contact_email, contact_phone } = req.body;
+            let { contact_email, contact_phone } = req.body;
+            contact_email = contact_email?.trim();
+            contact_phone = contact_phone?.trim();
             const client = await req.db.connect();
             try {
                 await client.query('BEGIN');
@@ -3835,7 +3915,8 @@ async function startServer() {
 
         app.post('/api/superadmin/messages/:instanceId', authenticateToken, isAnySuperAdmin, asyncHandler(async (req, res) => {
             const { instanceId } = req.params;
-            const { content } = req.body;
+            let { content } = req.body;
+            content = content?.trim();
             const { rows } = await req.db.query(`INSERT INTO messages (instance_id, sender_role, sender_id, content, is_read_by_superadmin) VALUES ($1, 'superadmin', $2, $3, true) RETURNING *`, [instanceId, req.user.id, content]);
             res.status(201).json(rows[0]);
         }));
@@ -3853,7 +3934,8 @@ async function startServer() {
         }));
 
         app.post('/api/admin/messages', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
-            const { content } = req.body;
+            let { content } = req.body;
+            content = content?.trim();
             const { rows } = await req.db.query(`INSERT INTO messages (instance_id, sender_role, sender_id, content, is_read_by_superadmin) VALUES ($1, 'admin', $2, $3, false) RETURNING *`, [req.user.instance_id, req.user.id, content]);
             
             // --- NEW: Send email notification to super admin ---
