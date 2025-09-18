@@ -35,6 +35,7 @@ L'application est construite sur une architecture **Full-Stack robuste et modern
   - **React** & **TypeScript** : Pour des interfaces utilisateur sûres, réactives et maintenables.
   - **TailwindCSS** : Pour un design moderne et une interface esthétique.
   - **React Router** : Pour une navigation fluide au sein de l'application.
+  - **Progressive Web App (PWA)** : Capacités hors ligne complètes avec Service Workers, Cache API, et IndexedDB.
 
 - **Backend (Serveur)**
   - **Node.js** & **Express.js** : Pour une API serveur rapide, efficace et scalable.
@@ -169,6 +170,7 @@ La sécurité est une priorité fondamentale de la plateforme, assurée par un s
 - **Pagination Côté Serveur** pour gérer de grands volumes de données.
 - **Stockage Externe des Fichiers** pour une base de données allégée.
 - **Chargement Différé (`Lazy Loading`)** pour un chargement initial plus rapide.
+- **Capacités Hors Ligne (PWA)** : Grâce à un Service Worker, l'application met en cache les données et l'interface, permettant une utilisation fluide même sans connexion. Les modifications effectuées hors ligne sont sauvegardées et synchronisées automatiquement dès que la connexion est rétablie.
 
 ---
 

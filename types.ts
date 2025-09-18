@@ -224,6 +224,7 @@ export interface Role {
 
 // Auth-related types
 export type UserRole = 'admin' | 'teacher' | 'standard' | 'student' | 'superadmin' | 'superadmin_delegate';
+export type UserStatus = 'active' | 'temporary_password';
 
 export interface User {
     id: number;
@@ -235,6 +236,7 @@ export interface User {
     instance_id?: number | null; // Can be null for superadmin
     permissions?: string[]; // RBAC permissions
     roles?: Role[]; // RBAC assigned roles
+    status?: UserStatus; // For password policy
 }
 
 export interface StudentUser {

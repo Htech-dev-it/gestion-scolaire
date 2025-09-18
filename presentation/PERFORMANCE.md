@@ -42,3 +42,14 @@ Une application multi-instances doit être conçue pour la performance dès le d
 - **Problème** : Afficher des milliers de lignes dans un tableau peut bloquer le navigateur.
 - **Solution** : Le frontend n'affiche que de petites quantités de données à la fois, grâce à la pagination côté serveur.
 - **Impact** : L'interface reste toujours fluide et réactive.
+
+---
+
+## 3. Progressive Web App (PWA) & Stratégie "Offline-First"
+- **Problème** : Les environnements scolaires peuvent avoir une connectivité internet peu fiable, ce qui rend les applications web traditionnelles inutilisables.
+- **Solution** : ScolaLink est conçue comme une **Progressive Web App (PWA)** avec une approche "offline-first".
+    - **Service Worker** : Un script en arrière-plan gère le cache et la synchronisation.
+    - **Mise en Cache Intelligente** : L'interface de l'application (le "shell") et les données critiques sont mises en cache, permettant un chargement instantané et une consultation hors ligne.
+    - **File d'Attente de Synchronisation (Sync Queue)** : Toutes les modifications (ajout d'un élève, enregistrement d'un paiement, saisie d'une note) effectuées hors ligne sont sauvegardées de manière sécurisée dans une file d'attente locale (IndexedDB).
+    - **Synchronisation en Arrière-Plan** : Dès que la connexion internet est rétablie, le Service Worker envoie automatiquement les données en attente au serveur, sans intervention de l'utilisateur.
+- **Impact** : L'application est **extrêmement fiable**. Les utilisateurs peuvent continuer à travailler sans interruption, avec l'assurance que leurs données ne seront jamais perdues. Ils reçoivent une notification lorsque la synchronisation est terminée.

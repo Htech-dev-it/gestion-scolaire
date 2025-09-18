@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNotification } from '../../contexts/NotificationContext';
 import { apiFetch } from '../../utils/api';
+import PasswordStrengthIndicator from '../PasswordStrengthIndicator';
 
 interface PasswordData {
   currentPassword: string;
@@ -22,6 +23,17 @@ const StudentChangePasswordForm: React.FC = () => {
     setPasswordData(prev => ({ ...prev, [name]: value }));
   };
 
+   const validatePasswordStrength = (): boolean => {
+    const criteria = [
+      /.{11,}/,
+      /[a-z]/,
+      /[A-Z]/,
+      /[0-9]/,
+      /[^A-Za-z0-9]/,
+    ];
+    return criteria.every(regex => regex.test(passwordData.newPassword));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -29,8 +41,12 @@ const StudentChangePasswordForm: React.FC = () => {
       addNotification({ type: 'error', message: 'Les nouveaux mots de passe ne correspondent pas.' });
       return;
     }
-     if (passwordData.newPassword.length < 6) {
-      addNotification({ type: 'error', message: 'Le nouveau mot de passe doit contenir au moins 6 caractères.' });
+     if (!validatePasswordStrength()) {
+       addNotification({ type: 'error', message: 'Le nouveau mot de passe ne respecte pas tous les critères de sécurité.' });
+       return;
+    }
+    if (passwordData.currentPassword === passwordData.newPassword) {
+      addNotification({ type: 'error', message: 'Le nouveau mot de passe doit être différent de l\'ancien.' });
       return;
     }
 
@@ -109,6 +125,8 @@ const StudentChangePasswordForm: React.FC = () => {
           disabled={isLoading}
         />
       </div>
+      
+      <PasswordStrengthIndicator password={passwordData.newPassword} />
 
       <div className="flex justify-end pt-2">
         <button

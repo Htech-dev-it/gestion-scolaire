@@ -409,7 +409,7 @@ async function startServer() {
                 // 2. If not found, check student users in 'student_users' table
                 if (!user) {
                     let { rows: studentRows } = await client.query(`
-                        SELECT su.id, su.username, su.password_hash, su.student_id, s.instance_id, s.prenom, s.nom
+                        SELECT su.id, su.username, su.password_hash, su.student_id, su.status, s.instance_id, s.prenom, s.nom
                         FROM student_users su
                         JOIN students s ON su.student_id = s.id
                         WHERE su.username = $1 AND s.status = 'active'
@@ -423,6 +423,7 @@ async function startServer() {
                                 id: studentUser.id,
                                 username: studentUser.username,
                                 role: 'student',
+                                status: studentUser.status,
                                 instance_id: studentUser.instance_id,
                                 student_id: studentUser.student_id,
                                 prenom: studentUser.prenom,
@@ -499,7 +500,8 @@ async function startServer() {
                 const payload = {
                     id: user.id,
                     username: user.username,
-                    role: effectiveRole, // Use the effective role
+                    role: effectiveRole,
+                    status: user.status,
                     instance_id: user.instance_id,
                     permissions: userPermissions,
                     roles: userRoles,
@@ -538,7 +540,7 @@ async function startServer() {
                 }
                 
                 const hashedPassword = bcrypt.hashSync(password, 10);
-                const userResult = await client.query('INSERT INTO users (username, password_hash, role, instance_id) VALUES ($1, $2, $3, $4) RETURNING id', [username, hashedPassword, 'standard', req.user.instance_id]);
+                const userResult = await client.query("INSERT INTO users (username, password_hash, role, instance_id, status) VALUES ($1, $2, $3, $4, 'temporary_password')", [username, hashedPassword, 'standard', req.user.instance_id]);
                 const newUserId = userResult.rows[0].id;
 
                 if (roleIds && Array.isArray(roleIds) && roleIds.length > 0) {
@@ -627,12 +629,21 @@ async function startServer() {
             }
         }));
 
+        const validatePasswordStrength = (password) => {
+            if (!password || password.length < 11) return false;
+            const criteria = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/];
+            return criteria.every(regex => regex.test(password));
+        };
 
         app.put('/api/user/change-password', authenticateToken, asyncHandler(async (req, res) => {
             const currentPassword = req.body.currentPassword?.trim();
             const newPassword = req.body.newPassword?.trim();
             const { id: userId, username } = req.user;
             
+            if (!validatePasswordStrength(newPassword)) {
+                return res.status(400).json({ message: 'Le nouveau mot de passe ne respecte pas les critères de sécurité.' });
+            }
+
             const { rows } = await req.db.query('SELECT * FROM users WHERE id = $1', [userId]);
             const user = rows[0];
             
@@ -640,9 +651,49 @@ async function startServer() {
                 return res.status(401).json({ message: 'Le mot de passe actuel est incorrect.' });
             }
             const hashedNewPassword = bcrypt.hashSync(newPassword, 10);
-            await req.db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedNewPassword, userId]);
+            await req.db.query('UPDATE users SET password_hash = $1, status = $2 WHERE id = $3', [hashedNewPassword, 'active', userId]);
             await logActivity(req, 'PASSWORD_CHANGED', req.user.id, req.user.username, 'Mot de passe personnel mis à jour.');
             res.json({ message: 'Mot de passe mis à jour.' });
+        }));
+
+        app.put('/api/user/force-change-password', authenticateToken, asyncHandler(async (req, res) => {
+            const { newPassword } = req.body;
+            const { id: userId, username } = req.user;
+
+            if (!validatePasswordStrength(newPassword)) {
+                return res.status(400).json({ message: 'Le mot de passe ne respecte pas les critères de sécurité.' });
+            }
+
+            const client = await req.db.connect();
+            try {
+                await client.query('BEGIN');
+                
+                const { rows } = await client.query('SELECT status FROM users WHERE id = $1', [userId]);
+                if (rows.length === 0 || rows[0].status !== 'temporary_password') {
+                    return res.status(403).json({ message: 'Action non autorisée ou déjà effectuée.' });
+                }
+                
+                const hashedNewPassword = bcrypt.hashSync(newPassword, 10);
+                await client.query(
+                    "UPDATE users SET password_hash = $1, status = 'active' WHERE id = $2",
+                    [hashedNewPassword, userId]
+                );
+
+                const newPayload = { ...req.user, status: 'active' };
+                const accessToken = jwt.sign(newPayload, JWT_SECRET, { expiresIn: '8h' });
+
+                await client.query('COMMIT');
+                
+                await logActivity(req, 'PASSWORD_FORCED_CHANGE', userId, username, `Mot de passe mis à jour pour l'utilisateur '${username}'.`);
+
+                res.json({ accessToken });
+
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            } finally {
+                client.release();
+            }
         }));
 
         app.put('/api/users/:id/reset-password', authenticateToken, requirePermission('user:manage'), asyncHandler(async (req, res) => {
@@ -658,7 +709,7 @@ async function startServer() {
             const tempPassword = generateTempPassword();
             const hashedPassword = bcrypt.hashSync(tempPassword, 10);
         
-            await req.db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPassword, id]);
+            await req.db.query("UPDATE users SET password_hash = $1, status = 'temporary_password' WHERE id = $2", [hashedPassword, id]);
             
             await logActivity(req, 'USER_PASSWORD_RESET', id, userToReset.username, `Mot de passe de l'utilisateur '${userToReset.username}' réinitialisé.`);
             
@@ -796,7 +847,7 @@ async function startServer() {
                 const passwordHash = await bcrypt.hash(tempPassword, 10);
 
                 await client.query(
-                    'INSERT INTO users (username, password_hash, role, instance_id) VALUES ($1, $2, $3, $4)',
+                    "INSERT INTO users (username, password_hash, role, instance_id, status) VALUES ($1, $2, $3, $4, 'temporary_password')",
                     [username, passwordHash, 'admin', newInstance.id]
                 );
                 
@@ -946,7 +997,7 @@ async function startServer() {
 
             const tempPassword = generateTempPassword();
             const hashedPassword = bcrypt.hashSync(tempPassword, 10);
-            await req.db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPassword, userId]);
+            await req.db.query("UPDATE users SET password_hash = $1, status = 'temporary_password' WHERE id = $2", [hashedPassword, userId]);
             
             await logActivity(req, 'ADMIN_PASSWORD_RESET', userId, user.username, `Mot de passe de l'admin '${user.username}' (ID: ${userId}) réinitialisé.`);
             
@@ -1005,7 +1056,7 @@ async function startServer() {
 
             const passwordHash = await bcrypt.hash(password, 10);
             const { rows } = await req.db.query(
-                `INSERT INTO users (username, password_hash, role, instance_id, email) VALUES ($1, $2, 'superadmin_delegate', NULL, $3) RETURNING id, username, role, email`,
+                `INSERT INTO users (username, password_hash, role, instance_id, email, status) VALUES ($1, $2, 'superadmin_delegate', NULL, $3, 'temporary_password') RETURNING id, username, role, email`,
                 [username, passwordHash, email || null]
             );
             
@@ -1051,7 +1102,7 @@ async function startServer() {
 
             const tempPassword = generateTempPassword();
             const hashedPassword = bcrypt.hashSync(tempPassword, 10);
-            await req.db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPassword, id]);
+            await req.db.query("UPDATE users SET password_hash = $1, status = 'temporary_password' WHERE id = $2", [hashedPassword, id]);
             
             await logActivity(req, 'SUPERADMIN_DELEGATE_PASSWORD_RESET', id, userToReset.username, `Mot de passe du super admin délégué '${userToReset.username}' réinitialisé.`);
             
@@ -1326,7 +1377,7 @@ async function startServer() {
             try {
                 await client.query('BEGIN');
                 
-                const userResult = await client.query('INSERT INTO users (username, password_hash, role, instance_id) VALUES ($1, $2, $3, $4) RETURNING id', [username, hashedPassword, 'teacher', req.user.instance_id]);
+                const userResult = await client.query("INSERT INTO users (username, password_hash, role, instance_id, status) VALUES ($1, $2, $3, $4, 'temporary_password')", [username, hashedPassword, 'teacher', req.user.instance_id]);
                 const userId = userResult.rows[0].id;
                 
                 const teacherResult = await client.query('INSERT INTO teachers (nom, prenom, email, phone, nif, user_id, instance_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id', [formatLastName(nom), formatName(prenom), email, phone, nif, userId, req.user.instance_id]);
@@ -1420,7 +1471,7 @@ async function startServer() {
 
             const tempPassword = generateTempPassword();
             const hashedPassword = bcrypt.hashSync(tempPassword, 10);
-            await req.db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPassword, teacher.user_id]);
+            await req.db.query("UPDATE users SET password_hash = $1, status = 'temporary_password' WHERE id = $2", [hashedPassword, teacher.user_id]);
             
             await logActivity(req, 'TEACHER_PASSWORD_RESET', id.toString(), `${teacher.prenom} ${teacher.nom}`, `Mot de passe réinitialisé pour l'enseignant ${teacher.prenom} ${teacher.nom} (ID: ${id}).`);
             
@@ -2735,6 +2786,10 @@ async function startServer() {
             const newPassword = req.body.newPassword?.trim();
             const { id: studentUserId, username } = req.user;
 
+            if (!validatePasswordStrength(newPassword)) {
+                return res.status(400).json({ message: 'Le nouveau mot de passe ne respecte pas les critères de sécurité.' });
+            }
+
             const { rows } = await req.db.query('SELECT * FROM student_users WHERE id = $1', [studentUserId]);
             const studentUser = rows[0];
 
@@ -2746,6 +2801,45 @@ async function startServer() {
             
             await logActivity(req, 'STUDENT_PASSWORD_CHANGED', studentUserId, username, 'Mot de passe du portail mis à jour.');
             res.json({ message: 'Mot de passe mis à jour avec succès.' });
+        }));
+
+        app.put('/api/student/force-change-password', authenticateToken, isStudent, asyncHandler(async (req, res) => {
+            const { newPassword } = req.body;
+            const { id: studentUserId, username } = req.user;
+
+            if (!validatePasswordStrength(newPassword)) {
+                return res.status(400).json({ message: 'Le mot de passe ne respecte pas les critères de sécurité.' });
+            }
+            
+            const client = await req.db.connect();
+            try {
+                await client.query('BEGIN');
+                
+                const { rows } = await client.query('SELECT status FROM student_users WHERE id = $1', [studentUserId]);
+                if (rows.length === 0 || rows[0].status !== 'temporary_password') {
+                    return res.status(403).json({ message: 'Action non autorisée ou déjà effectuée.' });
+                }
+
+                const hashedNewPassword = bcrypt.hashSync(newPassword, 10);
+                await client.query(
+                    "UPDATE student_users SET password_hash = $1, status = 'active' WHERE id = $2",
+                    [hashedNewPassword, studentUserId]
+                );
+                
+                const newPayload = { ...req.user, status: 'active' };
+                const accessToken = jwt.sign(newPayload, JWT_SECRET, { expiresIn: '8h' });
+
+                await client.query('COMMIT');
+                
+                await logActivity(req, 'STUDENT_PASSWORD_FORCED_CHANGE', studentUserId, username, `Mot de passe du portail mis à jour (forcé) pour l'élève '${username}'.`);
+
+                res.json({ accessToken });
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            } finally {
+                client.release();
+            }
         }));
         
         app.get('/api/student/timetable', authenticateToken, isStudent, asyncHandler(async (req, res) => {

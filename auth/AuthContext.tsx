@@ -27,6 +27,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         id: decodedToken.id, 
         username: decodedToken.username, 
         role: decodedToken.role,
+        status: decodedToken.status, // Extract the status
         instance_id: decodedToken.instance_id,
         permissions: decodedToken.permissions || [],
         roles: decodedToken.roles || [],

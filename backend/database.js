@@ -116,6 +116,12 @@ async function setup() {
                 teacher_id INTEGER
             );
         `);
+        
+        // --- NEW: Add status column to users table for password policy ---
+        if (!await columnExists(client, 'users', 'status')) {
+            console.log("Migration: Ajout de 'status' à la table 'users'.");
+            await client.query(`ALTER TABLE users ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT 'active'`);
+        }
 
         // --- Step 2: Handle Migration from single-tenant (school_info) to multi-tenant (instances) ---
         
@@ -398,7 +404,7 @@ async function setup() {
         if (superAdminRows.length === 0) {
             const salt = await bcrypt.genSalt(10);
             const passwordHash = await bcrypt.hash('superpassword123', salt);
-            await client.query("INSERT INTO users (username, password_hash, role, instance_id) VALUES ($1, $2, $3, NULL)", ['superadmin', passwordHash, 'superadmin']);
+            await client.query("INSERT INTO users (username, password_hash, role, instance_id, status) VALUES ($1, $2, $3, NULL, 'active')", ['superadmin', passwordHash, 'superadmin']);
             console.log("Utilisateur 'superadmin' créé. Veuillez changer le mot de passe !");
         }
 
@@ -416,8 +422,8 @@ async function setup() {
         if (adminUserRows.length === 0) {
             const salt = await bcrypt.genSalt(10);
             const passwordHash = await bcrypt.hash('password123', salt);
-            await client.query('INSERT INTO users (username, password_hash, role, instance_id) VALUES ($1, $2, $3, $4)', ['admin', passwordHash, 'admin', instanceId]);
-            console.log(`Utilisateur 'admin' pour l'instance ${instanceId} créé. Veuillez changer le mot de passe !`);
+            await client.query("INSERT INTO users (username, password_hash, role, instance_id, status) VALUES ($1, $2, $3, $4, 'temporary_password')", ['admin', passwordHash, 'admin', instanceId]);
+            console.log(`Utilisateur 'admin' pour l'instance ${instanceId} créé. Mot de passe initial: 'password123'. Le changement sera forcé.`);
         }
 
         const { rows: yearRows } = await client.query('SELECT * FROM school_years WHERE instance_id = $1 LIMIT 1', [instanceId]);

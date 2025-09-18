@@ -23,6 +23,7 @@ import { useAuth } from './auth/AuthContext';
 import { StudentAccessProvider } from './contexts/StudentAccessContext';
 import LandingPage from './components/LandingPage';
 import { useNotification } from './contexts/NotificationContext';
+import ForcePasswordChangePage from './components/ForcePasswordChangePage';
 
 
 // Lazy load teacher, student, and superadmin pages
@@ -95,6 +96,16 @@ const App: React.FC = () => {
         <ReactRouterDOM.Route path="/" element={<LandingPage />} />
         <ReactRouterDOM.Route path="/login" element={<LoginPage />} />
         
+        {/* Standalone protected route without the main layout */}
+        <ReactRouterDOM.Route 
+            path="/force-password-change" 
+            element={
+                <ProtectedRoute>
+                    <ForcePasswordChangePage />
+                </ProtectedRoute>
+            }
+        />
+
         {/* Protected Routes with Header - Now uses the smart ProtectedLayout */}
         <ReactRouterDOM.Route element={<ProtectedRoute><ProtectedLayout /></ProtectedRoute>}>
           <ReactRouterDOM.Route path="/dashboard" element={<HomePage />} />

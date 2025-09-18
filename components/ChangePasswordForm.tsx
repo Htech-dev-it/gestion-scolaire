@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
+import PasswordStrengthIndicator from './PasswordStrengthIndicator';
 
 interface PasswordData {
   currentPassword: string;
@@ -22,6 +23,18 @@ const ChangePasswordForm: React.FC = () => {
     setPasswordData(prev => ({ ...prev, [name]: value }));
   };
 
+  const validatePasswordStrength = (): boolean => {
+    const criteria = [
+      /.{11,}/,
+      /[a-z]/,
+      /[A-Z]/,
+      /[0-9]/,
+      /[^A-Za-z0-9]/,
+    ];
+    return criteria.every(regex => regex.test(passwordData.newPassword));
+  };
+
+
   const validatePasswords = (): boolean => {
     if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
       addNotification({ type: 'error', message: 'Tous les champs sont requis.' });
@@ -31,9 +44,9 @@ const ChangePasswordForm: React.FC = () => {
       addNotification({ type: 'error', message: 'Les nouveaux mots de passe ne correspondent pas.' });
       return false;
     }
-    if (passwordData.newPassword.length < 6) {
-      addNotification({ type: 'error', message: 'Le nouveau mot de passe doit contenir au moins 6 caractères.' });
-      return false;
+    if (!validatePasswordStrength()) {
+       addNotification({ type: 'error', message: 'Le nouveau mot de passe ne respecte pas tous les critères de sécurité.' });
+       return false;
     }
     if (passwordData.currentPassword === passwordData.newPassword) {
       addNotification({ type: 'error', message: 'Le nouveau mot de passe doit être différent de l\'ancien.' });
@@ -106,11 +119,7 @@ const ChangePasswordForm: React.FC = () => {
           className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           required
           disabled={isLoading}
-          minLength={6}
         />
-        <p className="mt-1 text-xs text-slate-500">
-          Minimum 6 caractères
-        </p>
       </div>
 
       <div>
@@ -126,9 +135,10 @@ const ChangePasswordForm: React.FC = () => {
           className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           required
           disabled={isLoading}
-          minLength={6}
         />
       </div>
+
+      <PasswordStrengthIndicator password={passwordData.newPassword} />
 
       <div className="flex justify-end pt-2">
         <button
