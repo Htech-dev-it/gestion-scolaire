@@ -194,6 +194,40 @@ async function setup() {
             console.log("Migration: Ajout de 'adjustments' à la table 'enrollments'.");
             await client.query(`ALTER TABLE enrollments ADD COLUMN adjustments JSONB NOT NULL DEFAULT '[]'::jsonb`);
         }
+
+        // --- NEW MESSAGING & ANNOUNCEMENT TABLES ---
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS teacher_support_messages (
+                id SERIAL PRIMARY KEY,
+                teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+                instance_id INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+                sender_role VARCHAR(20) NOT NULL CHECK(sender_role IN ('teacher', 'admin')),
+                content TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                is_read_by_admin BOOLEAN NOT NULL DEFAULT false
+            );
+
+            CREATE TABLE IF NOT EXISTS teacher_announcements (
+                id SERIAL PRIMARY KEY,
+                instance_id INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS teacher_announcement_recipients (
+                announcement_id INTEGER NOT NULL REFERENCES teacher_announcements(id) ON DELETE CASCADE,
+                teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+                PRIMARY KEY (announcement_id, teacher_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS student_announcements (
+                id SERIAL PRIMARY KEY,
+                instance_id INTEGER NOT NULL REFERENCES instances(id) ON DELETE CASCADE,
+                content TEXT NOT NULL,
+                target_class_names TEXT[] NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
         
         // --- Step 3.5: Create RBAC Tables ---
         await client.query(`
@@ -307,6 +341,9 @@ async function setup() {
         await client.query('CREATE INDEX IF NOT EXISTS messages_instance_id_idx ON messages (instance_id);');
         await client.query('CREATE INDEX IF NOT EXISTS classes_instance_id_idx ON classes (instance_id);');
         await client.query('CREATE INDEX IF NOT EXISTS class_financials_instance_id_idx ON class_financials (instance_id);');
+        await client.query('CREATE INDEX IF NOT EXISTS teacher_support_messages_instance_id_idx ON teacher_support_messages (instance_id);');
+        await client.query('CREATE INDEX IF NOT EXISTS teacher_announcements_instance_id_idx ON teacher_announcements (instance_id);');
+        await client.query('CREATE INDEX IF NOT EXISTS student_announcements_instance_id_idx ON student_announcements (instance_id);');
 
 
         // Original indexes

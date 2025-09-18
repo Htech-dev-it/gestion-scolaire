@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiFetch } from '../utils/api';
+import * as db from '../utils/db';
 import { useNotification } from '../contexts/NotificationContext';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import { fileToBase64 } from '../utils/fileReader';
@@ -30,12 +31,17 @@ const AdminResourceManager: React.FC = () => {
     const [resourceToDelete, setResourceToDelete] = useState<Resource | null>(null);
     const [viewingResource, setViewingResource] = useState<Resource | null>(null);
 
+    const getCacheKey = useCallback(() => {
+        if (!selectedYear) return null;
+        return `/admin/resources?yearId=${selectedYear.id}`;
+    }, [selectedYear]);
+
     const fetchData = useCallback(async () => {
         if (!selectedYear) return;
         setIsLoading(true);
         try {
             const [resourcesData, assignmentsData] = await Promise.all([
-                apiFetch(`/admin/resources?yearId=${selectedYear.id}`),
+                apiFetch(getCacheKey()!),
                 apiFetch(`/full-assignments?yearId=${selectedYear.id}`)
             ]);
             setResources(resourcesData);
@@ -45,7 +51,7 @@ const AdminResourceManager: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [selectedYear, addNotification]);
+    }, [selectedYear, addNotification, getCacheKey]);
 
     useEffect(() => {
         fetchData();
@@ -85,10 +91,18 @@ const AdminResourceManager: React.FC = () => {
 
     const handleConfirmDelete = async () => {
         if (!resourceToDelete) return;
+        const cacheKey = getCacheKey()!;
         try {
-            await apiFetch(`/resources/${resourceToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: 'Ressource supprimée.' });
-            fetchData();
+            const result = await apiFetch(`/resources/${resourceToDelete.id}`, { method: 'DELETE' });
+            if (result?.queued) {
+                const updatedResources = resources.filter(r => r.id !== resourceToDelete.id);
+                setResources(updatedResources);
+                await db.saveData(cacheKey, updatedResources);
+                addNotification({ type: 'info', message: 'Suppression en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Ressource supprimée.' });
+                await fetchData();
+            }
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {
@@ -101,6 +115,7 @@ const AdminResourceManager: React.FC = () => {
         const isEditing = !!editingResource;
         const method = isEditing ? 'PUT' : 'POST';
         const url = isEditing ? `/resources/${editingResource!.id}` : '/resources';
+        const cacheKey = getCacheKey()!;
 
         let body: Partial<Resource> & { assignment_id?: number } = {
             title: formState.title,
@@ -118,7 +133,6 @@ const AdminResourceManager: React.FC = () => {
             body.resource_type = formState.resource_type;
         }
 
-
         try {
             if (body.resource_type === 'file') {
                  if (formState.file) {
@@ -132,10 +146,41 @@ const AdminResourceManager: React.FC = () => {
                 body.url = formState.url;
             }
             
-            await apiFetch(url, { method, body: JSON.stringify(body) });
-            addNotification({ type: 'success', message: `Ressource ${isEditing ? 'mise à jour' : 'ajoutée'}.` });
+            const result = await apiFetch(url, { method, body: JSON.stringify(body) });
+            
+            if (result?.queued) {
+                addNotification({ type: 'info', message: 'Action en attente de synchronisation.' });
+                const assignment = assignments.find(a => a.id === body.assignment_id);
+                // FIX: Construct a fully compliant `Resource` object for the optimistic update.
+                // This ensures all required properties are present, satisfying TypeScript.
+                const optimisticResource: Resource = {
+                    // When editing, spread the original. When creating, provide a base object.
+                    ...(editingResource || {
+                        id: Date.now(),
+                        assignment_id: Number(formState.assignment_id),
+                        resource_type: formState.resource_type,
+                        created_at: new Date().toISOString(),
+                        title: '' // Will be overwritten by body
+                    }),
+                    // Spread the new values from the form state.
+                    ...body,
+                    // Add joined fields for UI display.
+                    class_name: assignment?.class_name,
+                    subject_name: assignment?.subject_name,
+                    teacher_prenom: assignment?.teacher_prenom,
+                    teacher_nom: assignment?.teacher_nom,
+                };
+                const updatedResources = isEditing
+                    ? resources.map(r => r.id === editingResource!.id ? optimisticResource : r)
+                    : [optimisticResource, ...resources];
+                setResources(updatedResources);
+                await db.saveData(cacheKey, updatedResources);
+
+            } else {
+                addNotification({ type: 'success', message: `Ressource ${isEditing ? 'mise à jour' : 'ajoutée'}.` });
+                await fetchData();
+            }
             resetForm();
-            await fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -156,7 +201,6 @@ const AdminResourceManager: React.FC = () => {
                 subjects.set(assignment.subject_id, assignment.subject_name);
             }
         });
-        // Sort subjects alphabetically by name
         return Array.from(subjects, ([id, name]) => ({ id, name }))
             .sort((a, b) => a.name.localeCompare(b.name));
     }, [assignments]);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
+import * as db from '../utils/db';
 import type { Location, FullScheduleSlot, FullTeacherAssignment } from '../types';
 import ConfirmationModal from './ConfirmationModal';
 
@@ -138,14 +139,22 @@ const TimetableManager: React.FC = () => {
         return { timeSlots: slots, gridStartHour: minHour };
     }, [schedule]);
 
+    const getCacheKey = useCallback((type: 'locations' | 'schedule' | 'assignments') => {
+        if (!selectedYear) return null;
+        if (type === 'locations') return '/locations';
+        if (type === 'schedule') return `/timetable?yearId=${selectedYear.id}`;
+        if (type === 'assignments') return `/full-assignments?yearId=${selectedYear.id}`;
+        return null;
+    }, [selectedYear]);
+
     const fetchData = useCallback(async () => {
         if (!selectedYear) return;
         setIsLoading(true);
         try {
             const [locationsData, scheduleData, assignmentsData] = await Promise.all([
-                apiFetch('/locations'),
-                apiFetch(`/timetable?yearId=${selectedYear.id}`),
-                apiFetch(`/full-assignments?yearId=${selectedYear.id}`)
+                apiFetch(getCacheKey('locations')!),
+                apiFetch(getCacheKey('schedule')!),
+                apiFetch(getCacheKey('assignments')!)
             ]);
             setLocations(locationsData);
             setSchedule(scheduleData);
@@ -155,7 +164,7 @@ const TimetableManager: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [selectedYear, addNotification]);
+    }, [selectedYear, addNotification, getCacheKey]);
 
     useEffect(() => {
         fetchData();
@@ -179,13 +188,24 @@ const TimetableManager: React.FC = () => {
         const isEditing = !!editingLocation;
         const url = isEditing ? `/locations/${editingLocation!.id}` : '/locations';
         const method = isEditing ? 'PUT' : 'POST';
-
+        const cacheKey = getCacheKey('locations')!;
+        
         try {
-            await apiFetch(url, { method, body: JSON.stringify({ name: newLocationName }) });
-            addNotification({ type: 'success', message: `Salle ${isEditing ? 'mise à jour' : 'ajoutée'}.` });
+            const result = await apiFetch(url, { method, body: JSON.stringify({ name: newLocationName }) });
+            if (result?.queued) {
+                 addNotification({ type: 'info', message: 'Action en attente de synchronisation.' });
+                 const optimisticLoc = {id: isEditing ? editingLocation!.id : Date.now(), name: newLocationName, instance_id: 0 };
+                 const updatedLocations = isEditing 
+                    ? locations.map(loc => loc.id === editingLocation!.id ? optimisticLoc : loc)
+                    : [...locations, optimisticLoc];
+                 setLocations(updatedLocations);
+                 await db.saveData(cacheKey, updatedLocations);
+            } else {
+                addNotification({ type: 'success', message: `Salle ${isEditing ? 'mise à jour' : 'ajoutée'}.` });
+                await fetchData();
+            }
             setNewLocationName('');
             setEditingLocation(null);
-            fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -203,13 +223,22 @@ const TimetableManager: React.FC = () => {
 
     const handleConfirmDeleteLocation = async () => {
         if (!locationToDelete) return;
+        const cacheKey = getCacheKey('locations')!;
         try {
-            await apiFetch(`/locations/${locationToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: 'Salle supprimée.' });
-            setLocationToDelete(null);
-            fetchData();
+            const result = await apiFetch(`/locations/${locationToDelete.id}`, { method: 'DELETE' });
+             if (result?.queued) {
+                const updatedLocations = locations.filter(l => l.id !== locationToDelete.id);
+                setLocations(updatedLocations);
+                await db.saveData(cacheKey, updatedLocations);
+                addNotification({ type: 'info', message: 'Action en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Salle supprimée.' });
+                await fetchData();
+            }
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+        } finally {
+            setLocationToDelete(null);
         }
     };
 
@@ -217,12 +246,39 @@ const TimetableManager: React.FC = () => {
         const isEditing = !!modalState.slot?.id;
         const url = isEditing ? `/timetable/${modalState.slot!.id}` : '/timetable';
         const method = isEditing ? 'PUT' : 'POST';
+        const cacheKey = getCacheKey('schedule')!;
 
         try {
-            await apiFetch(url, { method, body: JSON.stringify(data) });
-            addNotification({ type: 'success', message: `Créneau ${isEditing ? 'mis à jour' : 'ajouté'}.` });
+            const result = await apiFetch(url, { method, body: JSON.stringify(data) });
+            if (result?.queued) {
+                addNotification({ type: 'info', message: 'Action en attente de synchronisation.' });
+                const assignment = assignments.find(a => a.id === data.assignment_id);
+                const location = locations.find(l => l.id === data.location_id);
+                const optimisticSlot: FullScheduleSlot = {
+                    ...(isEditing ? modalState.slot! : {}),
+                    id: isEditing ? modalState.slot!.id : Date.now(),
+                    ...data,
+                    start_time: data.start_time,
+                    end_time: data.end_time,
+                    class_name: assignment?.class_name || '',
+                    teacher_id: assignment?.teacher_id || 0,
+                    teacher_prenom: assignment?.teacher_prenom || '',
+                    teacher_nom: assignment?.teacher_nom || '',
+                    subject_id: assignment?.subject_id || 0,
+                    subject_name: assignment?.subject_name || '',
+                    location_name: location?.name || null,
+                };
+                const updatedSchedule = isEditing 
+                    ? schedule.map(s => s.id === modalState.slot!.id ? optimisticSlot : s)
+                    : [...schedule, optimisticSlot];
+                setSchedule(updatedSchedule);
+                await db.saveData(cacheKey, updatedSchedule);
+
+            } else {
+                addNotification({ type: 'success', message: `Créneau ${isEditing ? 'mis à jour' : 'ajouté'}.` });
+                await fetchData();
+            }
             setModalState({ isOpen: false });
-            fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -230,10 +286,18 @@ const TimetableManager: React.FC = () => {
     
     const handleConfirmDeleteSlot = async () => {
         if (!slotToDelete) return;
+        const cacheKey = getCacheKey('schedule')!;
         try {
-            await apiFetch(`/timetable/${slotToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: 'Créneau supprimé.' });
-            fetchData();
+            const result = await apiFetch(`/timetable/${slotToDelete.id}`, { method: 'DELETE' });
+            if (result?.queued) {
+                const updatedSchedule = schedule.filter(s => s.id !== slotToDelete.id);
+                setSchedule(updatedSchedule);
+                await db.saveData(cacheKey, updatedSchedule);
+                addNotification({ type: 'info', message: 'Action en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Créneau supprimé.' });
+                await fetchData();
+            }
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {

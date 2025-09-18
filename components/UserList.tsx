@@ -3,6 +3,7 @@ import * as ReactRouterDOM from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
+import * as db from '../utils/db';
 import ConfirmationModal from './ConfirmationModal';
 import { User, Role } from '../types';
 import Tooltip from './Tooltip';
@@ -212,11 +213,12 @@ const UserList: React.FC = () => {
   const [userToReset, setUserToReset] = useState<User | null>(null);
   const [userToManageRoles, setUserToManageRoles] = useState<User | null>(null);
   const [credentials, setCredentials] = useState<{ username: string, tempPassword: string } | null>(null);
+  const cacheKey = '/users';
 
   const fetchData = useCallback(async () => {
     try {
       const [usersData, rolesData] = await Promise.all([
-        apiFetch('/users'),
+        apiFetch(cacheKey),
         apiFetch('/roles')
       ]);
       setUsers(usersData);
@@ -235,9 +237,16 @@ const UserList: React.FC = () => {
   const handleDeleteConfirm = async () => {
     if (!userToDelete) return;
     try {
-      await apiFetch(`/delete-user/${userToDelete.id}`, { method: 'DELETE' });
-      addNotification({ type: 'success', message: 'Utilisateur supprimé.' });
-      fetchData();
+      const result = await apiFetch(`/delete-user/${userToDelete.id}`, { method: 'DELETE' });
+      if (result?.queued) {
+          const updatedUsers = users.filter(u => u.id !== userToDelete.id);
+          setUsers(updatedUsers);
+          await db.saveData(cacheKey, updatedUsers);
+          addNotification({ type: 'info', message: 'Suppression en attente de synchronisation.' });
+      } else {
+          addNotification({ type: 'success', message: 'Utilisateur supprimé.' });
+          await fetchData();
+      }
     } catch (err) {
       if (err instanceof Error) addNotification({ type: 'error', message: err.message });
     } finally {
@@ -249,8 +258,12 @@ const UserList: React.FC = () => {
     if (!userToReset) return;
     try {
       const data = await apiFetch(`/users/${userToReset.id}/reset-password`, { method: 'PUT' });
-      addNotification({ type: 'success', message: `Mot de passe pour ${userToReset.username} réinitialisé.` });
-      setCredentials(data);
+      if (data?.queued) {
+           addNotification({ type: 'info', message: 'Réinitialisation en attente de synchronisation.' });
+      } else {
+        addNotification({ type: 'success', message: `Mot de passe pour ${userToReset.username} réinitialisé.` });
+        setCredentials(data);
+      }
     } catch (error) {
       if (error instanceof Error) addNotification({ type: 'error', message: error.message });
     } finally {
@@ -260,13 +273,25 @@ const UserList: React.FC = () => {
 
   const handleSaveRoles = async (userId: number, roleIds: number[]) => {
       try {
-          await apiFetch(`/users/${userId}/roles`, {
+          const result = await apiFetch(`/users/${userId}/roles`, {
               method: 'PUT',
               body: JSON.stringify({ roleIds }),
           });
-          addNotification({ type: 'success', message: 'Rôles mis à jour.'});
+          if (result?.queued) {
+                const updatedUsers = users.map(u => {
+                    if (u.id === userId) {
+                        return { ...u, roles: roles.filter(r => roleIds.includes(r.id)) };
+                    }
+                    return u;
+                });
+                setUsers(updatedUsers);
+                await db.saveData(cacheKey, updatedUsers);
+                addNotification({ type: 'info', message: 'Mise à jour des rôles en attente de synchronisation.'});
+          } else {
+              addNotification({ type: 'success', message: 'Rôles mis à jour.'});
+              await fetchData();
+          }
           setUserToManageRoles(null);
-          fetchData();
       } catch (error) {
           if (error instanceof Error) addNotification({ type: 'error', message: error.message });
       }

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import * as ReactRouterDOM from 'react-router-dom';
 import type { Enrollment, Grade, SchoolYear, Instance, AcademicPeriod, ClassSubject } from '../types';
 import { apiFetch } from '../utils/api';
+import * as db from '../utils/db';
 import { useNotification } from '../contexts/NotificationContext';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import GradebookModal from './GradebookModal';
@@ -640,6 +641,11 @@ const ReportCardPage: React.FC = () => {
     
     const appreciationSaveTimeout = useRef<number | null>(null);
 
+    const getCacheKey = useCallback(() => {
+        if (!selectedYear || !selectedClass || !selectedPeriodId) return null;
+        return `/bulk-report-data?yearId=${selectedYear.id}&className=${selectedClass}&periodId=${selectedPeriodId}`;
+    }, [selectedYear, selectedClass, selectedPeriodId]);
+
     useEffect(() => {
         if (classes.length > 0 && !selectedClass) {
             setSelectedClass(classes[0].name);
@@ -670,13 +676,14 @@ const ReportCardPage: React.FC = () => {
     }, [selectedYear, addNotification]);
 
     const fetchClassData = useCallback(async () => {
-        if (!selectedYear || !selectedClass || !selectedPeriodId) {
+        const cacheKey = getCacheKey();
+        if (!cacheKey) {
             setClassData(null);
             return;
         }
         setIsLoading(true);
         try {
-            const data = await apiFetch(`/bulk-report-data?yearId=${selectedYear.id}&className=${selectedClass}&periodId=${selectedPeriodId}`);
+            const data = await apiFetch(cacheKey);
             setClassData(data);
             setSelectedStudentIds(new Set(data.enrollments.map((en: Enrollment) => en.id)));
         } catch (error) {
@@ -684,7 +691,7 @@ const ReportCardPage: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [selectedYear, selectedClass, selectedPeriodId, addNotification]);
+    }, [getCacheKey, addNotification]);
     
     useEffect(() => { fetchClassData(); }, [fetchClassData]);
     
@@ -765,43 +772,55 @@ const ReportCardPage: React.FC = () => {
     };
 
     const handleAppreciationChange = (enrollmentId: number, subjectId: number, value: string) => {
+        // Optimistic UI update
+        const updatedClassData = JSON.parse(JSON.stringify(classData));
+        if (!updatedClassData.appreciationsByEnrollment[enrollmentId]) updatedClassData.appreciationsByEnrollment[enrollmentId] = {};
+        updatedClassData.appreciationsByEnrollment[enrollmentId][subjectId] = value;
+        setClassData(updatedClassData);
         setAppreciations(prev => ({...prev, [enrollmentId]: { ...(prev[enrollmentId] || {}), [subjectId]: value }}));
+        
         if (appreciationSaveTimeout.current) clearTimeout(appreciationSaveTimeout.current);
-        appreciationSaveTimeout.current = window.setTimeout(() => {
-            apiFetch('/appreciations', {
-                method: 'POST',
-                body: JSON.stringify({ enrollment_id: enrollmentId, subject_id: subjectId, period_id: selectedPeriodId, text: value })
-            })
-            .then(() => {
-                setClassData(prevData => {
-                    if (!prevData) return null;
-                    const newAppreciations = JSON.parse(JSON.stringify(prevData.appreciationsByEnrollment));
-                    if (!newAppreciations[enrollmentId]) newAppreciations[enrollmentId] = {};
-                    newAppreciations[enrollmentId][subjectId] = value;
-                    return { ...prevData, appreciationsByEnrollment: newAppreciations };
+        
+        appreciationSaveTimeout.current = window.setTimeout(async () => {
+            try {
+                const result = await apiFetch('/appreciations', {
+                    method: 'POST',
+                    body: JSON.stringify({ enrollment_id: enrollmentId, subject_id: subjectId, period_id: selectedPeriodId, text: value })
                 });
-            })
-            .catch(err => addNotification({ type: 'error', message: `Sauvegarde échouée: ${err.message}` }));
+                if (result?.queued) {
+                    const cacheKey = getCacheKey();
+                    if(cacheKey) await db.saveData(cacheKey, updatedClassData);
+                }
+            } catch (err) {
+                 if (err instanceof Error) addNotification({ type: 'error', message: `Sauvegarde échouée: ${err.message}` });
+                 fetchClassData(); // Revert on error
+            }
         }, 1000);
     };
 
     const handleGeneralAppreciationChange = (enrollmentId: number, value: string) => {
+        // Optimistic UI update
+        const updatedClassData = JSON.parse(JSON.stringify(classData));
+        updatedClassData.generalAppreciationsByEnrollment[enrollmentId] = value;
+        setClassData(updatedClassData);
         setGeneralAppreciations(prev => ({...prev, [enrollmentId]: value }));
+
         if (appreciationSaveTimeout.current) clearTimeout(appreciationSaveTimeout.current);
-        appreciationSaveTimeout.current = window.setTimeout(() => {
-            apiFetch('/general-appreciations', {
-                method: 'POST',
-                body: JSON.stringify({ enrollment_id: enrollmentId, period_id: selectedPeriodId, text: value })
-            })
-            .then(() => {
-                 setClassData(prevData => {
-                    if (!prevData) return null;
-                    const newGeneralAppreciations = { ...prevData.generalAppreciationsByEnrollment };
-                    newGeneralAppreciations[enrollmentId] = value;
-                    return { ...prevData, generalAppreciationsByEnrollment: newGeneralAppreciations };
+
+        appreciationSaveTimeout.current = window.setTimeout(async () => {
+            try {
+                const result = await apiFetch('/general-appreciations', {
+                    method: 'POST',
+                    body: JSON.stringify({ enrollment_id: enrollmentId, period_id: selectedPeriodId, text: value })
                 });
-            })
-            .catch(err => addNotification({ type: 'error', message: `Sauvegarde échouée: ${err.message}` }));
+                if (result?.queued) {
+                    const cacheKey = getCacheKey();
+                    if(cacheKey) await db.saveData(cacheKey, updatedClassData);
+                }
+            } catch (err) {
+                if (err instanceof Error) addNotification({ type: 'error', message: `Sauvegarde échouée: ${err.message}` });
+                fetchClassData(); // Revert on error
+            }
         }, 1000);
     };
     

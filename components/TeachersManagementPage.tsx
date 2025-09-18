@@ -3,6 +3,7 @@ import * as ReactRouterDOM from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
+import * as db from '../utils/db';
 import type { Teacher } from '../types';
 import ConfirmationModal from './ConfirmationModal';
 import TeacherAssignmentModal from './TeacherAssignmentModal';
@@ -59,12 +60,13 @@ const TeacherManager: React.FC<{
     const [formState, setFormState] = useState({ nom: '', prenom: '', email: '', phone: '', nif: '', sendEmail: true });
     const [teacherToDelete, setTeacherToDelete] = useState<Teacher | null>(null);
     const [credentials, setCredentials] = useState<{ username: string, tempPassword: string } | null>(null);
+    const cacheKey = '/teachers';
 
 
     const fetchTeachers = useCallback(async () => {
         setIsLoading(true);
         try {
-            const data = await apiFetch('/teachers');
+            const data = await apiFetch(cacheKey);
             setTeachers(data);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
@@ -103,13 +105,30 @@ const TeacherManager: React.FC<{
         const method = isEditing ? 'PUT' : 'POST';
 
         try {
-            const data = await apiFetch(url, { method, body: JSON.stringify(formState) });
-            addNotification({ type: 'success', message: `Le professeur ${formState.prenom} a été ${isEditing ? 'mis à jour' : 'ajouté'}.` });
-            if (!isEditing && data.username && data.tempPassword) {
-                setCredentials({ username: data.username, tempPassword: data.tempPassword });
+            const result = await apiFetch(url, { method, body: JSON.stringify(formState) });
+            if (result?.queued) {
+                addNotification({ type: 'info', message: `Action pour le professeur ${formState.prenom} en attente de synchronisation.` });
+                
+                let optimisticTeacher: Teacher;
+                if (isEditing) {
+                    optimisticTeacher = { ...editingTeacher!, ...formState };
+                    const updatedTeachers = teachers.map(t => t.id === editingTeacher!.id ? optimisticTeacher : t);
+                    setTeachers(updatedTeachers);
+                    await db.saveData(cacheKey, updatedTeachers);
+                } else {
+                    // This is a simplification. The full teacher object needs more data.
+                    // A full refresh on sync is better for creations.
+                    // For now, we just give feedback.
+                }
+
+            } else {
+                 addNotification({ type: 'success', message: `Le professeur ${formState.prenom} a été ${isEditing ? 'mis à jour' : 'ajouté'}.` });
+                 if (!isEditing && result.username && result.tempPassword) {
+                    setCredentials({ username: result.username, tempPassword: result.tempPassword });
+                 }
+                 await fetchTeachers();
             }
             resetForm();
-            await fetchTeachers();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -120,11 +139,12 @@ const TeacherManager: React.FC<{
             const data = await apiFetch(`/teachers/${teacher.id}/reset-password`, { method: 'PUT' });
             
             if (data.tempPassword) {
-                // Case 1: API returned credentials because no email is available. Show the modal.
                 addNotification({ type: 'info', message: `Mot de passe pour ${teacher.prenom} réinitialisé. Veuillez le noter.` });
                 setCredentials({ username: teacher.username, tempPassword: data.tempPassword });
-            } else {
-                // Case 2: API sent an email and returned a confirmation message. Show a notification.
+            } else if (data.queued) {
+                 addNotification({ type: 'info', message: 'La réinitialisation du mot de passe est en attente de synchronisation.' });
+            }
+            else {
                 addNotification({ type: 'success', message: data.message || `Le mot de passe pour ${teacher.prenom} a été réinitialisé et envoyé par email.` });
             }
         } catch (error) {
@@ -135,10 +155,17 @@ const TeacherManager: React.FC<{
     const handleDeleteConfirm = async () => {
         if (!teacherToDelete) return;
         try {
-            await apiFetch(`/teachers/${teacherToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: 'Professeur supprimé.' });
+            const result = await apiFetch(`/teachers/${teacherToDelete.id}`, { method: 'DELETE' });
+            if (result?.queued) {
+                const updatedTeachers = teachers.filter(t => t.id !== teacherToDelete.id);
+                setTeachers(updatedTeachers);
+                await db.saveData(cacheKey, updatedTeachers);
+                addNotification({ type: 'info', message: 'Suppression en attente de synchronisation.' });
+            } else {
+                 addNotification({ type: 'success', message: 'Professeur supprimé.' });
+                 await fetchTeachers();
+            }
             setTeacherToDelete(null);
-            await fetchTeachers();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }

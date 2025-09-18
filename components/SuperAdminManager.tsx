@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../utils/api';
+import * as db from '../utils/db';
 import { useNotification } from '../contexts/NotificationContext';
 import type { User } from '../types';
 import ConfirmationModal from './ConfirmationModal';
@@ -52,11 +53,12 @@ const SuperAdminManager: React.FC = () => {
     const [userToDelete, setUserToDelete] = useState<User | null>(null);
     const [userToReset, setUserToReset] = useState<User | null>(null);
     const [credentials, setCredentials] = useState<{ username: string, tempPassword: string } | null>(null);
+    const cacheKey = '/superadmin/superadmins';
 
     const fetchSuperAdmins = useCallback(async () => {
         setIsLoading(true);
         try {
-            const data = await apiFetch('/superadmin/superadmins');
+            const data = await apiFetch(cacheKey);
             setSuperAdmins(data);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
@@ -72,13 +74,22 @@ const SuperAdminManager: React.FC = () => {
     const handleCreate = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const data = await apiFetch('/superadmin/superadmins', {
+            const result = await apiFetch('/superadmin/superadmins', {
                 method: 'POST',
                 body: JSON.stringify(formState)
             });
-            addNotification({ type: 'success', message: data.message || `Super admin délégué '${formState.username}' créé.` });
-            setFormState({ username: '', password: '', email: '', sendEmail: true });
-            fetchSuperAdmins();
+
+            if (result?.queued) {
+                 const optimisticUser: User = { id: Date.now(), username: formState.username, role: 'superadmin_delegate' };
+                 const updatedAdmins = [...superAdmins, optimisticUser];
+                 setSuperAdmins(updatedAdmins);
+                 await db.saveData(cacheKey, updatedAdmins);
+                 addNotification({ type: 'info', message: "Ajout en attente de synchronisation." });
+            } else {
+                 addNotification({ type: 'success', message: result.message || `Super admin délégué '${formState.username}' créé.` });
+                 await fetchSuperAdmins();
+            }
+             setFormState({ username: '', password: '', email: '', sendEmail: true });
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -103,9 +114,16 @@ const SuperAdminManager: React.FC = () => {
     const handleDeleteConfirm = async () => {
         if (!userToDelete) return;
         try {
-            await apiFetch(`/superadmin/superadmins/${userToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: `Le compte de ${userToDelete.username} a été supprimé.` });
-            fetchSuperAdmins();
+            const result = await apiFetch(`/superadmin/superadmins/${userToDelete.id}`, { method: 'DELETE' });
+             if (result?.queued) {
+                const updatedAdmins = superAdmins.filter(u => u.id !== userToDelete.id);
+                setSuperAdmins(updatedAdmins);
+                await db.saveData(cacheKey, updatedAdmins);
+                addNotification({ type: 'info', message: "Suppression en attente de synchronisation." });
+            } else {
+                addNotification({ type: 'success', message: `Le compte de ${userToDelete.username} a été supprimé.` });
+                await fetchSuperAdmins();
+            }
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {
@@ -145,7 +163,7 @@ const SuperAdminManager: React.FC = () => {
                         </div>
                         {user.id !== currentUser?.id && (
                              <div className="flex items-center gap-2">
-                                <button onClick={() => setUserToReset(user)} className="px-3 py-1 text-xs text-yellow-800 bg-yellow-200 rounded-full hover:bg-yellow-300">Réinitialiser MDP</button>
+                                <button onClick={() => setUserToReset(user)} className="px-3 py-1 text-xs font-medium text-yellow-800 bg-yellow-200 rounded-full hover:bg-yellow-300">Réinitialiser MDP</button>
                                 <button onClick={() => setUserToDelete(user)} className="px-3 py-1 text-xs text-white bg-red-600 rounded-full hover:bg-red-700">Supprimer</button>
                             </div>
                         )}

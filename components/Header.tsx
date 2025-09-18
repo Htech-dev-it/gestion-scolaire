@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import { useStudentAccess } from '../contexts/StudentAccessContext';
 import Tooltip from './Tooltip';
+import { useNotification } from '../contexts/NotificationContext';
+
 
 const NavLink: React.FC<{ to: string, children: React.ReactNode, isDisabled?: boolean, onClick?: () => void }> = ({ to, children, isDisabled = false, onClick }) => {
     const location = ReactRouterDOM.useLocation();
@@ -49,6 +51,27 @@ const Header: React.FC = () => {
   const { schoolYears, selectedYear, setSelectedYearById, isLoading } = useSchoolYear();
   const navigate = ReactRouterDOM.useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { addNotification } = useNotification();
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => {
+        setIsOnline(true);
+        addNotification({ type: 'success', message: 'Vous êtes de nouveau en ligne.' });
+    };
+    const handleOffline = () => {
+        setIsOnline(false);
+        addNotification({ type: 'warning', message: 'Vous êtes maintenant hors ligne.' });
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+    };
+  }, [addNotification]);
 
   const handleLogout = () => {
     setIsMobileMenuOpen(false);
@@ -131,6 +154,9 @@ const Header: React.FC = () => {
                     <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
                 </div>
             </div>
+             <Tooltip text={isOnline ? "En ligne" : "Hors ligne. Vos modifications seront synchronisées plus tard."}>
+                <div className={`w-3 h-3 rounded-full transition-colors ${isOnline ? 'bg-green-500' : 'bg-slate-400 animate-pulse'}`}></div>
+            </Tooltip>
         </div>
 
         {/* Desktop Menu */}

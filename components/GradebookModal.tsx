@@ -8,19 +8,26 @@ import { useAuth } from '../auth/AuthContext';
 
 const GradeRow: React.FC<{
     grade: Grade;
+    allGrades: Grade[];
     onUpdate: (id: number, data: Partial<Grade>) => void;
     onDeleteRequest: (grade: Grade) => void;
     addNotification: (notification: { type: 'error' | 'success' | 'info' | 'warning'; message: string; }) => void;
-}> = ({ grade, onUpdate, onDeleteRequest, addNotification }) => {
+}> = ({ grade, allGrades, onUpdate, onDeleteRequest, addNotification }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [form, setForm] = useState({ evaluation_name: grade.evaluation_name, score: grade.score, max_score: grade.max_score });
 
     const handleUpdate = () => {
+        const trimmedName = form.evaluation_name.trim();
         if (form.score > form.max_score) {
             addNotification({ type: 'error', message: "La note ne peut pas être supérieure à la note maximale." });
             return;
         }
-        onUpdate(grade.id, form);
+        if (allGrades.some(g => g.id !== grade.id && g.evaluation_name.trim().toLowerCase() === trimmedName.toLowerCase())) {
+            addNotification({ type: 'error', message: `Une autre évaluation nommée "${trimmedName}" existe déjà.` });
+            return;
+        }
+
+        onUpdate(grade.id, { ...form, evaluation_name: trimmedName });
         setIsEditing(false);
     };
 
@@ -54,21 +61,27 @@ const AddGradeForm: React.FC<{
     enrollmentId: number;
     periodId: number;
     onAdd: () => void;
-}> = ({ subjectId, enrollmentId, periodId, onAdd }) => {
+    existingGrades: Grade[];
+}> = ({ subjectId, enrollmentId, periodId, onAdd, existingGrades }) => {
     const { addNotification } = useNotification();
     const [form, setForm] = useState({ evaluation_name: '', score: 0, max_score: 20 });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!form.evaluation_name.trim()) return addNotification({ type: 'error', message: "Le nom de l'évaluation est requis." });
+        const trimmedName = form.evaluation_name.trim();
+        if (!trimmedName) return addNotification({ type: 'error', message: "Le nom de l'évaluation est requis." });
         if (form.score > form.max_score) return addNotification({ type: 'error', message: "La note ne peut pas être supérieure à la note maximale." });
+        
+        if (existingGrades.some(g => g.evaluation_name.trim().toLowerCase() === trimmedName.toLowerCase())) {
+            return addNotification({ type: 'error', message: `Une évaluation nommée "${trimmedName}" existe déjà.` });
+        }
         
         setIsSubmitting(true);
         try {
             await apiFetch('/grades', {
                 method: 'POST',
-                body: JSON.stringify({ ...form, subject_id: subjectId, enrollment_id: enrollmentId, period_id: periodId }),
+                body: JSON.stringify({ ...form, evaluation_name: trimmedName, subject_id: subjectId, enrollment_id: enrollmentId, period_id: periodId }),
             });
             addNotification({ type: 'success', message: 'Note ajoutée.' });
             setForm({ evaluation_name: '', score: 0, max_score: 20 });
@@ -156,10 +169,10 @@ const SubjectGradeSection: React.FC<{
                     {grades.length > 0 ? (
                         <table className="w-full text-sm">
                             <thead className="border-b"><tr><th className="p-2 text-left font-medium text-slate-500">Évaluation</th><th className="p-2 font-medium text-slate-500">Note</th><th className="p-2 font-medium text-slate-500">Sur</th><th className="p-2 font-medium text-slate-500">%</th><th className="p-2"></th></tr></thead>
-                            <tbody>{grades.map(grade => <GradeRow key={grade.id} grade={grade} onUpdate={handleUpdateGrade} onDeleteRequest={setGradeToDelete} addNotification={addNotification} />)}</tbody>
+                            <tbody>{grades.map(grade => <GradeRow key={grade.id} grade={grade} allGrades={grades} onUpdate={handleUpdateGrade} onDeleteRequest={setGradeToDelete} addNotification={addNotification} />)}</tbody>
                         </table>
                     ) : <p className="text-sm text-slate-500 italic text-center py-4">Aucune note enregistrée pour cette matière.</p>}
-                    <AddGradeForm subjectId={subject.subject_id} enrollmentId={enrollmentId} periodId={periodId} onAdd={onDataChange} />
+                    <AddGradeForm subjectId={subject.subject_id} enrollmentId={enrollmentId} periodId={periodId} onAdd={onDataChange} existingGrades={grades} />
                 </div>
             )}
             {gradeToDelete && <ConfirmationModal isOpen={!!gradeToDelete} onClose={() => setGradeToDelete(null)} onConfirm={handleConfirmDelete} title="Confirmer la suppression" message={`Êtes-vous sûr de vouloir supprimer la note pour "${gradeToDelete.evaluation_name}" ?`} />}

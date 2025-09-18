@@ -3,6 +3,7 @@ import * as ReactRouterDOM from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
+import * as db from '../utils/db';
 import type { PlatformSettings, Message } from '../types';
 import ConfirmationModal from './ConfirmationModal';
 
@@ -15,13 +16,14 @@ const AdminContactPage: React.FC = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [messageToDelete, setMessageToDelete] = useState<Message | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const cacheKey = '/admin/messages';
 
     const fetchData = useCallback(async (isInitialLoad = false) => {
         if (isInitialLoad) setIsLoading(true);
         try {
             const [settingsData, messagesData] = await Promise.all([
                 apiFetch('/contact-info'),
-                apiFetch('/admin/messages')
+                apiFetch(cacheKey)
             ]);
             setSettings(settingsData);
             setMessages(messagesData);
@@ -60,15 +62,23 @@ const AdminContactPage: React.FC = () => {
             is_read_by_superadmin: false,
         };
         
-        setMessages(prev => [...prev, optimisticMessage]);
+        const updatedMessages = [...messages, optimisticMessage];
+        setMessages(updatedMessages);
         setNewMessage('');
 
         try {
-            const sentMessage = await apiFetch('/admin/messages', {
+            const result = await apiFetch('/admin/messages', {
                 method: 'POST',
                 body: JSON.stringify({ content: newMessage }),
             });
-            setMessages(prev => prev.map(msg => msg.id === optimisticMessage.id ? sentMessage : msg));
+
+            if (result?.queued) {
+                await db.saveData(cacheKey, updatedMessages);
+            } else {
+                const sentMessage = result;
+                setMessages(prev => prev.map(msg => msg.id === optimisticMessage.id ? sentMessage : msg));
+            }
+
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
             setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
@@ -78,9 +88,17 @@ const AdminContactPage: React.FC = () => {
     const handleConfirmDelete = async () => {
         if (!messageToDelete) return;
         try {
-            await apiFetch(`/messages/${messageToDelete.id}`, { method: 'DELETE' });
-            setMessages(prev => prev.filter(m => m.id !== messageToDelete.id));
+            const result = await apiFetch(`/messages/${messageToDelete.id}`, { method: 'DELETE' });
+
+            const updatedMessages = messages.filter(m => m.id !== messageToDelete.id);
+            setMessages(updatedMessages);
+
+            if (result?.queued) {
+                 await db.saveData(cacheKey, updatedMessages);
+            }
+
             addNotification({ type: 'success', message: 'Message supprimé.' });
+
         } catch(error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {

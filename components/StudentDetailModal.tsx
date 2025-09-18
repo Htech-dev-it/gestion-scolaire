@@ -111,6 +111,7 @@ const StudentDetailModal: React.FC<StudentDetailModalProps> = ({ isOpen, onClose
     const sheetHtml = `
       <div class="sheet-container">
           <div class="school-header">
+              ${instanceInfo?.logo_url ? `<img src="${instanceInfo.logo_url}" style="height: 60px; margin: 0 auto 10px; object-fit: contain;" />` : ''}
               <h1>${instanceInfo?.name || ''}</h1>
               <p>${instanceInfo?.address || ''}</p>
               <p>${instanceInfo?.phone || ''}</p>

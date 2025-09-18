@@ -3,8 +3,9 @@ import * as ReactRouterDOM from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
+import * as db from '../utils/db';
 import ChangePasswordForm from './ChangePasswordForm';
-import { Instance, SchoolYear, Subject, ClassSubject, AcademicPeriod, Teacher, FullTeacherAssignment, Announcement, ClassDefinition, ClassFinancials } from '../types';
+import { Instance, SchoolYear, Subject, ClassSubject, AcademicPeriod, Teacher, FullTeacherAssignment, Announcement, ClassDefinition, ClassFinancials, TeacherSupportConversation, TeacherSupportMessage, StudentAnnouncement, TeacherAnnouncement } from '../types';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import ConfirmationModal from './ConfirmationModal';
 import Tooltip from './Tooltip';
@@ -95,11 +96,16 @@ const SchoolYearManager: React.FC = () => {
             return;
         }
         try {
-            await apiFetch('/school-years', {
+            const result = await apiFetch('/school-years', {
                 method: 'POST',
                 body: JSON.stringify({ name: newYearName })
             });
-            addNotification({ type: 'success', message: `Année ${newYearName} ajoutée.` });
+            
+            if (result?.queued) {
+                addNotification({ type: 'info', message: "L'ajout de l'année est en attente de synchronisation." });
+            } else {
+                addNotification({ type: 'success', message: `Année ${newYearName} ajoutée.` });
+            }
             setNewYearName('');
             refreshYears();
         } catch (error) {
@@ -109,8 +115,12 @@ const SchoolYearManager: React.FC = () => {
 
     const handleSetCurrent = async (id: number) => {
         try {
-            await apiFetch(`/school-years/${id}/set-current`, { method: 'PUT' });
-            addNotification({ type: 'success', message: 'Année scolaire actuelle mise à jour.' });
+            const result = await apiFetch(`/school-years/${id}/set-current`, { method: 'PUT' });
+            if (result?.queued) {
+                 addNotification({ type: 'info', message: "Le changement d'année est en attente de synchronisation." });
+            } else {
+                addNotification({ type: 'success', message: 'Année scolaire actuelle mise à jour.' });
+            }
             refreshYears();
             setSelectedYearById(id);
         } catch (error) {
@@ -125,8 +135,12 @@ const SchoolYearManager: React.FC = () => {
     const handleConfirmDelete = async () => {
         if (!yearToDelete) return;
         try {
-            await apiFetch(`/school-years/${yearToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: `L'année ${yearToDelete.name} a été supprimée.` });
+            const result = await apiFetch(`/school-years/${yearToDelete.id}`, { method: 'DELETE' });
+            if (result?.queued) {
+                 addNotification({ type: 'info', message: "La suppression de l'année est en attente de synchronisation." });
+            } else {
+                addNotification({ type: 'success', message: `L'année ${yearToDelete.name} a été supprimée.` });
+            }
             refreshYears();
             setYearToDelete(null);
         } catch (error) {
@@ -210,18 +224,24 @@ const PeriodManager: React.FC = () => {
         }
     }, [schoolYears]);
 
+    const getCacheKey = useCallback(() => {
+        if (!selectedYearId) return null;
+        return `/academic-periods?yearId=${selectedYearId}`;
+    }, [selectedYearId]);
+
     const fetchPeriods = useCallback(async () => {
-        if (!selectedYearId) return;
+        const cacheKey = getCacheKey();
+        if (!cacheKey) return;
         setIsLoading(true);
         try {
-            const data = await apiFetch(`/academic-periods?yearId=${selectedYearId}`);
+            const data = await apiFetch(cacheKey);
             setPeriods(data);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {
             setIsLoading(false);
         }
-    }, [addNotification, selectedYearId]);
+    }, [addNotification, getCacheKey]);
 
     useEffect(() => {
         fetchPeriods();
@@ -236,22 +256,40 @@ const PeriodManager: React.FC = () => {
         const body = { name: formState.name, year_id: selectedYearId };
         
         try {
-            await apiFetch(url, { method, body: JSON.stringify(body) });
-            addNotification({ type: 'success', message: `Période ${isEditing ? 'mise à jour' : 'ajoutée'}.` });
+            const result = await apiFetch(url, { method, body: JSON.stringify(body) });
+            const cacheKey = getCacheKey();
+            if(result?.queued && cacheKey) {
+                const optimisticPeriods = isEditing 
+                    ? periods.map(p => p.id === formState.id ? { ...p, name: formState.name } : p)
+                    : [...periods, { id: Date.now(), year_id: selectedYearId, name: formState.name }];
+                setPeriods(optimisticPeriods);
+                await db.saveData(cacheKey, optimisticPeriods);
+                addNotification({ type: 'info', message: 'Modification en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: `Période ${isEditing ? 'mise à jour' : 'ajoutée'}.` });
+                await fetchPeriods();
+            }
             setFormState({ id: null, name: '' });
-            await fetchPeriods();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
     };
     
     const handleConfirmDelete = async () => {
-        if (!periodToDelete) return;
+        if (!periodToDelete || !selectedYearId) return;
         try {
-            await apiFetch(`/academic-periods/${periodToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: 'Période supprimée.' });
+            const result = await apiFetch(`/academic-periods/${periodToDelete.id}`, { method: 'DELETE' });
+            const cacheKey = getCacheKey();
+            if (result?.queued && cacheKey) {
+                const optimisticPeriods = periods.filter(p => p.id !== periodToDelete.id);
+                setPeriods(optimisticPeriods);
+                await db.saveData(cacheKey, optimisticPeriods);
+                addNotification({ type: 'info', message: 'Suppression en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Période supprimée.' });
+                await fetchPeriods();
+            }
             setPeriodToDelete(null);
-            await fetchPeriods();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
             setPeriodToDelete(null);
@@ -336,11 +374,12 @@ const SubjectManager: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [formState, setFormState] = useState<{ id: number | null, name: string }>({ id: null, name: '' });
     const [subjectToDelete, setSubjectToDelete] = useState<Subject | null>(null);
+    const cacheKey = '/subjects';
 
     const fetchSubjects = useCallback(async () => {
         setIsLoading(true);
         try {
-            const data = await apiFetch('/subjects');
+            const data = await apiFetch(cacheKey);
             setSubjects(data);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
@@ -361,10 +400,19 @@ const SubjectManager: React.FC = () => {
         const method = isEditing ? 'PUT' : 'POST';
         
         try {
-            await apiFetch(url, { method, body: JSON.stringify({ name: formState.name }) });
-            addNotification({ type: 'success', message: `Matière ${isEditing ? 'mise à jour' : 'ajoutée'}.` });
+            const result = await apiFetch(url, { method, body: JSON.stringify({ name: formState.name }) });
+            if (result?.queued) {
+                const optimisticSubjects = isEditing 
+                    ? subjects.map(s => s.id === formState.id ? { ...s, name: formState.name } : s)
+                    : [...subjects, { id: Date.now(), name: formState.name, instance_id: 0 }];
+                setSubjects(optimisticSubjects);
+                await db.saveData(cacheKey, optimisticSubjects);
+                addNotification({ type: 'info', message: 'Modification en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: `Matière ${isEditing ? 'mise à jour' : 'ajoutée'}.` });
+                await fetchSubjects();
+            }
             setFormState({ id: null, name: '' });
-            await fetchSubjects();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -373,10 +421,17 @@ const SubjectManager: React.FC = () => {
     const handleConfirmDelete = async () => {
         if (!subjectToDelete) return;
         try {
-            await apiFetch(`/subjects/${subjectToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: 'Matière supprimée.' });
-            setSubjectToDelete(null);
-            await fetchSubjects();
+            const result = await apiFetch(`/subjects/${subjectToDelete.id}`, { method: 'DELETE' });
+            if (result?.queued) {
+                const optimisticSubjects = subjects.filter(s => s.id !== subjectToDelete.id);
+                setSubjects(optimisticSubjects);
+                await db.saveData(cacheKey, optimisticSubjects);
+                addNotification({ type: 'info', message: 'Suppression en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Matière supprimée.' });
+                await fetchSubjects();
+            }
+             setSubjectToDelete(null);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -426,35 +481,41 @@ const ProgrammeManager: React.FC = () => {
         }
     }, [classes, selectedClass]);
 
+    const getCacheKey = useCallback(() => {
+        if (!selectedYear || !selectedClass) return null;
+        return `/curriculum?yearId=${selectedYear.id}&className=${selectedClass}`;
+    }, [selectedYear, selectedClass]);
+
     const fetchCurriculum = useCallback(async () => {
-        if (!selectedYear || !selectedClass) return;
+        const cacheKey = getCacheKey();
+        if (!cacheKey) return;
         try {
-            const data = await apiFetch(`/curriculum?yearId=${selectedYear.id}&className=${selectedClass}`);
+            const data = await apiFetch(cacheKey);
             setAssignedSubjects(data.assigned);
             setAvailableSubjects(data.available);
-
             const gradesMap = data.assigned.reduce((acc: Record<number, string>, cs: ClassSubject) => {
                 acc[cs.id] = cs.max_grade.toString();
                 return acc;
             }, {});
             setMaxGrades(gradesMap);
-
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
-    }, [selectedYear, selectedClass, addNotification]);
+    }, [getCacheKey, addNotification]);
 
     useEffect(() => {
         fetchCurriculum();
     }, [fetchCurriculum]);
     
     const handleAssign = async (subjectId: number) => {
-        await apiFetch('/curriculum/assign', { method: 'POST', body: JSON.stringify({ yearId: selectedYear!.id, className: selectedClass, subjectId }) });
+        const result = await apiFetch('/curriculum/assign', { method: 'POST', body: JSON.stringify({ yearId: selectedYear!.id, className: selectedClass, subjectId }) });
+        if(result?.queued) addNotification({ type: 'info', message: 'Action en attente de synchronisation.' });
         await fetchCurriculum();
     };
     
     const handleUnassign = async (subjectId: number) => {
-        await apiFetch('/curriculum/unassign', { method: 'POST', body: JSON.stringify({ yearId: selectedYear!.id, className: selectedClass, subjectId }) });
+        const result = await apiFetch('/curriculum/unassign', { method: 'POST', body: JSON.stringify({ yearId: selectedYear!.id, className: selectedClass, subjectId }) });
+        if(result?.queued) addNotification({ type: 'info', message: 'Action en attente de synchronisation.' });
         await fetchCurriculum();
     };
 
@@ -474,9 +535,10 @@ const ProgrammeManager: React.FC = () => {
                      setMaxGrades(prev => ({...prev, [classSubjectId]: originalValue || '100'}));
                      return;
                 }
-                await apiFetch(`/curriculum/max-grade/${classSubjectId}`, { method: 'PUT', body: JSON.stringify({ max_grade: maxGrade }) });
-                addNotification({ type: 'success', message: 'Coefficient mis à jour.'});
-                await fetchCurriculum(); // Refresh to confirm
+                const result = await apiFetch(`/curriculum/max-grade/${classSubjectId}`, { method: 'PUT', body: JSON.stringify({ max_grade: maxGrade }) });
+                if(result?.queued) addNotification({ type: 'info', message: 'Action en attente de synchronisation.' });
+                else addNotification({ type: 'success', message: 'Coefficient mis à jour.'});
+                await fetchCurriculum();
             } catch (error) {
                  if (error instanceof Error) addNotification({ type: 'error', message: error.message });
                  setMaxGrades(prev => ({...prev, [classSubjectId]: originalValue || '100'}));
@@ -528,10 +590,16 @@ const ClassFinancialsManager: React.FC = () => {
     const { selectedYear, classes } = useSchoolYear();
     const [classFinancials, setClassFinancials] = useState<Record<string, number | undefined>>({});
 
+    const getCacheKey = useCallback(() => {
+        if (!selectedYear) return null;
+        return `/class-financials?yearId=${selectedYear.id}`;
+    }, [selectedYear]);
+
     const fetchFinancials = useCallback(async () => {
-        if (!selectedYear) return;
+        const cacheKey = getCacheKey();
+        if (!cacheKey) return;
         try {
-            const data: ClassFinancials[] = await apiFetch(`/class-financials?yearId=${selectedYear.id}`);
+            const data: ClassFinancials[] = await apiFetch(cacheKey);
             const financialsMap = data.reduce((acc, curr) => {
                 acc[curr.class_name] = curr.mppa;
                 return acc;
@@ -540,7 +608,7 @@ const ClassFinancialsManager: React.FC = () => {
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
-    }, [selectedYear, addNotification]);
+    }, [getCacheKey, addNotification]);
 
     useEffect(() => {
         fetchFinancials();
@@ -560,8 +628,21 @@ const ClassFinancialsManager: React.FC = () => {
         };
 
         try {
-            await apiFetch('/class-financials', { method: 'PUT', body: JSON.stringify(payload) });
-            addNotification({ type: 'success', message: 'Frais de scolarité mis à jour.' });
+            const result = await apiFetch('/class-financials', { method: 'PUT', body: JSON.stringify(payload) });
+            const cacheKey = getCacheKey();
+            if(result?.queued && cacheKey) {
+                const optimisticData = classes.map(c => ({
+                    class_name: c.name,
+                    year_id: selectedYear.id,
+                    mppa: classFinancials[c.name] ?? 0,
+                    instance_id: 0
+                }));
+                await db.saveData(cacheKey, optimisticData);
+                addNotification({ type: 'info', message: 'Mise à jour des frais en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Frais de scolarité mis à jour.' });
+                await fetchFinancials();
+            }
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -634,8 +715,12 @@ const ClassManager: React.FC = () => {
         const method = isEditing ? 'PUT' : 'POST';
         
         try {
-            await apiFetch(url, { method, body: JSON.stringify({ name }) });
-            addNotification({ type: 'success', message: `Classe ${isEditing ? 'mise à jour' : 'ajoutée'}.` });
+            const result = await apiFetch(url, { method, body: JSON.stringify({ name }) });
+            if (result?.queued) {
+                addNotification({ type: 'info', message: 'Action en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: `Classe ${isEditing ? 'mise à jour' : 'ajoutée'}.` });
+            }
             setNewClassName('');
             setEditingClass(null);
             refreshYears();
@@ -651,8 +736,12 @@ const ClassManager: React.FC = () => {
     const handleConfirmDelete = async () => {
         if (!classToDelete) return;
         try {
-            await apiFetch(`/classes/${classToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: 'Classe supprimée.' });
+            const result = await apiFetch(`/classes/${classToDelete.id}`, { method: 'DELETE' });
+             if (result?.queued) {
+                addNotification({ type: 'info', message: 'Action en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Classe supprimée.' });
+            }
             refreshYears();
         } catch (error) {
              if (error instanceof Error) addNotification({ type: 'error', message: error.message });
@@ -692,6 +781,308 @@ const ClassManager: React.FC = () => {
         </div>
     );
 }
+
+const TeacherSupportManager: React.FC = () => {
+    const { addNotification } = useNotification();
+    const [conversations, setConversations] = useState<TeacherSupportConversation[]>([]);
+    const [selectedConvo, setSelectedConvo] = useState<TeacherSupportConversation | null>(null);
+    const [messages, setMessages] = useState<TeacherSupportMessage[]>([]);
+    const [newMessage, setNewMessage] = useState('');
+    const [isLoading, setIsLoading] = useState(true);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [messageToDelete, setMessageToDelete] = useState<TeacherSupportMessage | null>(null);
+    const [isClearing, setIsClearing] = useState(false);
+
+    const fetchConversations = useCallback(async () => {
+        try {
+            const data = await apiFetch('/admin/teacher-support/conversations');
+            setConversations(data);
+        } catch (error) {
+            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+        }
+    }, [addNotification]);
+
+    useEffect(() => {
+        setIsLoading(true);
+        fetchConversations().finally(() => setIsLoading(false));
+    }, [fetchConversations]);
+
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, [messages]);
+
+    const handleSelectConvo = async (convo: TeacherSupportConversation) => {
+        setSelectedConvo(convo);
+        try {
+            const data = await apiFetch(`/admin/teacher-support/conversations/${convo.teacher_id}`);
+            setMessages(data);
+            setConversations(prev => prev.map(c => c.teacher_id === convo.teacher_id ? { ...c, unread_count: 0 } : c));
+        } catch (error) {
+            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+        }
+    };
+    
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMessage.trim() || !selectedConvo) return;
+        try {
+            const sentMessage = await apiFetch(`/admin/teacher-support/conversations/${selectedConvo.teacher_id}`, { method: 'POST', body: JSON.stringify({ content: newMessage }) });
+            setMessages(prev => [...prev, sentMessage]);
+            setNewMessage('');
+        } catch (error) {
+            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+        }
+    };
+
+    const handleConfirmDelete = async () => {
+        if (!messageToDelete) return;
+        try {
+            await apiFetch(`/teacher/support-messages/${messageToDelete.id}`, { method: 'DELETE' });
+            setMessages(prev => prev.filter(m => m.id !== messageToDelete.id));
+            addNotification({ type: 'success', message: 'Message supprimé.' });
+        } catch (err) {
+            if (err instanceof Error) addNotification({ type: 'error', message: err.message });
+        } finally {
+            setMessageToDelete(null);
+        }
+    };
+    
+    const handleConfirmClear = async () => {
+        if (!selectedConvo) return;
+        try {
+            await apiFetch(`/admin/teacher-support/conversations/${selectedConvo.teacher_id}`, { method: 'DELETE' });
+            setMessages([]);
+            addNotification({ type: 'success', message: 'Conversation effacée.' });
+            fetchConversations();
+        } catch (err) {
+            if (err instanceof Error) addNotification({ type: 'error', message: err.message });
+        } finally {
+            setIsClearing(false);
+        }
+    };
+
+    const formatDate = (dateString: string) => new Date(dateString).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+
+    if (isLoading) return <div>Chargement...</div>;
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[70vh]">
+            <div className="md:col-span-1 border-r pr-4 overflow-y-auto">
+                <h3 className="text-lg font-semibold text-slate-800 mb-4">Conversations</h3>
+                {conversations.length === 0 ? <p className="text-slate-500 italic">Aucune conversation.</p> : (
+                    <div className="space-y-2">
+                        {conversations.map(convo => (
+                            <button key={convo.teacher_id} onClick={() => handleSelectConvo(convo)} className={`w-full text-left p-3 rounded-lg transition-colors ${selectedConvo?.teacher_id === convo.teacher_id ? 'bg-blue-100' : 'hover:bg-slate-100'}`}>
+                                <div className="flex justify-between items-center">
+                                    <span className="font-medium">{convo.teacher_prenom} {convo.teacher_nom}</span>
+                                    {convo.unread_count > 0 && <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{convo.unread_count}</span>}
+                                </div>
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+            <div className="md:col-span-2 flex flex-col">
+                {selectedConvo ? (
+                    <>
+                        <div className="flex-shrink-0 flex justify-end items-center mb-2">
+                            <button onClick={() => setIsClearing(true)} className="p-2 text-red-500 hover:bg-red-100 rounded-full" title="Effacer la conversation">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                            </button>
+                        </div>
+                        <div className="flex-grow overflow-y-auto pr-2 space-y-4 mb-4">
+                            {messages.map(msg => (
+                                <div key={msg.id} className={`group relative flex ${msg.sender_role === 'admin' ? 'justify-end' : 'justify-start'}`}>
+                                    <div className={`max-w-xs md:max-w-md p-3 rounded-lg ${msg.sender_role === 'admin' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-800'}`}>
+                                        <p className="text-sm">{msg.content}</p>
+                                        <p className={`text-xs mt-1 ${msg.sender_role === 'admin' ? 'text-blue-200' : 'text-slate-500'}`}>{formatDate(msg.created_at)}</p>
+                                    </div>
+                                    <button onClick={() => setMessageToDelete(msg)} className="absolute top-1/2 -translate-y-1/2 p-1 bg-white/80 rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity" style={msg.sender_role === 'admin' ? {left: '-2rem'} : {right: '-2rem'}}>
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-red-500" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                                    </button>
+                                </div>
+                            ))}
+                            <div ref={messagesEndRef} />
+                        </div>
+                        <form onSubmit={handleSendMessage} className="flex-shrink-0 flex gap-2">
+                            <input type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Répondre..." className="w-full p-2 border rounded-md" />
+                            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">Envoyer</button>
+                        </form>
+                    </>
+                ) : <div className="flex items-center justify-center h-full text-slate-500 italic">Sélectionnez une conversation pour commencer.</div>}
+            </div>
+            <ConfirmationModal isOpen={!!messageToDelete} onClose={() => setMessageToDelete(null)} onConfirm={handleConfirmDelete} title="Supprimer le message" message="Êtes-vous sûr de vouloir supprimer ce message pour tout le monde ?" />
+            <ConfirmationModal isOpen={isClearing} onClose={() => setIsClearing(false)} onConfirm={handleConfirmClear} title="Effacer la conversation" message="Êtes-vous sûr de vouloir supprimer définitivement tous les messages de cette conversation ?" />
+        </div>
+    );
+};
+
+
+const TeacherAnnouncementsManager: React.FC = () => {
+    const { addNotification } = useNotification();
+    const [announcements, setAnnouncements] = useState<TeacherAnnouncement[]>([]);
+    const [teachers, setTeachers] = useState<Teacher[]>([]);
+    const [content, setContent] = useState('');
+    const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<number>>(new Set());
+    const [isLoading, setIsLoading] = useState(true);
+
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const [anns, teachs] = await Promise.all([apiFetch('/admin/teacher-announcements'), apiFetch('/teachers')]);
+            setAnnouncements(anns);
+            setTeachers(teachs);
+        } catch (error) { if (error instanceof Error) addNotification({ type: 'error', message: error.message }); }
+        finally { setIsLoading(false); }
+    }, [addNotification]);
+    
+    useEffect(() => { fetchData(); }, [fetchData]);
+    
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!content.trim() || selectedTeacherIds.size === 0) {
+            addNotification({ type: 'error', message: "Veuillez écrire un message et sélectionner au moins un professeur."});
+            return;
+        }
+        try {
+            await apiFetch('/admin/teacher-announcements', { method: 'POST', body: JSON.stringify({ content, teacherIds: Array.from(selectedTeacherIds) }) });
+            addNotification({ type: 'success', message: 'Annonce envoyée.'});
+            setContent(''); setSelectedTeacherIds(new Set()); await fetchData();
+        } catch (error) { if (error instanceof Error) addNotification({ type: 'error', message: error.message }); }
+    };
+    
+    const handleDelete = async (id: number) => {
+        if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette annonce ?")) return;
+        try {
+            await apiFetch(`/admin/teacher-announcements/${id}`, { method: 'DELETE' });
+            addNotification({ type: 'success', message: 'Annonce supprimée.'});
+            await fetchData();
+        } catch (error) { if (error instanceof Error) addNotification({ type: 'error', message: error.message }); }
+    };
+    
+    return (
+        <div className="space-y-6">
+            <form onSubmit={handleSubmit} className="p-4 border rounded-lg bg-slate-50 space-y-4">
+                <h3 className="text-lg font-semibold">Nouvelle Annonce pour les Professeurs</h3>
+                <div>
+                    <label htmlFor="teacher_ann_content" className="block text-sm font-medium">Contenu de l'annonce</label>
+                    <textarea id="teacher_ann_content" value={content} onChange={e => setContent(e.target.value)} rows={3} className="w-full mt-1 p-2 border rounded-md" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium mb-1">Destinataires</label>
+                    <div className="max-h-32 overflow-y-auto border rounded-md p-2 bg-white space-y-1">
+                        <label className="flex items-center space-x-2"><input type="checkbox" onChange={() => setSelectedTeacherIds(selectedTeacherIds.size === teachers.length ? new Set() : new Set(teachers.map(t => t.id)))} checked={selectedTeacherIds.size === teachers.length && teachers.length > 0} /><span>Tous les professeurs</span></label>
+                        {teachers.map(t => <label key={t.id} className="flex items-center space-x-2"><input type="checkbox" checked={selectedTeacherIds.has(t.id)} onChange={() => setSelectedTeacherIds(p => { const n = new Set(p); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}/><span>{t.prenom} {t.nom}</span></label>)}
+                    </div>
+                </div>
+                <div className="text-right"><button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">Envoyer l'annonce</button></div>
+            </form>
+            <div>
+                <h3 className="text-lg font-semibold">Annonces Envoyées</h3>
+                {isLoading ? <p>Chargement...</p> : announcements.length === 0 ? <p className="italic text-slate-500">Aucune annonce.</p> :
+                    <ul className="space-y-2 mt-2">
+                        {announcements.map(ann => <li key={ann.id} className="p-3 bg-white rounded-md shadow-sm flex justify-between items-start"><div className="text-sm"><p>{ann.content}</p><p className="text-xs text-slate-500 mt-1">Envoyé à: {ann.recipients?.map(r => `${r.prenom} ${r.nom}`).join(', ')}</p></div><button onClick={() => handleDelete(ann.id)} className="p-1 text-red-500 hover:bg-red-100 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button></li>)}
+                    </ul>
+                }
+            </div>
+        </div>
+    );
+};
+
+const StudentAnnouncementsManager: React.FC = () => {
+    const { classes } = useSchoolYear();
+    const { addNotification } = useNotification();
+    const [announcements, setAnnouncements] = useState<StudentAnnouncement[]>([]);
+    const [content, setContent] = useState('');
+    const [targetClasses, setTargetClasses] = useState<Set<string>>(new Set());
+    const [isLoading, setIsLoading] = useState(true);
+
+    const fetchData = useCallback(async () => {
+        setIsLoading(true);
+        try {
+            const data = await apiFetch('/admin/student-announcements');
+            setAnnouncements(data);
+        } catch (error) { if (error instanceof Error) addNotification({ type: 'error', message: error.message }); }
+        finally { setIsLoading(false); }
+    }, [addNotification]);
+    
+    useEffect(() => { fetchData(); }, [fetchData]);
+    
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!content.trim()) return addNotification({ type: 'error', message: "Veuillez écrire un message." });
+        try {
+            await apiFetch('/admin/student-announcements', { method: 'POST', body: JSON.stringify({ content, targetClassNames: Array.from(targetClasses) }) });
+            addNotification({ type: 'success', message: 'Annonce envoyée.'});
+            setContent(''); setTargetClasses(new Set()); await fetchData();
+        } catch (error) { if (error instanceof Error) addNotification({ type: 'error', message: error.message }); }
+    };
+    
+    const handleDelete = async (id: number) => {
+        if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette annonce ?")) return;
+        try {
+            await apiFetch(`/admin/student-announcements/${id}`, { method: 'DELETE' });
+            addNotification({ type: 'success', message: 'Annonce supprimée.'});
+            await fetchData();
+        } catch (error) { if (error instanceof Error) addNotification({ type: 'error', message: error.message }); }
+    };
+
+    return (
+        <div className="space-y-6">
+            <form onSubmit={handleSubmit} className="p-4 border rounded-lg bg-slate-50 space-y-4">
+                <h3 className="text-lg font-semibold">Nouvelle Annonce pour les Élèves</h3>
+                <div>
+                    <label htmlFor="student_ann_content" className="block text-sm font-medium">Contenu</label>
+                    <textarea id="student_ann_content" value={content} onChange={e => setContent(e.target.value)} rows={3} className="w-full mt-1 p-2 border rounded-md" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium mb-1">Classes Cibles (laisser vide pour envoyer à tous)</label>
+                    <div className="max-h-32 overflow-y-auto border rounded-md p-2 bg-white space-y-1">
+                        <label className="flex items-center space-x-2"><input type="checkbox" onChange={() => setTargetClasses(targetClasses.size === classes.length ? new Set() : new Set(classes.map(c => c.name)))} checked={targetClasses.size === classes.length && classes.length > 0} /><span>Toutes les classes</span></label>
+                        {classes.map(c => <label key={c.id} className="flex items-center space-x-2"><input type="checkbox" checked={targetClasses.has(c.name)} onChange={() => setTargetClasses(p => { const n = new Set(p); n.has(c.name) ? n.delete(c.name) : n.add(c.name); return n; })}/><span>{c.name}</span></label>)}
+                    </div>
+                </div>
+                <div className="text-right"><button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md">Envoyer</button></div>
+            </form>
+            <div>
+                 <h3 className="text-lg font-semibold">Annonces Envoyées</h3>
+                 {isLoading ? <p>Chargement...</p> : announcements.length === 0 ? <p className="italic text-slate-500">Aucune annonce.</p> :
+                    <ul className="space-y-2 mt-2">
+                        {announcements.map(ann => <li key={ann.id} className="p-3 bg-white rounded-md shadow-sm flex justify-between items-start"><div className="text-sm"><p>{ann.content}</p><p className="text-xs text-slate-500 mt-1">Cible: {ann.target_class_names.length > 0 ? ann.target_class_names.join(', ') : 'Toutes les classes'}</p></div><button onClick={() => handleDelete(ann.id)} className="p-1 text-red-500 hover:bg-red-100 rounded-full"><svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg></button></li>)}
+                    </ul>
+                 }
+            </div>
+        </div>
+    );
+};
+
+const CommunicationsManager: React.FC = () => {
+    const [activeCommTab, setActiveCommTab] = useState('teacher_support');
+
+    const renderCommContent = () => {
+        switch (activeCommTab) {
+            case 'teacher_support':
+                return <TeacherSupportManager />;
+            case 'teacher_announcements':
+                return <TeacherAnnouncementsManager />;
+            case 'student_announcements':
+                return <StudentAnnouncementsManager />;
+            default:
+                return null;
+        }
+    };
+
+    return (
+        <div>
+            <div className="flex items-center space-x-1 border-b mb-6">
+                <button onClick={() => setActiveCommTab('teacher_support')} className={`px-4 py-2 text-sm font-medium rounded-t-lg ${activeCommTab === 'teacher_support' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}>Support Professeurs</button>
+                <button onClick={() => setActiveCommTab('teacher_announcements')} className={`px-4 py-2 text-sm font-medium rounded-t-lg ${activeCommTab === 'teacher_announcements' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}>Annonces Professeurs</button>
+                <button onClick={() => setActiveCommTab('student_announcements')} className={`px-4 py-2 text-sm font-medium rounded-t-lg ${activeCommTab === 'student_announcements' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}>Annonces Élèves</button>
+            </div>
+            {renderCommContent()}
+        </div>
+    );
+};
 
 const TabButton: React.FC<{ activeTab: string; tabId: string; onClick: (tabId: string) => void; children: React.ReactNode }> = ({ activeTab, tabId, onClick, children }) => (
     <button
@@ -743,12 +1134,19 @@ const AdminPage: React.FC = () => {
         e.preventDefault();
         if (!formState) return;
         try {
-            await apiFetch('/instance/current', {
+            const result = await apiFetch('/instance/current', {
                 method: 'PUT',
                 body: JSON.stringify(formState)
             });
-            addNotification({ type: 'success', message: 'Informations mises à jour.' });
-            setInstanceInfo(formState);
+
+            if (result?.queued) {
+                setInstanceInfo(formState);
+                await db.saveData('/instance/current', formState);
+                 addNotification({ type: 'info', message: 'Mise à jour en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Informations mises à jour.' });
+                setInstanceInfo(formState);
+            }
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -787,6 +1185,7 @@ const AdminPage: React.FC = () => {
             case 'roles': return hasPermission('role:manage') ? <RolesManager /> : null;
             case 'journal': return <AuditLogViewer scope="admin" />;
             case 'security': return <ChangePasswordForm />;
+            case 'communications': return <CommunicationsManager />;
             default: return null;
         }
     };
@@ -807,6 +1206,7 @@ const AdminPage: React.FC = () => {
                         <h3 className="text-lg font-semibold text-slate-800 font-display mb-3 px-2">Paramètres</h3>
                         <div className="space-y-1">
                            <TabButton activeTab={activeTab} tabId="general" onClick={setActiveTab}>Général</TabButton>
+                           <TabButton activeTab={activeTab} tabId="communications" onClick={setActiveTab}>Communications</TabButton>
                            <TabButton activeTab={activeTab} tabId="academic_year" onClick={setActiveTab}>Années Scolaires</TabButton>
                            <TabButton activeTab={activeTab} tabId="periods" onClick={setActiveTab}>Périodes</TabButton>
                            <TabButton activeTab={activeTab} tabId="classes" onClick={setActiveTab}>Classes</TabButton>

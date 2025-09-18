@@ -408,3 +408,38 @@ export interface ClassFinancials {
     year_id: number;
     mppa: number;
 }
+
+// --- NEW COMMUNICATION TYPES ---
+
+export interface TeacherSupportMessage {
+    id: number;
+    teacher_id: number;
+    sender_role: 'teacher' | 'admin';
+    content: string;
+    created_at: string;
+    is_read_by_admin: boolean;
+    // Joined from users table for admin view
+    admin_username?: string;
+}
+
+export interface TeacherSupportConversation {
+    teacher_id: number;
+    teacher_prenom: string;
+    teacher_nom: string;
+    unread_count: number;
+    last_message_at: string;
+}
+
+export interface TeacherAnnouncement {
+    id: number;
+    content: string;
+    created_at: string;
+    recipients?: { teacher_id: number; prenom: string; nom: string; }[]; // For admin view
+}
+
+export interface StudentAnnouncement {
+    id: number;
+    content: string;
+    target_class_names: string[]; // empty array means for all
+    created_at: string;
+}

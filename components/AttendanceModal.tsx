@@ -64,11 +64,15 @@ const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, enro
         }));
         
         try {
-            await apiFetch('/attendance/bulk-update', {
+            const result = await apiFetch('/attendance/bulk-update', {
                 method: 'POST',
                 body: JSON.stringify({ subjectId, date: attendanceDate, records }),
             });
-            addNotification({ type: 'success', message: 'Feuille d\'appel enregistrée.' });
+            if(result?.queued) {
+                 addNotification({ type: 'info', message: 'Feuille d\'appel sauvegardée et en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Feuille d\'appel enregistrée.' });
+            }
             onClose();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });

@@ -51,7 +51,7 @@ const ChangePasswordForm: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const data = await apiFetch('/user/change-password', {
+      const result = await apiFetch('/user/change-password', {
         method: 'PUT',
         body: JSON.stringify({
           currentPassword: passwordData.currentPassword,
@@ -59,7 +59,11 @@ const ChangePasswordForm: React.FC = () => {
         })
       });
       
-      addNotification({ type: 'success', message: data.message });
+      if (result?.queued) {
+        addNotification({ type: 'info', message: 'Votre mot de passe sera changé lors de la prochaine synchronisation. Veuillez ne pas l\'oublier.' });
+      } else {
+        addNotification({ type: 'success', message: result.message });
+      }
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
 
     } catch (error) {

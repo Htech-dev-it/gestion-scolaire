@@ -5,6 +5,10 @@
     <link rel="icon" type="image/png" href="/scolalink_logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ScolaLink</title>
+    <!-- PWA Manifest -->
+    <meta name="theme-color" content="#4A90E2"/>
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="apple-touch-icon" href="/scolalink_logo.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -213,5 +217,17 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
+    <!-- Service Worker Registration -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/service-worker.js').then(registration => {
+            console.log('Service Worker registered: ', registration);
+          }).catch(registrationError => {
+            console.log('Service Worker registration failed: ', registrationError);
+          });
+        });
+      }
+    </script>
   </body>
 </html>

@@ -1,6 +1,15 @@
 // This interface declaration fixes TypeScript errors for `import.meta.env`.
 // It replaces the `/// <reference types="vite/client" />` which was causing an error.
+
+// FIX: Add SyncManager and extend ServiceWorkerRegistration to include 'sync' property for Background Sync API.
+interface SyncManager {
+  register(tag: string): Promise<void>;
+}
+
 declare global {
+  interface ServiceWorkerRegistration {
+    readonly sync: SyncManager;
+  }
   interface ImportMeta {
     readonly env: {
       readonly VITE_API_URL?: string;
@@ -9,68 +18,108 @@ declare global {
 }
 
 import { addNotification } from '../contexts/NotificationContext';
+import * as db from './db'; // Import IndexedDB utilities
 
-// Logique d'URL d'API dynamique pour le cloud et le local
-// En production (sur Render.com), VITE_API_URL sera défini (ex: 'https://votre-backend.onrender.com/api')
-// En local, VITE_API_URL ne sera pas défini, et l'URL de l'API sera '/api', utilisant le proxy de Vite.
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
-/**
- * A global wrapper for the Fetch API.
- * - Adds authentication headers automatically.
- * - Handles JSON parsing.
- * - Centralizes error handling for network and auth errors.
- * - Triggers a page redirect on session expiration.
- */
 export async function apiFetch(endpoint: string, options: RequestInit = {}) {
-  try {
-    const token = localStorage.getItem('authToken');
-    const headers = new Headers(options.headers);
+  const token = localStorage.getItem('authToken');
+  const headers = new Headers(options.headers);
 
-    if (!headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  if (token) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const isOnline = navigator.onLine;
+  const modificationMethods = ['POST', 'PUT', 'DELETE'];
+  const isModification = options.method && modificationMethods.includes(options.method.toUpperCase());
+
+  const queueRequestForSync = async () => {
+    // We need to convert Headers to a plain object for IndexedDB storage.
+    const headersObject: Record<string, string> = {};
+    headers.forEach((value, key) => {
+        headersObject[key] = value;
+    });
+
+    const requestToSync: Omit<db.SyncRequest, 'id'> = {
+        url: `${API_URL}${endpoint}`,
+        options: { ...options, headers: headersObject },
+        timestamp: new Date().getTime(),
+    };
+    
+    await db.addToSyncQueue(requestToSync);
+
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            await registration.sync.register('sync-data');
+        } catch (err) {
+            console.error('Background Sync registration failed:', err);
+        }
     }
+    
+    addNotification({ type: 'info', message: "Vous êtes hors ligne. Votre modification est sauvegardée et sera synchronisée plus tard." });
+    return { queued: true };
+  };
 
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`);
-    }
+  if (isOnline) {
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
 
-    // On utilise la nouvelle variable API_URL qui s'adapte à l'environnement
-    const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
-
-    // Handle session expiry/auth failure globally, for both 401 and 403 statuses
-    if ((response.status === 401 || response.status === 403) && window.location.hash !== '#/login') {
-      // Don't show an error notification, just redirect to login.
-      // The user will understand they need to log in again.
-      localStorage.removeItem('authToken');
-      window.dispatchEvent(new Event('auth-expired'));
-      window.location.hash = '/login';
+      if ((response.status === 401 || response.status === 403) && window.location.hash !== '#/login') {
+        localStorage.removeItem('authToken');
+        window.dispatchEvent(new Event('auth-expired'));
+        window.location.hash = '/login';
+        return new Promise(() => {});
+      }
       
-      // Stop execution and prevent errors from being thrown and caught by callers
-      return new Promise(() => {});
+      const responseText = await response.text();
+      const data = responseText ? JSON.parse(responseText) : {};
+
+      if (!response.ok) {
+        throw new Error(data.message || `Erreur serveur (${response.status})`);
+      }
+      
+      if (options.method === 'GET' || !options.method) {
+          await db.saveData(endpoint, data);
+      }
+
+      return data;
+    } catch (error) {
+      console.warn(`Online request for ${endpoint} failed.`, error);
+
+      if (isModification) {
+        return await queueRequestForSync();
+      }
+
+      if (options.method === 'GET' || !options.method) {
+        const cachedData = await db.getData(endpoint);
+        if (cachedData) {
+          addNotification({ type: 'warning', message: 'Erreur réseau. Affichage des dernières données disponibles.' });
+          return cachedData.data;
+        }
+      }
+      
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+         throw new Error("Impossible de communiquer avec le serveur. Vérifiez votre connexion.");
+      }
+      throw error;
+    }
+  } else { // Offline logic
+    if (isModification) {
+      return await queueRequestForSync();
     }
     
-    const responseText = await response.text();
-    // Handle empty responses from server (e.g., for DELETE or 204 No Content)
-    const data = responseText ? JSON.parse(responseText) : {};
-
-    if (!response.ok) {
-      // Use the server's error message if available, otherwise a default one
-      throw new Error(data.message || `Erreur serveur (${response.status})`);
+    // GET requests when offline
+    const cachedData = await db.getData(endpoint);
+    if (cachedData) {
+      addNotification({ type: 'info', message: 'Vous êtes hors ligne. Affichage des données sauvegardées.' });
+      return cachedData.data;
+    } else {
+      throw new Error("Cette page n'a pas été consultée auparavant et n'est pas disponible hors ligne.");
     }
-
-    return data;
-  } catch (error) {
-    // Catch fetch-specific network errors and provide a user-friendly message
-    if (error instanceof TypeError && error.message === 'Failed to fetch') {
-      const friendlyError = new Error("Impossible de communiquer avec le serveur. Vérifiez que le backend est en cours d'exécution.");
-      // This is a special case where we might want to show a toast directly,
-      // as the component's catch block might not be reached if the app crashes.
-      // However, for consistency, we'll let the component's catch block handle it.
-      throw friendlyError;
-    }
-    
-    // Re-throw other errors (including the ones we created) to be handled by the calling function's catch block
-    throw error;
   }
 }

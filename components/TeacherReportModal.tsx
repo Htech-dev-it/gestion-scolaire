@@ -8,18 +8,26 @@ import ConfirmationModal from './ConfirmationModal';
 
 const GradeRow: React.FC<{
     grade: Grade;
+    allGrades: Grade[];
     onUpdate: (id: number, data: Partial<Grade>) => void;
     onDeleteRequest: (grade: Grade) => void;
-}> = ({ grade, onUpdate, onDeleteRequest }) => {
+    addNotification: (notification: { type: 'error' | 'success' | 'info' | 'warning'; message: string; }) => void;
+}> = ({ grade, allGrades, onUpdate, onDeleteRequest, addNotification }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [form, setForm] = useState({ evaluation_name: grade.evaluation_name, score: grade.score, max_score: grade.max_score });
 
     const handleUpdate = () => {
+        const trimmedName = form.evaluation_name.trim();
         if (form.score > form.max_score) {
-            alert("La note ne peut pas être supérieure à la note maximale.");
+            addNotification({ type: 'error', message: "La note ne peut pas être supérieure à la note maximale." });
             return;
         }
-        onUpdate(grade.id, form);
+        if (allGrades.some(g => g.id !== grade.id && g.evaluation_name.trim().toLowerCase() === trimmedName.toLowerCase())) {
+            addNotification({ type: 'error', message: `Une autre évaluation nommée "${trimmedName}" existe déjà.` });
+            return;
+        }
+
+        onUpdate(grade.id, { ...form, evaluation_name: trimmedName });
         setIsEditing(false);
     };
 
@@ -80,6 +88,11 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
     const [isPrintMenuOpen, setIsPrintMenuOpen] = useState(false);
     const printMenuRef = useRef<HTMLDivElement>(null);
 
+    const getCacheKey = useCallback(() => {
+        if (!selectedPeriod) return null;
+        return `/teacher/subject-details?yearId=${year.id}&className=${className}&subjectId=${subjectId}&periodId=${selectedPeriod.id}`;
+    }, [selectedPeriod, year.id, className, subjectId]);
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (printMenuRef.current && !printMenuRef.current.contains(event.target as Node)) {
@@ -98,13 +111,14 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
     };
 
     const fetchAllData = useCallback(async () => {
-        if (!isOpen || !selectedPeriod) {
+        const cacheKey = getCacheKey();
+        if (!isOpen || !cacheKey) {
             setIsLoading(false);
             return;
         };
         setIsLoading(true);
         try {
-            const data: SubjectDetails = await apiFetch(`/teacher/subject-details?yearId=${year.id}&className=${className}&subjectId=${subjectId}&periodId=${selectedPeriod.id}`);
+            const data: SubjectDetails = await apiFetch(cacheKey);
             setSubjectDetails(data);
             
             const initialAppreciations: Record<number, string> = {};
@@ -127,7 +141,7 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
         } finally {
             setIsLoading(false);
         }
-    }, [isOpen, selectedPeriod, year.id, className, subjectId, addNotification, classRoster]);
+    }, [isOpen, getCacheKey, addNotification, classRoster]);
 
     useEffect(() => {
         const fetchInitialPeriods = async () => {
@@ -147,62 +161,70 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
 
     useEffect(() => {
         fetchAllData();
-    }, [fetchAllData]);
+    }, [fetchAllData, selectedPeriod]);
 
     const handleAppreciationChange = (enrollmentId: number, text: string) => {
         setAppreciations(prev => ({ ...prev, [enrollmentId]: text }));
 
-        if (appreciationSaveTimeout.current) {
-            clearTimeout(appreciationSaveTimeout.current);
-        }
+        if (appreciationSaveTimeout.current) clearTimeout(appreciationSaveTimeout.current);
         
         const periodIdForSave = selectedPeriod?.id;
         if (!periodIdForSave) return;
 
-        appreciationSaveTimeout.current = window.setTimeout(() => {
-            apiFetch('/appreciations', {
-                method: 'POST',
-                body: JSON.stringify({
-                    enrollment_id: enrollmentId,
-                    subject_id: subjectId,
-                    period_id: periodIdForSave,
-                    text: text
-                })
-            }).then(() => {
-                setSubjectDetails(prevDetails => {
-                    if (!prevDetails) return null;
-                    
-                    const currentPeriodId = selectedPeriod?.id;
-                    if (currentPeriodId !== periodIdForSave) {
-                        return prevDetails;
-                    }
-                    
-                    const newAppreciationsByEnrollment = {
-                        ...prevDetails.appreciationsByEnrollment,
-                        [enrollmentId]: text,
-                    };
-                    return {
-                        ...prevDetails,
-                        appreciationsByEnrollment: newAppreciationsByEnrollment,
-                    };
+        appreciationSaveTimeout.current = window.setTimeout(async () => {
+            try {
+                const result = await apiFetch('/appreciations', {
+                    method: 'POST',
+                    body: JSON.stringify({ enrollment_id: enrollmentId, subject_id: subjectId, period_id: periodIdForSave, text: text })
                 });
-            }).catch(err => {
-                addNotification({ type: 'error', message: `Sauvegarde échouée: ${err.message}` });
-            });
+
+                if (result?.queued) {
+                    const cacheKey = getCacheKey();
+                    if(cacheKey && subjectDetails) {
+                        const updatedDetails = { ...subjectDetails, appreciationsByEnrollment: { ...subjectDetails.appreciationsByEnrollment, [enrollmentId]: text } };
+                        setSubjectDetails(updatedDetails);
+                    }
+                }
+            } catch (err) {
+                if (err instanceof Error) addNotification({ type: 'error', message: `Sauvegarde échouée: ${err.message}` });
+            }
         }, 1500);
     };
+    
+    const currentGrades = subjectDetails?.gradesByEnrollment[currentEnrollment.id] || [];
 
     const handleAddGrade = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!addForm.evaluation_name.trim() || !selectedPeriod) return;
+        const trimmedName = addForm.evaluation_name.trim();
+        if (!trimmedName || !selectedPeriod) {
+            addNotification({ type: 'error', message: "Le nom de l'évaluation est requis." });
+            return;
+        }
+        if (currentGrades.some(g => g.evaluation_name.trim().toLowerCase() === trimmedName.toLowerCase())) {
+            addNotification({ type: 'error', message: `Une évaluation nommée "${trimmedName}" existe déjà.` });
+            return;
+        }
+        
         try {
-            await apiFetch('/grades', {
+            const result = await apiFetch('/grades', {
                 method: 'POST',
                 body: JSON.stringify({ ...addForm, subject_id: subjectId, enrollment_id: currentEnrollment.id, period_id: selectedPeriod.id }),
             });
-            addNotification({ type: 'success', message: 'Note ajoutée.' });
+            
+            if(result?.queued) {
+                const cacheKey = getCacheKey();
+                if(cacheKey && subjectDetails) {
+                    const optimisticGrade: Grade = { id: Date.now(), ...addForm, subject_id: subjectId, enrollment_id: currentEnrollment.id, period_id: selectedPeriod.id, date: new Date().toISOString() };
+                    const updatedGrades = [...(subjectDetails.gradesByEnrollment[currentEnrollment.id] || []), optimisticGrade];
+                    const updatedDetails = { ...subjectDetails, gradesByEnrollment: { ...subjectDetails.gradesByEnrollment, [currentEnrollment.id]: updatedGrades } };
+                    setSubjectDetails(updatedDetails);
+                }
+                 addNotification({ type: 'info', message: 'Note ajoutée en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Note ajoutée.' });
+                await fetchAllData();
+            }
             setAddForm({ evaluation_name: '', score: 0, max_score: 20 });
-            fetchAllData(); // Refetch all data for the class
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -210,9 +232,19 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
     
     const handleUpdateGrade = async (id: number, data: Partial<Grade>) => {
         try {
-            await apiFetch(`/grades/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-            addNotification({ type: 'success', message: 'Note mise à jour.' });
-            fetchAllData();
+            const result = await apiFetch(`/grades/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+            if (result?.queued) {
+                const cacheKey = getCacheKey();
+                if (cacheKey && subjectDetails) {
+                    const updatedGrades = (subjectDetails.gradesByEnrollment[currentEnrollment.id] || []).map(g => g.id === id ? {...g, ...data} : g);
+                    const updatedDetails = { ...subjectDetails, gradesByEnrollment: { ...subjectDetails.gradesByEnrollment, [currentEnrollment.id]: updatedGrades } };
+                    setSubjectDetails(updatedDetails);
+                }
+                addNotification({ type: 'info', message: 'Mise à jour en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Note mise à jour.' });
+                await fetchAllData();
+            }
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -221,10 +253,20 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
     const handleConfirmDelete = async () => {
         if (!gradeToDelete) return;
         try {
-            await apiFetch(`/grades/${gradeToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: 'Note supprimée.' });
+            const result = await apiFetch(`/grades/${gradeToDelete.id}`, { method: 'DELETE' });
+             if (result?.queued) {
+                const cacheKey = getCacheKey();
+                if (cacheKey && subjectDetails) {
+                    const updatedGrades = (subjectDetails.gradesByEnrollment[currentEnrollment.id] || []).filter(g => g.id !== gradeToDelete.id);
+                    const updatedDetails = { ...subjectDetails, gradesByEnrollment: { ...subjectDetails.gradesByEnrollment, [currentEnrollment.id]: updatedGrades } };
+                    setSubjectDetails(updatedDetails);
+                }
+                addNotification({ type: 'info', message: 'Suppression en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Note supprimée.' });
+                await fetchAllData();
+            }
             setGradeToDelete(null);
-            fetchAllData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -311,7 +353,6 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
 
     if (!isOpen) return null;
     
-    const currentGrades = subjectDetails?.gradesByEnrollment[currentEnrollment.id] || [];
     const { totalScore, totalMaxScore, average } = useMemo(() => {
         const grades = subjectDetails?.gradesByEnrollment[currentEnrollment.id] || [];
         const score = grades.reduce((sum, g) => sum + Number(g.score), 0);
@@ -338,7 +379,7 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
                 <thead className="border-b-2 border-slate-300"><tr><th className="p-1 text-left font-semibold">Évaluation</th><th className="p-1 w-20 text-center font-semibold">Note</th><th className="p-1 w-20 text-center font-semibold">Sur</th></tr></thead>
                 <tbody>{currentGrades.map(g => (<tr key={g.id} className="border-b border-slate-100"><td className="p-1">{g.evaluation_name}</td><td className="p-1 text-center font-mono">{g.score}</td><td className="p-1 text-center font-mono">{g.max_score}</td></tr>))}</tbody>
             </table>
-            <div className="text-right font-bold text-lg mt-4">{`Note Finale: ${totalScore.toFixed(2)} / ${totalMaxScore.toFixed(2)} (${average.toFixed(2)}%)`}</div>
+            <div className="text-right font-bold text-lg mt-4">Note Finale: {totalScore.toFixed(2)} / {totalMaxScore.toFixed(2)} ({average.toFixed(2)}%)</div>
             <div className="mt-4">
                 <h4 className="font-semibold text-sm">Appréciation du Professeur</h4>
                 <textarea 
@@ -372,7 +413,10 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
                                 return <option key={en.id} value={en.id}>{isComplete ? '✓ ' : ''}{en.student?.prenom} {en.student?.nom}</option>
                             })}
                         </select>
-                        <p className="text-sm text-slate-500">{subjectName}</p>
+                         <div className="text-sm text-slate-500 mt-1">
+                            <span className="font-semibold">{subjectName} (sur {subjectDetails?.maxGrade || 100})</span>
+                            <span> | Total des points : {totalScore.toFixed(2)} / {totalMaxScore.toFixed(2)}</span>
+                        </div>
                     </div>
                     <div className="flex items-center gap-2">
                         {academicPeriods.length > 0 && <select value={selectedPeriod?.id || ''} onChange={e => setSelectedPeriod(academicPeriods.find(p => p.id === Number(e.target.value)) || null)} className="py-2 px-3 border rounded-md">{academicPeriods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>}
@@ -419,7 +463,7 @@ const TeacherReportModal: React.FC<TeacherReportModalProps> = ({ isOpen, onClose
                         {isLoading ? <p>Chargement...</p> : currentGrades.length > 0 ? (
                             <table className="w-full text-sm">
                                 <thead><tr className="border-b"><th className="p-2 text-left">Évaluation</th><th className="p-2 text-center">Note</th><th className="p-2 text-center">Sur</th><th className="p-2 text-right">Actions</th></tr></thead>
-                                <tbody>{currentGrades.map(grade => <GradeRow key={grade.id} grade={grade} onUpdate={handleUpdateGrade} onDeleteRequest={setGradeToDelete} />)}</tbody>
+                                <tbody>{currentGrades.map(grade => <GradeRow key={grade.id} grade={grade} allGrades={currentGrades} onUpdate={handleUpdateGrade} onDeleteRequest={setGradeToDelete} addNotification={addNotification} />)}</tbody>
                             </table>
                         ) : <p className="text-center italic text-slate-500 py-4">Aucune note pour cet élève.</p>}
                         

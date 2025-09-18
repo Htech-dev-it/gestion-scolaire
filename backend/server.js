@@ -2249,6 +2249,14 @@ async function startServer() {
                 return res.status(400).json({ message: "La note ne peut pas être supérieure à son maximum et le maximum doit être positif." });
             }
 
+            const { rows: existingGradeRows } = await req.db.query(
+                'SELECT id FROM grades WHERE enrollment_id = $1 AND subject_id = $2 AND period_id = $3 AND LOWER(evaluation_name) = LOWER($4)',
+                [enrollment_id, subject_id, period_id, evaluation_name]
+            );
+            if (existingGradeRows.length > 0) {
+                return res.status(409).json({ message: `Une évaluation nommée "${evaluation_name}" existe déjà pour cet élève dans cette matière et cette période.` });
+            }
+
             const { rows: enrollmentRows } = await req.db.query('SELECT * FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.id = $1 AND s.instance_id = $2', [enrollment_id, req.user.instance_id]);
             const enrollment = enrollmentRows[0];
             if (!enrollment) return res.status(404).json({ message: "Inscription non trouvée ou accès refusé." });
@@ -2282,6 +2290,16 @@ async function startServer() {
             const { rows: gradeRows } = await req.db.query('SELECT * FROM grades WHERE id = $1', [id]);
             const currentGrade = gradeRows[0];
             if (!currentGrade) return res.status(404).json({ message: "Note non trouvée." });
+
+            if (evaluation_name.toLowerCase() !== currentGrade.evaluation_name.toLowerCase()) {
+                const { rows: existingDuplicateRows } = await req.db.query(
+                    'SELECT id FROM grades WHERE enrollment_id = $1 AND subject_id = $2 AND period_id = $3 AND LOWER(evaluation_name) = LOWER($4) AND id != $5',
+                    [currentGrade.enrollment_id, currentGrade.subject_id, currentGrade.period_id, evaluation_name, id]
+                );
+                if (existingDuplicateRows.length > 0) {
+                    return res.status(409).json({ message: `Une autre évaluation nommée "${evaluation_name}" existe déjà.` });
+                }
+            }
 
             const { rows: enrollmentRows } = await req.db.query('SELECT * FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.id = $1 AND s.instance_id = $2', [currentGrade.enrollment_id, req.user.instance_id]);
             const enrollment = enrollmentRows[0];
@@ -3995,6 +4013,175 @@ async function startServer() {
             res.json({ message: 'Conversation effacée.' });
         }));
 
+        // --- NEW COMMUNICATION ROUTES ---
+
+        // Teacher Support Chat
+        app.get('/api/teacher/support-messages', authenticateToken, isTeacher, asyncHandler(async (req, res) => {
+            const { rows: teacherRows } = await req.db.query('SELECT id FROM teachers WHERE user_id = $1 AND instance_id = $2', [req.user.id, req.user.instance_id]);
+            if (teacherRows.length === 0) return res.status(404).json({ message: 'Profil professeur non trouvé.' });
+            const teacherId = teacherRows[0].id;
+            const { rows } = await req.db.query('SELECT * FROM teacher_support_messages WHERE teacher_id = $1 AND instance_id = $2 ORDER BY created_at ASC', [teacherId, req.user.instance_id]);
+            res.json(rows);
+        }));
+
+        app.post('/api/teacher/support-messages', authenticateToken, isTeacher, asyncHandler(async (req, res) => {
+            const { content } = req.body;
+            if (!content?.trim()) return res.status(400).json({ message: 'Le contenu du message est requis.' });
+            const { rows: teacherRows } = await req.db.query('SELECT id FROM teachers WHERE user_id = $1 AND instance_id = $2', [req.user.id, req.user.instance_id]);
+            if (teacherRows.length === 0) return res.status(404).json({ message: 'Profil professeur non trouvé.' });
+            const teacherId = teacherRows[0].id;
+            const { rows } = await req.db.query(`INSERT INTO teacher_support_messages (teacher_id, instance_id, sender_role, content, is_read_by_admin) VALUES ($1, $2, 'teacher', $3, false) RETURNING *`, [teacherId, req.user.instance_id, content.trim()]);
+            res.status(201).json(rows[0]);
+        }));
+
+        app.get('/api/admin/teacher-support/conversations', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+            const { rows } = await req.db.query(`
+                SELECT t.id as teacher_id, t.prenom as teacher_prenom, t.nom as teacher_nom,
+                       COUNT(m.id) FILTER (WHERE m.is_read_by_admin = false AND m.sender_role = 'teacher') as unread_count,
+                       MAX(m.created_at) as last_message_at
+                FROM teachers t
+                LEFT JOIN teacher_support_messages m ON t.id = m.teacher_id
+                WHERE t.instance_id = $1
+                GROUP BY t.id, t.prenom, t.nom
+                ORDER BY last_message_at DESC NULLS LAST, t.nom, t.prenom;
+            `, [req.user.instance_id]);
+            res.json(rows);
+        }));
+
+        app.get('/api/admin/teacher-support/conversations/:teacherId', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+            const { teacherId } = req.params;
+            const client = await req.db.connect();
+            try {
+                await client.query('BEGIN');
+                const { rows } = await client.query('SELECT * FROM teacher_support_messages WHERE teacher_id = $1 AND instance_id = $2 ORDER BY created_at ASC', [teacherId, req.user.instance_id]);
+                await client.query("UPDATE teacher_support_messages SET is_read_by_admin = true WHERE teacher_id = $1 AND instance_id = $2 AND sender_role = 'teacher'", [teacherId, req.user.instance_id]);
+                await client.query('COMMIT');
+                res.json(rows);
+            } catch (error) {
+                await client.query('ROLLBACK');
+                throw error;
+            } finally {
+                client.release();
+            }
+        }));
+
+        app.post('/api/admin/teacher-support/conversations/:teacherId', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+            const { teacherId } = req.params;
+            const { content } = req.body;
+            if (!content?.trim()) return res.status(400).json({ message: 'Le contenu du message est requis.' });
+            const { rowCount } = await req.db.query('SELECT 1 FROM teachers WHERE id = $1 AND instance_id = $2', [teacherId, req.user.instance_id]);
+            if (rowCount === 0) return res.status(404).json({ message: 'Professeur non trouvé.' });
+            const { rows } = await req.db.query(`INSERT INTO teacher_support_messages (teacher_id, instance_id, sender_role, content, is_read_by_admin) VALUES ($1, $2, 'admin', $3, true) RETURNING *`, [teacherId, req.user.instance_id, content.trim()]);
+            res.status(201).json(rows[0]);
+        }));
+        
+        app.delete('/api/teacher/support-messages/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+            const { id } = req.params;
+            const { rowCount } = await req.db.query(
+                'DELETE FROM teacher_support_messages WHERE id = $1 AND instance_id = $2',
+                [id, req.user.instance_id]
+            );
+            if (rowCount === 0) {
+                return res.status(404).json({ message: 'Message non trouvé ou non autorisé.' });
+            }
+            res.status(204).send();
+        }));
+
+        app.delete('/api/admin/teacher-support/conversations/:teacherId', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+            const { teacherId } = req.params;
+            await req.db.query(
+                'DELETE FROM teacher_support_messages WHERE teacher_id = $1 AND instance_id = $2',
+                [teacherId, req.user.instance_id]
+            );
+            res.json({ message: 'Conversation effacée.' });
+        }));
+
+        // Teacher Announcements
+        app.get('/api/teacher/announcements', authenticateToken, isTeacher, asyncHandler(async (req, res) => {
+            const { rows: teacherRows } = await req.db.query('SELECT id FROM teachers WHERE user_id = $1 AND instance_id = $2', [req.user.id, req.user.instance_id]);
+            if (teacherRows.length === 0) return res.status(404).json({ message: 'Profil professeur non trouvé.' });
+            const teacherId = teacherRows[0].id;
+            const { rows } = await req.db.query(`
+                SELECT a.id, a.content, a.created_at FROM teacher_announcements a
+                JOIN teacher_announcement_recipients r ON a.id = r.announcement_id
+                WHERE a.instance_id = $1 AND r.teacher_id = $2 ORDER BY a.created_at DESC;
+            `, [req.user.instance_id, teacherId]);
+            res.json(rows);
+        }));
+
+        app.get('/api/admin/teacher-announcements', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+            const { rows } = await req.db.query(`
+                SELECT a.id, a.content, a.created_at, (
+                    SELECT json_agg(json_build_object('teacher_id', t.id, 'prenom', t.prenom, 'nom', t.nom))
+                    FROM teacher_announcement_recipients r JOIN teachers t ON r.teacher_id = t.id WHERE r.announcement_id = a.id
+                ) as recipients
+                FROM teacher_announcements a WHERE a.instance_id = $1 ORDER BY a.created_at DESC;
+            `, [req.user.instance_id]);
+            res.json(rows.map(row => ({ ...row, recipients: row.recipients || [] })));
+        }));
+
+        app.post('/api/admin/teacher-announcements', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+            const { content, teacherIds } = req.body;
+            if (!content?.trim() || !Array.isArray(teacherIds)) return res.status(400).json({ message: 'Contenu et liste de destinataires requise.' });
+            const client = await req.db.connect();
+            try {
+                await client.query('BEGIN');
+                const { rows: annRows } = await client.query('INSERT INTO teacher_announcements (instance_id, content) VALUES ($1, $2) RETURNING id', [req.user.instance_id, content.trim()]);
+                const annId = annRows[0].id;
+                if (teacherIds.length > 0) {
+                    const values = teacherIds.flatMap(id => [annId, id]);
+                    const placeholders = teacherIds.map((_, i) => `($1, $${i + 2})`).join(',');
+                    await client.query(`INSERT INTO teacher_announcement_recipients (announcement_id, teacher_id) VALUES ${placeholders}`, [annId, ...teacherIds]);
+                }
+                await client.query('COMMIT');
+                res.status(201).json({ message: 'Annonce envoyée.' });
+            } catch (error) {
+                await client.query('ROLLBACK'); throw error;
+            } finally {
+                client.release();
+            }
+        }));
+
+        app.delete('/api/admin/teacher-announcements/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+            const { id } = req.params;
+            const { rowCount } = await req.db.query('DELETE FROM teacher_announcements WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
+            if (rowCount === 0) return res.status(404).json({ message: 'Annonce non trouvée.' });
+            res.status(204).send();
+        }));
+
+        // Student Announcements
+        app.get('/api/student/announcements', authenticateToken, isStudent, asyncHandler(async (req, res) => {
+            const { yearId } = req.query;
+            if (!yearId) return res.status(400).json({ message: "Année scolaire requise." });
+            const { rows: enrollmentRows } = await req.db.query('SELECT "className" FROM enrollments WHERE student_id = $1 AND year_id = $2', [req.user.student_id, yearId]);
+            if (enrollmentRows.length === 0) return res.json([]);
+            const className = enrollmentRows[0].className;
+            const { rows } = await req.db.query(`
+                SELECT id, content, created_at FROM student_announcements
+                WHERE instance_id = $1 AND (target_class_names = '{}' OR $2 = ANY(target_class_names))
+                ORDER BY created_at DESC;
+            `, [req.user.instance_id, className]);
+            res.json(rows);
+        }));
+
+        app.get('/api/admin/student-announcements', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+            const { rows } = await req.db.query('SELECT * FROM student_announcements WHERE instance_id = $1 ORDER BY created_at DESC', [req.user.instance_id]);
+            res.json(rows);
+        }));
+
+        app.post('/api/admin/student-announcements', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+            const { content, targetClassNames } = req.body;
+            if (!content?.trim() || !Array.isArray(targetClassNames)) return res.status(400).json({ message: 'Contenu et liste de classes cibles requise.' });
+            const { rows } = await req.db.query('INSERT INTO student_announcements (instance_id, content, target_class_names) VALUES ($1, $2, $3) RETURNING *', [req.user.instance_id, content.trim(), targetClassNames]);
+            res.status(201).json(rows[0]);
+        }));
+
+        app.delete('/api/admin/student-announcements/:id', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
+            const { id } = req.params;
+            const { rowCount } = await req.db.query('DELETE FROM student_announcements WHERE id = $1 AND instance_id = $2', [id, req.user.instance_id]);
+            if (rowCount === 0) return res.status(404).json({ message: 'Annonce non trouvée.' });
+            res.status(204).send();
+        }));
 
         // --- Serve React App ---
         // This should be after all API routes

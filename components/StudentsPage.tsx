@@ -4,6 +4,7 @@ import type { StudentProfile, StudentWithEnrollment, Instance, StudentFormState,
 import { EMPTY_STUDENT_FORM } from '../constants';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
+import * as db from '../utils/db';
 import StudentForm from './StudentForm';
 import AllStudentsTable from './AllStudentsTable';
 import ConfirmationModal from './ConfirmationModal';
@@ -57,6 +58,18 @@ const StudentsPage: React.FC = () => {
   const [classFilter, setClassFilter] = useState('all');
   const [showArchived, setShowArchived] = useState(false);
   
+  const getCacheKey = useCallback((page: number) => {
+    if (!selectedYear) return null;
+    const params = new URLSearchParams({
+        yearId: selectedYear.id.toString(),
+        page: page.toString(),
+        limit: '25',
+        includeArchived: String(showArchived),
+        classFilter
+    });
+    return `/students-with-enrollment-status?${params.toString()}`;
+  }, [selectedYear, showArchived, classFilter]);
+  
   const fetchStudents = useCallback(async (page: number) => {
         if (!selectedYear) {
             setIsLoading(false);
@@ -64,14 +77,10 @@ const StudentsPage: React.FC = () => {
         }
         setIsLoading(true);
         try {
-            const params = new URLSearchParams({
-                yearId: selectedYear.id.toString(),
-                page: page.toString(),
-                limit: '25',
-                includeArchived: String(showArchived),
-                classFilter
-            });
-            const data: PaginatedStudents = await apiFetch(`/students-with-enrollment-status?${params.toString()}`);
+            const cacheKey = getCacheKey(page);
+            if (!cacheKey) return;
+
+            const data: PaginatedStudents = await apiFetch(cacheKey);
             setStudents(data.students);
             setPagination(data.pagination);
         } catch (error) {
@@ -79,7 +88,7 @@ const StudentsPage: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [selectedYear, showArchived, classFilter, addNotification]);
+    }, [selectedYear, addNotification, getCacheKey]);
 
     useEffect(() => {
         fetchStudents(currentPage);
@@ -160,10 +169,13 @@ const StudentsPage: React.FC = () => {
             illnesses: formState.illnesses || null
         });
 
+        // FIX: Ensure `sexe` and `nisu` types match StudentWithEnrollment for optimistic updates.
+        // `sexe` in form state can be `''`, which is not assignable to `'M' | 'F' | null`. Convert `''` to `null`.
+        // `nisu` can become `undefined`, which is not assignable to `string | null`. Convert `undefined` to `null`.
         const profileData = {
             nom: formState.nom,
             prenom: formState.prenom,
-            sexe: formState.sexe,
+            sexe: formState.sexe === '' ? null : formState.sexe,
             date_of_birth: formState.date_of_birth,
             address: formState.address,
             photo_url: formState.photo_url,
@@ -172,19 +184,19 @@ const StudentsPage: React.FC = () => {
             tutor_email: formState.tutor_email,
             medical_notes,
             classe_ref: formState.classe_ref,
-            nisu: formState.hasNisu ? formState.nisu : undefined
+            nisu: formState.hasNisu ? formState.nisu : null
         };
         
         const method = isEditing ? 'PUT' : 'POST';
         const url = isEditing ? `/students/${editingStudent.id}` : '/students';
         
         let payload: any = { ...profileData };
+        if (!isEditing) payload.id = uuidv4();
 
         if (isEditing) {
             payload.mppa = formState.enrollmentMppa;
             payload.enrollmentId = formState.enrollmentId;
         } else {
-            payload.id = uuidv4();
             if (formState.enrollNow && selectedYear) {
                 payload.enrollment = {
                     year_id: selectedYear.id,
@@ -195,10 +207,32 @@ const StudentsPage: React.FC = () => {
         }
 
         try {
-            await apiFetch(url, { method, body: JSON.stringify(payload) });
+            const result = await apiFetch(url, { method, body: JSON.stringify(payload) });
+
+            if (result?.queued) {
+                const cacheKey = getCacheKey(currentPage);
+                if (cacheKey) {
+                    let updatedStudents: StudentWithEnrollment[];
+                    if (isEditing) {
+                        updatedStudents = students.map(s => s.id === editingStudent.id ? { ...editingStudent, ...profileData } : s);
+                    } else {
+                        const newStudent: StudentWithEnrollment = {
+                            ...profileData,
+                            id: payload.id,
+                            status: 'active',
+                            instance_id: instanceInfo!.id,
+                            enrollment: payload.enrollment ? { ...payload.enrollment, id: Date.now() } : undefined,
+                        };
+                        updatedStudents = [newStudent, ...students];
+                    }
+                    await db.saveData(cacheKey, { students: updatedStudents, pagination });
+                    setStudents(updatedStudents);
+                }
+            }
+            
             addNotification({ type: 'success', message: `Élève ${isEditing ? 'mis à jour' : 'ajouté'}.` });
             resetForm();
-            fetchStudents(isEditing ? currentPage : 1);
+            if(!result?.queued) await fetchStudents(isEditing ? currentPage : 1);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -212,13 +246,23 @@ const StudentsPage: React.FC = () => {
 
     const handleConfirmDelete = async () => {
         try {
-            await apiFetch('/students/delete', {
+            const result = await apiFetch('/students/delete', {
                 method: 'POST',
                 body: JSON.stringify({ ids: Array.from(selectedIds) }),
             });
+            
+            if (result?.queued) {
+                const cacheKey = getCacheKey(currentPage);
+                if (cacheKey) {
+                    const updatedStudents = students.filter(s => !selectedIds.has(s.id));
+                    await db.saveData(cacheKey, { students: updatedStudents, pagination });
+                    setStudents(updatedStudents);
+                }
+            }
+
             addNotification({ type: 'success', message: 'Élèves supprimés.' });
             setSelectedIds(new Set());
-            fetchStudents(1);
+            if (!result?.queued) await fetchStudents(1);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {
@@ -228,13 +272,23 @@ const StudentsPage: React.FC = () => {
     
     const handleSetStatusRequest = async (status: 'active' | 'archived') => {
         try {
-            await apiFetch('/students/status', {
+            const result = await apiFetch('/students/status', {
                 method: 'POST',
                 body: JSON.stringify({ ids: Array.from(selectedIds), status }),
             });
+
+            if (result?.queued) {
+                const cacheKey = getCacheKey(currentPage);
+                if (cacheKey) {
+                    const updatedStudents = students.filter(s => !selectedIds.has(s.id));
+                    await db.saveData(cacheKey, { students: updatedStudents, pagination });
+                    setStudents(updatedStudents);
+                }
+            }
+            
             addNotification({ type: 'success', message: `Élèves ${status === 'active' ? 'réactivés' : 'archivés'}.` });
             setSelectedIds(new Set());
-            fetchStudents(1);
+            if (!result?.queued) await fetchStudents(1);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -248,12 +302,28 @@ const StudentsPage: React.FC = () => {
     const handleEnrollSubmit = async (className: string, mppa: number) => {
         if (!studentToEnroll || !selectedYear) return;
         try {
-            await apiFetch('/enrollments', {
+            const result = await apiFetch('/enrollments', {
                 method: 'POST',
                 body: JSON.stringify({ student_id: studentToEnroll.id, year_id: selectedYear.id, className, mppa }),
             });
+            
+            if(result?.queued) {
+                // Optimistic UI update for single enrollment
+                const cacheKey = getCacheKey(currentPage);
+                if (cacheKey) {
+                    const updatedStudents = students.map(s => {
+                        if (s.id === studentToEnroll.id) {
+                            return { ...s, enrollment: { id: Date.now(), className, mppa, adjustments: [] }};
+                        }
+                        return s;
+                    });
+                    await db.saveData(cacheKey, { students: updatedStudents, pagination });
+                    setStudents(updatedStudents);
+                }
+            }
+            
             addNotification({ type: 'success', message: `${studentToEnroll.prenom} a été inscrit(e).` });
-            fetchStudents(currentPage);
+            if (!result?.queued) await fetchStudents(currentPage);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {
@@ -279,12 +349,27 @@ const StudentsPage: React.FC = () => {
         }
 
         try {
-            await apiFetch('/enrollments/bulk', {
+            const result = await apiFetch('/enrollments/bulk', {
                 method: 'POST',
                 body: JSON.stringify({ student_ids: unrolledSelectedIds, year_id: selectedYear.id, className, mppa }),
             });
+
+            if (result?.queued) {
+                 const cacheKey = getCacheKey(currentPage);
+                 if (cacheKey) {
+                    const updatedStudents = students.map(s => {
+                        if (unrolledSelectedIds.includes(s.id)) {
+                             return { ...s, enrollment: { id: Date.now(), className, mppa, adjustments: [] }};
+                        }
+                        return s;
+                    });
+                    await db.saveData(cacheKey, { students: updatedStudents, pagination });
+                    setStudents(updatedStudents);
+                 }
+            }
+            
             addNotification({ type: 'success', message: `${unrolledSelectedIds.length} élèves inscrits en masse.` });
-            fetchStudents(currentPage);
+            if (!result?.queued) await fetchStudents(currentPage);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {
@@ -305,12 +390,27 @@ const StudentsPage: React.FC = () => {
             .map(s => s.enrollment!.id);
         
         try {
-            await apiFetch('/enrollments/bulk-change-class', {
+            const result = await apiFetch('/enrollments/bulk-change-class', {
                 method: 'POST',
                 body: JSON.stringify({ enrollmentIds, targetClassName: className }),
             });
+
+            if (result?.queued) {
+                const cacheKey = getCacheKey(currentPage);
+                if (cacheKey) {
+                    const updatedStudents = students.map(s => {
+                        if (selectedIds.has(s.id) && s.enrollment) {
+                            return { ...s, enrollment: { ...s.enrollment, className: className }};
+                        }
+                        return s;
+                    });
+                    await db.saveData(cacheKey, { students: updatedStudents, pagination });
+                    setStudents(updatedStudents);
+                }
+            }
+
             addNotification({ type: 'success', message: 'Classes des élèves mises à jour.' });
-            fetchStudents(currentPage);
+            if (!result?.queued) await fetchStudents(currentPage);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {

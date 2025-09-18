@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { apiFetch } from '../utils/api';
+import * as db from '../utils/db';
 import { useNotification } from '../contexts/NotificationContext';
 import type { Instance, User, DashboardStats, Announcement, PlatformSettings, Message, MessageSummary } from '../types';
 import { useAuth } from '../auth/AuthContext';
@@ -403,14 +404,19 @@ const SuperAdminPage: React.FC = () => {
     const [selectedInstanceForChat, setSelectedInstanceForChat] = useState<MessageSummary | null>(null);
     const [editingInstanceId, setEditingInstanceId] = useState<number | null>(null);
     const [editingFormState, setEditingFormState] = useState<{ name: string; address: string; phone: string; email: string; } | null>(null);
+    const cacheKeys = {
+        instances: '/superadmin/instances',
+        announcements: '/superadmin/announcements'
+    };
+
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
             const [statsData, instancesData, announcementsData, summariesData] = await Promise.all([
                 apiFetch('/superadmin/dashboard-stats'),
-                apiFetch('/superadmin/instances'),
-                apiFetch('/superadmin/announcements'),
+                apiFetch(cacheKeys.instances),
+                apiFetch(cacheKeys.announcements),
                 apiFetch('/superadmin/messages/summary')
             ]);
             setStats(statsData);
@@ -422,7 +428,7 @@ const SuperAdminPage: React.FC = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [addNotification]);
+    }, [addNotification, cacheKeys.instances, cacheKeys.announcements]);
 
     useEffect(() => {
         fetchData();
@@ -446,13 +452,17 @@ const SuperAdminPage: React.FC = () => {
         e.preventDefault();
         try {
             const data = await apiFetch('/superadmin/instances', { method: 'POST', body: JSON.stringify(formState) });
-            addNotification({ type: 'success', message: data.message || 'Instance créée avec succès.' });
-            if (data.credentials) {
-                setCredentials(data.credentials);
-                setModalTitle(`Identifiants pour ${data.instance.name}`);
+            if (data?.queued) {
+                 addNotification({ type: 'info', message: 'Création en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: data.message || 'Instance créée avec succès.' });
+                if (data.credentials) {
+                    setCredentials(data.credentials);
+                    setModalTitle(`Identifiants pour ${data.instance.name}`);
+                }
+                await fetchData();
             }
-            setFormState({ name: '', admin_email: '', address: '', phone: '', sendEmail: true });
-            fetchData();
+             setFormState({ name: '', admin_email: '', address: '', phone: '', sendEmail: true });
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -476,25 +486,40 @@ const SuperAdminPage: React.FC = () => {
     const handleUpdateInstanceDetails = async (instanceId: number) => {
         if (!editingFormState) return;
         try {
-            await apiFetch(`/superadmin/instances/${instanceId}/details`, {
+            const result = await apiFetch(`/superadmin/instances/${instanceId}/details`, {
                 method: 'PUT',
                 body: JSON.stringify(editingFormState)
             });
-            addNotification({ type: 'success', message: 'Détails de l\'instance mis à jour.' });
+            if(result?.queued) {
+                const updatedInstances = instances.map(i => i.id === instanceId ? { ...i, ...editingFormState } : i);
+                setInstances(updatedInstances);
+                await db.saveData(cacheKeys.instances, updatedInstances);
+                addNotification({ type: 'info', message: 'Mise à jour en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Détails de l\'instance mis à jour.' });
+                await fetchData();
+            }
             setEditingInstanceId(null);
             setEditingFormState(null);
-            fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
     };
 
     const handleToggleStatus = async (instance: InstanceWithAdmins) => {
-        const newStatus = instance.status === 'active' ? 'suspended' : 'active';
+        // FIX: Explicitly type `newStatus` to prevent TypeScript from widening it to a generic `string`.
+        const newStatus: 'active' | 'suspended' = instance.status === 'active' ? 'suspended' : 'active';
         try {
-            await apiFetch(`/superadmin/instances/${instance.id}/status`, { method: 'PUT', body: JSON.stringify({ status: newStatus }) });
-            addNotification({ type: 'success', message: `Statut de ${instance.name} mis à jour.` });
-            fetchData();
+            const result = await apiFetch(`/superadmin/instances/${instance.id}/status`, { method: 'PUT', body: JSON.stringify({ status: newStatus }) });
+             if(result?.queued) {
+                const updatedInstances = instances.map(i => i.id === instance.id ? { ...i, status: newStatus } : i);
+                setInstances(updatedInstances);
+                await db.saveData(cacheKeys.instances, updatedInstances);
+                addNotification({ type: 'info', message: 'Changement de statut en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: `Statut de ${instance.name} mis à jour.` });
+                await fetchData();
+            }
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -503,10 +528,17 @@ const SuperAdminPage: React.FC = () => {
     const handleScheduleSave = async (date: string | null) => {
         if (!instanceToSchedule) return;
         try {
-            await apiFetch(`/superadmin/instances/${instanceToSchedule.id}/expires`, { method: 'PUT', body: JSON.stringify({ expires_at: date }) });
-            addNotification({ type: 'success', message: 'Date de suspension mise à jour.' });
+            const result = await apiFetch(`/superadmin/instances/${instanceToSchedule.id}/expires`, { method: 'PUT', body: JSON.stringify({ expires_at: date }) });
+            if(result?.queued) {
+                const updatedInstances = instances.map(i => i.id === instanceToSchedule.id ? { ...i, expires_at: date } : i);
+                setInstances(updatedInstances);
+                await db.saveData(cacheKeys.instances, updatedInstances);
+                addNotification({ type: 'info', message: 'Planification en attente de synchronisation.' });
+            } else {
+                 addNotification({ type: 'success', message: 'Date de suspension mise à jour.' });
+                 await fetchData();
+            }
             setInstanceToSchedule(null);
-            fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -515,11 +547,14 @@ const SuperAdminPage: React.FC = () => {
     const handleResetAdminPassword = async (admin: User) => {
         try {
             const data = await apiFetch(`/superadmin/users/${admin.id}/reset-password`, { method: 'PUT' });
-            if (data.tempPassword) {
+            if (data?.queued) {
+                 addNotification({ type: 'info', message: 'Réinitialisation du mot de passe en attente de synchronisation.' });
+            } else if (data.tempPassword) {
                 setCredentials(data);
                 setModalTitle(`Nouveau mot de passe pour ${data.username}`);
+            } else {
+                 addNotification({ type: 'success', message: data.message || `Mot de passe réinitialisé pour ${data.username}.` });
             }
-            addNotification({ type: 'success', message: data.message || `Mot de passe réinitialisé pour ${data.username}.` });
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -533,11 +568,18 @@ const SuperAdminPage: React.FC = () => {
     const handleConfirmDeleteInstance = async (password: string) => {
         if (!passwordConfirmInstance) return;
         try {
-            await apiFetch(`/superadmin/instances/${passwordConfirmInstance.id}`, { method: 'DELETE', body: JSON.stringify({ password }) });
-            addNotification({ type: 'success', message: `L'instance ${passwordConfirmInstance.name} a été supprimée.` });
+            const result = await apiFetch(`/superadmin/instances/${passwordConfirmInstance.id}`, { method: 'DELETE', body: JSON.stringify({ password }) });
+             if (result?.queued) {
+                const updatedInstances = instances.filter(i => i.id !== passwordConfirmInstance.id);
+                setInstances(updatedInstances);
+                await db.saveData(cacheKeys.instances, updatedInstances);
+                addNotification({ type: 'info', message: 'Suppression en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: `L'instance ${passwordConfirmInstance.name} a été supprimée.` });
+                await fetchData();
+            }
             setPasswordConfirmInstance(null);
             setInstanceToDelete(null);
-            fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -549,10 +591,24 @@ const SuperAdminPage: React.FC = () => {
         const url = isEditing ? `/superadmin/announcements/${announcementForm.id}` : '/superadmin/announcements';
         const method = isEditing ? 'PUT' : 'POST';
         try {
-            await apiFetch(url, { method, body: JSON.stringify(announcementForm) });
-            addNotification({ type: 'success', message: `Annonce ${isEditing ? 'mise à jour' : 'créée'}.` });
+            const result = await apiFetch(url, { method, body: JSON.stringify(announcementForm) });
+            if(result?.queued) {
+                const optimisticAnn: Announcement = {
+                    id: isEditing ? announcementForm.id! : Date.now(),
+                    ...announcementForm,
+                    created_at: new Date().toISOString(),
+                };
+                const updatedAnnouncements = isEditing 
+                    ? announcements.map(a => a.id === announcementForm.id ? optimisticAnn : a)
+                    : [optimisticAnn, ...announcements];
+                setAnnouncements(updatedAnnouncements);
+                await db.saveData(cacheKeys.announcements, updatedAnnouncements);
+                addNotification({ type: 'info', message: 'Action en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: `Annonce ${isEditing ? 'mise à jour' : 'créée'}.` });
+                await fetchData();
+            }
             setAnnouncementForm({ id: null, title: '', content: '', is_active: true, instance_id: null });
-            fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -575,10 +631,17 @@ const SuperAdminPage: React.FC = () => {
     const handleConfirmDeleteAnnouncement = async () => {
         if (!announcementToDelete) return;
         try {
-            await apiFetch(`/superadmin/announcements/${announcementToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: 'Annonce supprimée.' });
+            const result = await apiFetch(`/superadmin/announcements/${announcementToDelete.id}`, { method: 'DELETE' });
+             if (result?.queued) {
+                const updatedAnnouncements = announcements.filter(a => a.id !== announcementToDelete.id);
+                setAnnouncements(updatedAnnouncements);
+                await db.saveData(cacheKeys.announcements, updatedAnnouncements);
+                addNotification({ type: 'info', message: 'Suppression en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Annonce supprimée.' });
+                await fetchData();
+            }
             setAnnouncementToDelete(null);
-            fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }

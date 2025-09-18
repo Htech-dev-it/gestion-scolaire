@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../utils/api';
+import * as db from '../utils/db';
 import { useNotification } from '../contexts/NotificationContext';
 import { fileToBase64 } from '../utils/fileReader';
 import type { Resource } from '../types';
@@ -14,39 +15,51 @@ const ResourceManager: React.FC<ResourceManagerProps> = ({ assignmentId }) => {
     const [resources, setResources] = useState<Resource[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'list' | 'form'>('list');
-    const [addType, setAddType] = useState<'file' | 'link'>('file');
-    const [formState, setFormState] = useState({ title: '', url: '', file: null as File | null });
+    // FIX: Consolidate resource_type into formState to resolve TypeScript errors.
+    const [formState, setFormState] = useState({
+        title: '',
+        url: '',
+        file: null as File | null,
+        resource_type: 'file' as 'file' | 'link'
+    });
     const [editingResource, setEditingResource] = useState<Resource | null>(null);
     const [viewingResource, setViewingResource] = useState<Resource | null>(null);
+    const cacheKey = `/resources?assignmentId=${assignmentId}`;
 
 
     const fetchResources = useCallback(async () => {
         if (!assignmentId) return;
         setIsLoading(true);
         try {
-            const data = await apiFetch(`/resources?assignmentId=${assignmentId}`);
+            const data = await apiFetch(cacheKey);
             setResources(data);
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {
             setIsLoading(false);
         }
-    }, [assignmentId, addNotification]);
+    }, [assignmentId, addNotification, cacheKey]);
 
     useEffect(() => {
         fetchResources();
     }, [fetchResources]);
 
     const resetForm = () => {
-        setFormState({ title: '', url: '', file: null });
+        // FIX: Ensure resource_type is reset in the form state.
+        setFormState({ title: '', url: '', file: null, resource_type: 'file' });
         setEditingResource(null);
         setActiveTab('list');
     };
 
     const handleEdit = (resource: Resource) => {
         setEditingResource(resource);
-        setFormState({ title: resource.title, url: resource.url || '', file: null });
-        setAddType(resource.resource_type);
+        // FIX: Set resource_type in formState when editing.
+        setFormState({
+            title: resource.title,
+            url: resource.url || '',
+            file: null,
+            resource_type: resource.resource_type
+        });
         setActiveTab('form');
     };
 
@@ -68,30 +81,48 @@ const ResourceManager: React.FC<ResourceManagerProps> = ({ assignmentId }) => {
 
         let body: Partial<Resource> = {
             assignment_id: assignmentId,
-            resource_type: addType,
+            // FIX: Use resource_type from formState, removing dependency on the old 'addType' state.
+            resource_type: formState.resource_type,
             title: formState.title,
         };
 
         try {
-            if (addType === 'file') {
+            if (body.resource_type === 'file') {
                 if (formState.file) { // New file is uploaded
                     body.file_name = formState.file.name;
                     body.mime_type = formState.file.type;
                     body.file_content = await fileToBase64(formState.file);
-                } else if (isEditing) {
-                    // If editing a file but not uploading a new one, we just update the title
-                    // Backend must handle this case by not overwriting file fields
-                } else {
+                } else if (!isEditing) {
                     throw new Error("Veuillez sélectionner un fichier.");
                 }
-            } else if (addType === 'link') {
+            } else if (body.resource_type === 'link') {
                 body.url = formState.url;
             }
 
-            await apiFetch(url, { method, body: JSON.stringify(body) });
-            addNotification({ type: 'success', message: `Ressource ${isEditing ? 'mise à jour' : 'ajoutée'} avec succès.` });
+            const result = await apiFetch(url, { method, body: JSON.stringify(body) });
+            
+            if (result?.queued) {
+                addNotification({ type: 'info', message: 'Action en attente de synchronisation.' });
+                const optimisticResource = {
+                    ...(editingResource || {}),
+                    ...body,
+                    id: isEditing ? editingResource!.id : Date.now(),
+                    created_at: new Date().toISOString()
+                } as Resource;
+                
+                const updatedResources = isEditing
+                    ? resources.map(r => r.id === editingResource!.id ? optimisticResource : r)
+                    : [...resources, optimisticResource];
+                
+                setResources(updatedResources);
+                await db.saveData(cacheKey, updatedResources);
+
+            } else {
+                addNotification({ type: 'success', message: `Ressource ${isEditing ? 'mise à jour' : 'ajoutée'} avec succès.` });
+                await fetchResources();
+            }
+
             resetForm();
-            await fetchResources();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {
@@ -103,9 +134,18 @@ const ResourceManager: React.FC<ResourceManagerProps> = ({ assignmentId }) => {
         if (!window.confirm("Êtes-vous sûr de vouloir supprimer cette ressource ?")) return;
         
         try {
-            await apiFetch(`/resources/${resourceId}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: 'Ressource supprimée.' });
-            await fetchResources();
+            const result = await apiFetch(`/resources/${resourceId}`, { method: 'DELETE' });
+
+            if (result?.queued) {
+                const updatedResources = resources.filter(r => r.id !== resourceId);
+                setResources(updatedResources);
+                await db.saveData(cacheKey, updatedResources);
+                addNotification({ type: 'info', message: 'Suppression en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Ressource supprimée.' });
+                await fetchResources();
+            }
+
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -117,7 +157,7 @@ const ResourceManager: React.FC<ResourceManagerProps> = ({ assignmentId }) => {
              {!editingResource && (
                 <div className="flex items-center gap-2 p-1 bg-slate-200 rounded-lg">
                     {(['file', 'link'] as const).map(type => (
-                        <button key={type} type="button" onClick={() => setAddType(type)} className={`px-3 py-1 text-sm rounded-md capitalize transition-colors flex-grow ${addType === type ? 'bg-blue-600 text-white shadow' : 'hover:bg-slate-300'}`}>{type}</button>
+                        <button key={type} type="button" onClick={() => setFormState(s=> ({...s, resource_type: type}))} className={`px-3 py-1 text-sm rounded-md capitalize transition-colors flex-grow ${formState.resource_type === type ? 'bg-blue-600 text-white shadow' : 'hover:bg-slate-300'}`}>{type}</button>
                     ))}
                 </div>
              )}
@@ -125,14 +165,14 @@ const ResourceManager: React.FC<ResourceManagerProps> = ({ assignmentId }) => {
                 <label className="block text-sm font-medium">Titre</label>
                 <input type="text" value={formState.title} onChange={e => setFormState(s => ({...s, title: e.target.value}))} required className="w-full p-2 border rounded-md" />
             </div>
-            {addType === 'file' && (
+            {formState.resource_type === 'file' && (
                 <div>
                     <label className="block text-sm font-medium">Fichier</label>
                     <input type="file" onChange={e => setFormState(s => ({...s, file: e.target.files?.[0] || null}))} required={!editingResource} className="w-full text-sm" />
                     {editingResource && <p className="text-xs text-slate-500 mt-1">Laissez vide pour conserver le fichier actuel.</p>}
                 </div>
             )}
-            {addType === 'link' && <div><label className="block text-sm font-medium">URL</label><input type="url" value={formState.url} onChange={e => setFormState(s => ({...s, url: e.target.value}))} required className="w-full p-2 border rounded-md" placeholder="https://example.com" /></div>}
+            {formState.resource_type === 'link' && <div><label className="block text-sm font-medium">URL</label><input type="url" value={formState.url} onChange={e => setFormState(s => ({...s, url: e.target.value}))} required className="w-full p-2 border rounded-md" placeholder="https://example.com" /></div>}
             <div className="flex justify-end gap-2"><button type="button" onClick={resetForm} className="px-4 py-2 bg-slate-200 rounded-md">Annuler</button><button type="submit" disabled={isLoading} className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:bg-slate-400">{editingResource ? 'Mettre à jour' : 'Ajouter'}</button></div>
         </form>
     );

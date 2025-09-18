@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
@@ -22,6 +22,20 @@ const PromotionManager: React.FC = () => {
     const [previewData, setPreviewData] = useState<PromotionPreview | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isConfirmationOpen, setConfirmationOpen] = useState(false);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+    useEffect(() => {
+        const goOnline = () => setIsOnline(true);
+        const goOffline = () => setIsOnline(false);
+
+        window.addEventListener('online', goOnline);
+        window.addEventListener('offline', goOffline);
+
+        return () => {
+            window.removeEventListener('online', goOnline);
+            window.removeEventListener('offline', goOffline);
+        };
+    }, []);
 
     // Auto-generate promotion map when source year changes
     useMemo(() => {
@@ -41,6 +55,10 @@ const PromotionManager: React.FC = () => {
     }, [schoolYears, classes]);
 
     const handlePreview = async () => {
+        if (!isOnline) {
+            addNotification({ type: 'warning', message: "La simulation de promotion nécessite une connexion internet." });
+            return;
+        }
         if (!sourceYear) {
             addNotification({ type: 'error', message: "Veuillez sélectionner une année scolaire source." });
             return;
@@ -62,6 +80,10 @@ const PromotionManager: React.FC = () => {
     };
 
     const handleExecutePromotion = () => {
+         if (!isOnline) {
+            addNotification({ type: 'warning', message: "L'exécution de la promotion nécessite une connexion internet." });
+            return;
+        }
         if (!previewData) {
             addNotification({ type: 'warning', message: 'Veuillez d\'abord lancer une simulation.' });
             return;
@@ -92,6 +114,12 @@ const PromotionManager: React.FC = () => {
         <div>
             <h2 className="text-xl font-semibold text-slate-700 font-display">Outil de Promotion des Élèves</h2>
             <p className="text-sm text-slate-500 mt-1 mb-4">Cet outil met à jour la "Classe de Référence" des élèves en se basant sur leur moyenne annuelle et la moyenne de passage définie. Cela prépare les élèves pour leur inscription dans la nouvelle année scolaire.</p>
+            
+            {!isOnline && (
+                <div className="p-4 mb-4 text-sm text-yellow-800 bg-yellow-100 rounded-lg" role="alert">
+                    <span className="font-medium">Mode hors ligne:</span> La promotion des élèves est une opération complexe qui nécessite une connexion internet active pour garantir l'intégrité des données.
+                </div>
+            )}
             
             <div className="bg-slate-50 p-4 rounded-lg border space-y-4">
                 <div>
@@ -129,7 +157,7 @@ const PromotionManager: React.FC = () => {
 
                 <div>
                      <h3 className="block text-sm font-medium text-gray-700 mb-1">3. Lancer la simulation</h3>
-                    <button onClick={handlePreview} disabled={isLoading || !sourceYear} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 disabled:bg-slate-400">
+                    <button onClick={handlePreview} disabled={isLoading || !sourceYear || !isOnline} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 disabled:bg-slate-400">
                         {isLoading ? 'Simulation en cours...' : 'Lancer la simulation'}
                     </button>
                 </div>
@@ -162,7 +190,7 @@ const PromotionManager: React.FC = () => {
                     <div className="mt-4">
                         <h3 className="block text-sm font-medium text-gray-700 mb-2">4. Exécuter la promotion</h3>
                         <p className="text-xs text-red-600 mb-2">ATTENTION: Seuls les élèves admis verront leur classe de référence mise à jour. Les élèves ajournés resteront dans leur classe actuelle en prévision du redoublement. Cette action est irréversible.</p>
-                        <button onClick={handleExecutePromotion} disabled={isLoading} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg shadow-sm hover:bg-red-700 disabled:bg-slate-400">
+                        <button onClick={handleExecutePromotion} disabled={isLoading || !isOnline} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg shadow-sm hover:bg-red-700 disabled:bg-slate-400">
                             {isLoading ? 'Exécution...' : 'Exécuter la Promotion'}
                         </button>
                     </div>

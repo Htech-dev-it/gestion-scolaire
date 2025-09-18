@@ -1,14 +1,110 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { apiFetch } from '../utils/api';
-import type { TeacherDashboardAssignment } from '../types';
+import type { TeacherDashboardAssignment, TeacherAnnouncement, TeacherSupportMessage } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import ChangePasswordForm from './ChangePasswordForm';
 import TeacherTimetableView from './TeacherTimetableView';
 
-type TeacherTab = 'courses' | 'timetable' | 'security';
+type TeacherTab = 'courses' | 'timetable' | 'support' | 'security';
+
+const Announcements: React.FC = () => {
+    const [announcements, setAnnouncements] = useState<TeacherAnnouncement[]>([]);
+    const [visible, setVisible] = useState(true);
+
+    useEffect(() => {
+        apiFetch('/teacher/announcements')
+            .then(setAnnouncements)
+            .catch(err => console.error("Failed to fetch announcements:", err));
+    }, []);
+
+    if (announcements.length === 0 || !visible) return null;
+
+    return (
+        <div className="p-4 mb-6 bg-blue-100 border-l-4 border-blue-500 text-blue-800 rounded-r-lg shadow relative">
+             <button onClick={() => setVisible(false)} className="absolute top-2 right-2 p-1 text-blue-500 hover:bg-blue-200 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h4 className="font-bold">Annonce de l'Administration</h4>
+            {announcements.map(ann => (
+                <p key={ann.id} className="text-sm mt-2">{ann.content}</p>
+            ))}
+        </div>
+    );
+};
+
+const SupportChat: React.FC = () => {
+    const { user } = useAuth();
+    const { addNotification } = useNotification();
+    const [messages, setMessages] = useState<TeacherSupportMessage[]>([]);
+    const [newMessage, setNewMessage] = useState('');
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    const fetchMessages = useCallback(async (isInitialLoad = false) => {
+        try {
+            const data = await apiFetch('/teacher/support-messages');
+            setMessages(data);
+        } catch (error) {
+            if (isInitialLoad && error instanceof Error) {
+                addNotification({ type: 'error', message: error.message });
+            }
+            console.error(error);
+        }
+    }, [addNotification]);
+
+    useEffect(() => {
+        fetchMessages(true);
+        const intervalId = setInterval(() => fetchMessages(false), 5000); // Poll every 5 seconds
+        return () => clearInterval(intervalId);
+    }, [fetchMessages]);
+    
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages]);
+
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newMessage.trim() || !user) return;
+        
+        const optimisticMessage: TeacherSupportMessage = { id: Date.now(), teacher_id: 0, sender_role: 'teacher', content: newMessage, created_at: new Date().toISOString(), is_read_by_admin: false };
+        setMessages(prev => [...prev, optimisticMessage]);
+        const currentMessage = newMessage;
+        setNewMessage('');
+
+        try {
+            const result = await apiFetch('/teacher/support-messages', { method: 'POST', body: JSON.stringify({ content: currentMessage }) });
+            setMessages(prev => prev.map(m => m.id === optimisticMessage.id ? result : m));
+        } catch (error) {
+            if (error instanceof Error) addNotification({ type: 'error', message: error.message });
+            setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id)); // Rollback optimistic update
+        }
+    };
+    
+    const formatDate = (dateString: string) => new Date(dateString).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' });
+
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-md flex flex-col h-[70vh]">
+            <h2 className="text-2xl font-semibold text-slate-700 font-display mb-4 flex-shrink-0">Contacter l'Administration</h2>
+            <div className="flex-grow overflow-y-auto pr-2 space-y-4 mb-4">
+                {messages.map(msg => (
+                    <div key={msg.id} className={`flex ${msg.sender_role === 'teacher' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-xs md:max-w-md p-3 rounded-lg ${msg.sender_role === 'teacher' ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-800'}`}>
+                            <p className="text-sm">{msg.content}</p>
+                            <p className={`text-xs mt-1 ${msg.sender_role === 'teacher' ? 'text-blue-200' : 'text-slate-500'}`}>{formatDate(msg.created_at)}</p>
+                        </div>
+                    </div>
+                ))}
+                <div ref={messagesEndRef} />
+            </div>
+            <form onSubmit={handleSendMessage} className="flex-shrink-0 flex gap-2">
+                <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Écrivez votre message..." className="w-full p-2 border rounded-md" />
+                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Envoyer</button>
+            </form>
+        </div>
+    );
+};
 
 const TeacherDashboard: React.FC = () => {
     const { user } = useAuth();
@@ -98,11 +194,14 @@ const TeacherDashboard: React.FC = () => {
                 </p>
             </header>
 
+            <Announcements />
+
             <main>
                 <div className="mb-6 border-b border-slate-200">
                     <div className="flex items-center space-x-2">
                         <TabButton tabId="courses">Mes Cours</TabButton>
                         <TabButton tabId="timetable">Mon Emploi du temps</TabButton>
+                        <TabButton tabId="support">Support</TabButton>
                         <TabButton tabId="security">Sécurité</TabButton>
                     </div>
                 </div>
@@ -121,6 +220,9 @@ const TeacherDashboard: React.FC = () => {
                     </div>
                 )}
 
+                {activeTab === 'support' && (
+                    <SupportChat />
+                )}
 
                 {activeTab === 'security' && (
                     <div className="bg-white p-6 rounded-xl shadow-md">

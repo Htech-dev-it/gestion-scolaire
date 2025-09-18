@@ -211,6 +211,7 @@ const handlePrintSheets = () => {
         <div class="page">
             <div class="sheet-container">
                 <div class="school-header">
+                    ${schoolInfo?.logo_url ? `<img src="${schoolInfo.logo_url}" style="height: 60px; margin: 0 auto 10px; object-fit: contain;" />` : ''}
                     <h1>${schoolInfo?.name || ''}</h1>
                     <p>${schoolInfo?.address || ''}</p>
                     <p>${schoolInfo?.phone || ''}</p>

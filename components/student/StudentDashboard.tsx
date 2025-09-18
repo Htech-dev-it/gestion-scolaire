@@ -5,6 +5,8 @@ import StudentChangePasswordForm from './StudentChangePasswordForm';
 import { useSchoolYear } from '../../contexts/SchoolYearContext';
 import { useStudentAccess } from '../../contexts/StudentAccessContext';
 import Tooltip from '../Tooltip';
+import { apiFetch } from '../../utils/api';
+import type { StudentAnnouncement } from '../../types';
 
 const NavCard: React.FC<{ to: string, title: string, description: string, icon: React.ReactNode, isDisabled?: boolean }> = ({ to, title, description, icon, isDisabled = false }) => {
     
@@ -33,6 +35,33 @@ const NavCard: React.FC<{ to: string, title: string, description: string, icon: 
     return <ReactRouterDOM.Link to={to}>{cardContent}</ReactRouterDOM.Link>;
 };
 
+const Announcements: React.FC = () => {
+    const { selectedYear } = useSchoolYear();
+    const [announcements, setAnnouncements] = useState<StudentAnnouncement[]>([]);
+    const [visible, setVisible] = useState(true);
+
+    useEffect(() => {
+        if (!selectedYear) return;
+        apiFetch(`/student/announcements?yearId=${selectedYear.id}`)
+            .then(setAnnouncements)
+            .catch(err => console.error("Failed to fetch announcements:", err));
+    }, [selectedYear]);
+
+    if (announcements.length === 0 || !visible) return null;
+
+    return (
+        <div className="p-4 mb-6 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800 rounded-r-lg shadow relative">
+             <button onClick={() => setVisible(false)} className="absolute top-2 right-2 p-1 text-yellow-500 hover:bg-yellow-200 rounded-full">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h4 className="font-bold">Message de l'Administration</h4>
+            {announcements.map(ann => (
+                <p key={ann.id} className="text-sm mt-2">{ann.content}</p>
+            ))}
+        </div>
+    );
+};
+
 const StudentDashboard: React.FC = () => {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState<'overview' | 'security'>('overview');
@@ -48,6 +77,8 @@ const StudentDashboard: React.FC = () => {
                     Votre tableau de bord personnel.
                 </p>
             </header>
+            
+            <Announcements />
             
             <div className="mb-6 border-b border-slate-200">
                 <div className="flex items-center space-x-2">

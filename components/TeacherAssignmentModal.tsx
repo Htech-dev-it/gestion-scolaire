@@ -70,7 +70,7 @@ const TeacherAssignmentModal: React.FC<TeacherAssignmentModalProps> = ({ isOpen,
         });
 
         try {
-            await apiFetch('/teacher-assignments/bulk-update', {
+            const result = await apiFetch('/teacher-assignments/bulk-update', {
                 method: 'POST',
                 body: JSON.stringify({
                     teacherId: teacher.id,
@@ -78,7 +78,11 @@ const TeacherAssignmentModal: React.FC<TeacherAssignmentModalProps> = ({ isOpen,
                     assignments,
                 }),
             });
-            addNotification({ type: 'success', message: 'Assignations mises à jour.' });
+            if (result?.queued) {
+                addNotification({ type: 'info', message: 'Assignations mises à jour et en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Assignations mises à jour.' });
+            }
             onClose();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });

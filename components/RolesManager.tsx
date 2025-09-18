@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { apiFetch } from '../utils/api';
+import * as db from '../utils/db';
 import { useNotification } from '../contexts/NotificationContext';
 import type { Role, Permission } from '../types';
 import ConfirmationModal from './ConfirmationModal';
@@ -63,13 +64,14 @@ const RolesManager: React.FC = () => {
     const [formState, setFormState] = useState<{ name: string; permissionIds: Set<number> }>({ name: '', permissionIds: new Set() });
     const [roleToDelete, setRoleToDelete] = useState<Role | null>(null);
     const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+    const cacheKey = '/roles';
 
 
     const fetchData = useCallback(async () => {
         setIsLoading(true);
         try {
             const [rolesData, permissionsData] = await Promise.all([
-                apiFetch('/roles'),
+                apiFetch(cacheKey),
                 apiFetch('/permissions')
             ]);
             setRoles(rolesData);
@@ -140,13 +142,30 @@ const RolesManager: React.FC = () => {
         const method = isEditing ? 'PUT' : 'POST';
         
         try {
-            await apiFetch(url, {
+            const result = await apiFetch(url, {
                 method,
                 body: JSON.stringify({ name: formState.name, permissionIds: Array.from(formState.permissionIds) })
             });
-            addNotification({ type: 'success', message: `Rôle ${isEditing ? 'mis à jour' : 'créé'}.` });
+
+            if (result?.queued) {
+                const optimisticRole: Role = {
+                    id: isEditing ? editingRole!.id : Date.now(),
+                    name: formState.name,
+                    instance_id: 0, // Placeholder
+                    permissions: permissions.filter(p => formState.permissionIds.has(p.id))
+                };
+                const updatedRoles = isEditing 
+                    ? roles.map(r => r.id === editingRole!.id ? optimisticRole : r)
+                    : [...roles, optimisticRole];
+                setRoles(updatedRoles);
+                await db.saveData(cacheKey, updatedRoles);
+                addNotification({ type: 'info', message: 'Action en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: `Rôle ${isEditing ? 'mis à jour' : 'créé'}.` });
+                await fetchData();
+            }
+
             resetForm();
-            await fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         } finally {
@@ -157,10 +176,17 @@ const RolesManager: React.FC = () => {
     const handleConfirmDelete = async () => {
         if (!roleToDelete) return;
         try {
-            await apiFetch(`/roles/${roleToDelete.id}`, { method: 'DELETE' });
-            addNotification({ type: 'success', message: 'Rôle supprimé.' });
+            const result = await apiFetch(`/roles/${roleToDelete.id}`, { method: 'DELETE' });
+            if (result?.queued) {
+                 const updatedRoles = roles.filter(r => r.id !== roleToDelete.id);
+                 setRoles(updatedRoles);
+                 await db.saveData(cacheKey, updatedRoles);
+                 addNotification({ type: 'info', message: 'Suppression en attente de synchronisation.' });
+            } else {
+                addNotification({ type: 'success', message: 'Rôle supprimé.' });
+                await fetchData();
+            }
             setRoleToDelete(null);
-            await fetchData();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
@@ -237,8 +263,8 @@ const RolesManager: React.FC = () => {
                                 <div key={role.id} className="bg-white p-3 rounded-md shadow-sm flex justify-between items-center">
                                     <span className="font-medium">{role.name}</span>
                                     <div className="flex gap-2">
-                                        <button onClick={() => handleEditRequest(role)} className="px-3 py-1 text-xs text-blue-700 bg-blue-100 rounded-full">Modifier</button>
-                                        <button onClick={() => setRoleToDelete(role)} className="px-3 py-1 text-xs text-red-700 bg-red-100 rounded-full">Supprimer</button>
+                                        <button onClick={() => handleEditRequest(role)} className="px-3 py-1 text-xs font-medium text-blue-700 bg-blue-100 rounded-full">Modifier</button>
+                                        <button onClick={() => setRoleToDelete(role)} className="px-3 py-1 text-xs font-medium text-red-700 bg-red-100 rounded-full">Supprimer</button>
                                     </div>
                                 </div>
                             ))}

@@ -3,6 +3,7 @@ import * as ReactRouterDOM from 'react-router-dom';
 import type { Enrollment, Payment, Instance, Adjustment } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
+import * as db from '../utils/db';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
 import GradebookModal from './GradebookModal';
 import ConfirmationModal from './ConfirmationModal';
@@ -368,18 +369,38 @@ const ClassPage: React.FC = () => {
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingEnrollment || !formState) return;
+    
     try {
-      await apiFetch(`/enrollments/${editingEnrollment.id}/payments`, {
-          method: 'PUT',
-          body: JSON.stringify({ payments: formState.payments, adjustments: formState.adjustments }),
-      });
-      addNotification({ type: 'success', message: 'Fiche financière mise à jour.' });
-      resetForm();
-      await fetchEnrollments();
+        const result = await apiFetch(`/enrollments/${editingEnrollment.id}/payments`, {
+            method: 'PUT',
+            body: JSON.stringify({ payments: formState.payments, adjustments: formState.adjustments }),
+        });
+
+        if (result?.queued) {
+            // Optimistic Update
+            const updatedEnrollments = enrollments.map(en => 
+                en.id === editingEnrollment.id ? formState : en
+            );
+            setEnrollments(updatedEnrollments);
+
+            // Save the optimistic update to the cache
+            if (selectedYear) {
+                const cacheKey = `/enrollments?className=${className}&yearId=${selectedYear.id}`;
+                await db.saveData(cacheKey, updatedEnrollments);
+            }
+            
+            addNotification({ type: 'success', message: 'Fiche financière mise à jour et en attente de synchronisation.' });
+            resetForm();
+        } else {
+            // Online success, data is fresh from server
+            addNotification({ type: 'success', message: 'Fiche financière mise à jour.' });
+            resetForm();
+            await fetchEnrollments();
+        }
     } catch (error) {
         if (error instanceof Error) addNotification({ type: 'error', message: error.message });
     }
-  }, [editingEnrollment, formState, resetForm, fetchEnrollments, addNotification]);
+  }, [editingEnrollment, formState, resetForm, fetchEnrollments, addNotification, enrollments, selectedYear, className]);
 
   const handleEdit = useCallback((enrollment: Enrollment) => {
     setEditingEnrollment(enrollment);

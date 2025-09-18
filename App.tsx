@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
@@ -22,6 +22,8 @@ import DocumentationPage from './components/DocumentationPage';
 import { useAuth } from './auth/AuthContext';
 import { StudentAccessProvider } from './contexts/StudentAccessContext';
 import LandingPage from './components/LandingPage';
+import { useNotification } from './contexts/NotificationContext';
+
 
 // Lazy load teacher, student, and superadmin pages
 const TeacherClassPage = React.lazy(() => import('./components/TeacherClassPage'));
@@ -61,6 +63,31 @@ const ProtectedLayout = () => {
 
 
 const App: React.FC = () => {
+  const { addNotification } = useNotification();
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      const handleSyncComplete = (event: MessageEvent) => {
+        if (event.data && event.data.type === 'SYNC_COMPLETE') {
+          addNotification({
+            type: 'success',
+            message: 'Données synchronisées avec succès. Rechargement de l\'application...'
+          });
+          // Reload the page to get the freshest data from the server
+          setTimeout(() => {
+            window.location.reload();
+          }, 2000); // Wait 2 seconds for the user to see the message
+        }
+      };
+
+      navigator.serviceWorker.addEventListener('message', handleSyncComplete);
+
+      return () => {
+        navigator.serviceWorker.removeEventListener('message', handleSyncComplete);
+      };
+    }
+  }, [addNotification]);
+  
   return (
     <div className="min-h-screen bg-[#F8F9FA] text-[#1A202C]">
       <NotificationContainer />
