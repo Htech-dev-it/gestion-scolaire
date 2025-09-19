@@ -187,7 +187,9 @@ export interface TeacherDashboardAssignment {
   subject_name: string;
 }
 
-// --- NEW ADMIN ATTENDANCE REPORT TYPES ---
+// --- NEW ATTENDANCE REPORTING & MANAGEMENT TYPES ---
+
+// Detailed per-course record for reports
 export interface AttendanceReportRecord {
     student_id: string;
     date: string; // 'YYYY-MM-DD'
@@ -195,9 +197,28 @@ export interface AttendanceReportRecord {
     subject_name: string;
 }
 
+// Data for the DETAILED (per-course) report view
 export interface AttendanceReportData {
     students: { id: string, nom: string, prenom: string }[];
     records: AttendanceReportRecord[];
+    dates: string[];
+}
+
+// Daily status for the administrative daily sheet
+export type DailyStatus = 'present' | 'absent' | 'late' | 'partial' | 'justified';
+
+// Daily summary record for one student on one day
+export interface DailyAttendanceRecord {
+    student_id: string;
+    date: string; // 'YYYY-MM-DD'
+    status: DailyStatus | null; // null if no data
+    is_manual_override: boolean;
+}
+
+// Data for the DAILY (summary) attendance sheet view
+export interface DailyAttendanceData {
+    students: { id: string; nom: string; prenom: string }[];
+    records: DailyAttendanceRecord[];
     dates: string[];
 }
 

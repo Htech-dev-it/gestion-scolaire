@@ -75,81 +75,83 @@ const StudentTimetablePage: React.FC = () => {
                 <p className="text-lg text-slate-500 mt-2">Horaire des cours pour l'année {selectedYear?.name}</p>
             </header>
 
-            <div className="mt-4 border rounded-lg bg-white shadow-lg min-w-[1000px] flex flex-col">
-                {/* Header */}
-                <div className="flex flex-shrink-0">
-                    <div className="w-24 flex-shrink-0 h-12 flex items-center justify-center text-xs font-semibold text-slate-600 uppercase border-b border-r border-slate-200">Heure</div>
-                    <div className="flex-grow grid grid-cols-6">
-                        {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map((day) => (
-                            <div key={day} className="h-12 flex items-center justify-center text-xs font-semibold text-slate-600 uppercase border-b border-r border-slate-200 last:border-r-0">
-                                {day}
+            <div className="overflow-x-auto">
+                <div className="mt-4 border rounded-lg bg-white shadow-lg min-w-[1000px] flex flex-col">
+                    {/* Header */}
+                    <div className="flex flex-shrink-0">
+                        <div className="w-24 flex-shrink-0 h-12 flex items-center justify-center text-xs font-semibold text-slate-600 uppercase border-b border-r border-slate-200">Heure</div>
+                        <div className="flex-grow grid grid-cols-6">
+                            {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map((day) => (
+                                <div key={day} className="h-12 flex items-center justify-center text-xs font-semibold text-slate-600 uppercase border-b border-r border-slate-200 last:border-r-0">
+                                    {day}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Scrollable Body */}
+                    <div ref={scrollContainerRef} className="overflow-y-auto" style={{ height: '44rem' }}>
+                        <div className="flex">
+                            {/* Time Column */}
+                            <div className="w-24 flex-shrink-0 bg-slate-50">
+                                {timeSlots.map(time => (
+                                    <div key={time} className="h-16 flex justify-center items-start pt-2 text-sm font-semibold text-slate-700 border-b border-r border-slate-200">
+                                        {time}
+                                    </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                </div>
 
-                {/* Scrollable Body */}
-                <div ref={scrollContainerRef} className="overflow-y-auto" style={{ height: '44rem' }}>
-                    <div className="flex">
-                        {/* Time Column */}
-                        <div className="w-24 flex-shrink-0 bg-slate-50">
-                            {timeSlots.map(time => (
-                                <div key={time} className="h-16 flex justify-center items-start pt-2 text-sm font-semibold text-slate-700 border-b border-r border-slate-200">
-                                    {time}
-                                </div>
-                            ))}
-                        </div>
+                            {/* Schedule Grid */}
+                            <div className="flex-grow grid grid-cols-6 relative">
+                                {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map((day, dayIndex) => (
+                                    <div key={day} className="border-r border-slate-200 last:border-r-0">
+                                        {timeSlots.map((time) => (
+                                            <div key={time} className="h-16 border-b border-slate-200"></div>
+                                        ))}
+                                    </div>
+                                ))}
+                                {/* Scheduled slots layer */}
+                                {isLoading ? (
+                                        <div className="absolute inset-0 flex items-center justify-center text-slate-500">Chargement...</div>
+                                ) : (
+                                    schedule.map(slot => {
+                                        const startMinutes = timeToMinutes(slot.start_time);
+                                        const endMinutes = timeToMinutes(slot.end_time);
+                                        const durationMinutes = endMinutes - startMinutes;
+                                        const topOffset = ((startMinutes - timeToMinutes(`${gridStartHour.toString().padStart(2, '0')}:00`)) / 60) * 64;
+                                        let height = (durationMinutes / 60) * 64;
 
-                        {/* Schedule Grid */}
-                        <div className="flex-grow grid grid-cols-6 relative">
-                             {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'].map((day, dayIndex) => (
-                                <div key={day} className="border-r border-slate-200 last:border-r-0">
-                                    {timeSlots.map((time) => (
-                                        <div key={time} className="h-16 border-b border-slate-200"></div>
-                                    ))}
-                                </div>
-                            ))}
-                            {/* Scheduled slots layer */}
-                            {isLoading ? (
-                                    <div className="absolute inset-0 flex items-center justify-center text-slate-500">Chargement...</div>
-                            ) : (
-                                schedule.map(slot => {
-                                    const startMinutes = timeToMinutes(slot.start_time);
-                                    const endMinutes = timeToMinutes(slot.end_time);
-                                    const durationMinutes = endMinutes - startMinutes;
-                                    const topOffset = ((startMinutes - timeToMinutes(`${gridStartHour.toString().padStart(2, '0')}:00`)) / 60) * 64;
-                                    let height = (durationMinutes / 60) * 64;
-
-                                    if (height <= 0) height = 16;
-                                    
-                                    const left = `calc(${(slot.day_of_week - 1) * (100 / 6)}% + 4px)`;
-                                    const width = `calc(${(100 / 6)}% - 8px)`;
+                                        if (height <= 0) height = 16;
+                                        
+                                        const left = `calc(${(slot.day_of_week - 1) * (100 / 6)}% + 4px)`;
+                                        const width = `calc(${(100 / 6)}% - 8px)`;
 
 
-                                    return (
-                                        <div key={slot.id}
-                                            style={{ top: `${topOffset}px`, height: `${height}px`, left, width }}
-                                            className="absolute bg-blue-100 border-l-4 border-blue-500 rounded-md shadow-sm flex flex-col z-10 overflow-hidden"
-                                        >
-                                            <div className="p-1 flex-grow overflow-hidden text-xs flex flex-col">
-                                                <p className="font-bold text-blue-800 truncate" title={slot.subject_name}>{slot.subject_name}</p>
-                                                <p className="text-slate-600 truncate">{slot.start_time.substring(0, 5)} - {slot.end_time.substring(0, 5)}</p>
-                                                <p className="text-slate-500 italic truncate" title={slot.location_name || 'N/A'}>
-                                                    Salle: {slot.location_name || 'N/A'}
-                                                </p>
-                                                <p className="text-slate-500 truncate" title={`${slot.teacher_prenom} ${slot.teacher_nom}`}>
-                                                    Prof: {slot.teacher_prenom} {slot.teacher_nom}
-                                                </p>
+                                        return (
+                                            <div key={slot.id}
+                                                style={{ top: `${topOffset}px`, height: `${height}px`, left, width }}
+                                                className="absolute bg-blue-100 border-l-4 border-blue-500 rounded-md shadow-sm flex flex-col z-10 overflow-hidden"
+                                            >
+                                                <div className="p-1 flex-grow overflow-hidden text-xs flex flex-col">
+                                                    <p className="font-bold text-blue-800 truncate" title={slot.subject_name}>{slot.subject_name}</p>
+                                                    <p className="text-slate-600 truncate">{slot.start_time.substring(0, 5)} - {slot.end_time.substring(0, 5)}</p>
+                                                    <p className="text-slate-500 italic truncate" title={slot.location_name || 'N/A'}>
+                                                        Salle: {slot.location_name || 'N/A'}
+                                                    </p>
+                                                    <p className="text-slate-500 truncate" title={`${slot.teacher_prenom} ${slot.teacher_nom}`}>
+                                                        Prof: {slot.teacher_prenom} {slot.teacher_nom}
+                                                    </p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    );
-                                })
-                            )}
+                                        );
+                                    })
+                                )}
+                            </div>
                         </div>
+                        { !isLoading && schedule.length === 0 && (
+                            <div className="text-center p-8 text-slate-500 italic">Aucun cours planifié dans votre emploi du temps pour cette année.</div>
+                        )}
                     </div>
-                    { !isLoading && schedule.length === 0 && (
-                        <div className="text-center p-8 text-slate-500 italic">Aucun cours planifié dans votre emploi du temps pour cette année.</div>
-                    )}
                 </div>
             </div>
         </div>

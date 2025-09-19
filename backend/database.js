@@ -206,6 +206,20 @@ async function setup() {
             console.log("Migration: Ajout de 'adjustments' à la table 'enrollments'.");
             await client.query(`ALTER TABLE enrollments ADD COLUMN adjustments JSONB NOT NULL DEFAULT '[]'::jsonb`);
         }
+        
+        // --- NEW DAILY ATTENDANCE OVERRIDE TABLE ---
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS daily_attendance_overrides (
+                id SERIAL PRIMARY KEY,
+                enrollment_id INTEGER NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+                date DATE NOT NULL,
+                status VARCHAR(20) NOT NULL CHECK(status IN ('present', 'absent', 'late', 'justified')),
+                overridden_by_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+                UNIQUE(enrollment_id, date)
+            );
+        `);
+        await client.query('CREATE INDEX IF NOT EXISTS daily_attendance_overrides_idx ON daily_attendance_overrides (enrollment_id, date);');
+
 
         // --- NEW MESSAGING & ANNOUNCEMENT TABLES ---
         await client.query(`

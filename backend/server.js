@@ -1791,10 +1791,10 @@ async function startServer() {
                     e.student_id,
                     a.date::TEXT as date,
                     a.status,
-                    sub.name as subject_name
+                    COALESCE(sub.name, 'Matière Supprimée') as subject_name
                 FROM attendance a
                 JOIN enrollments e ON a.enrollment_id = e.id
-                JOIN subjects sub ON a.subject_id = sub.id
+                LEFT JOIN subjects sub ON a.subject_id = sub.id
                 WHERE a.enrollment_id = ANY($1::int[])
                 AND a.date >= $2 AND a.date <= $3
             `;
@@ -1819,6 +1819,91 @@ async function startServer() {
             res.json({ students: studentList, records, dates });
         }));
 
+        // --- NEW: DAILY ATTENDANCE ENDPOINTS ---
+        app.post('/api/daily-attendance-override', authenticateToken, requirePermission('report:attendance'), asyncHandler(async (req, res) => {
+            const { student_id, yearId, date, status } = req.body;
+            const { id: user_id } = req.user;
+
+            const { rows: enrollmentRows } = await req.db.query('SELECT id FROM enrollments WHERE student_id = $1 AND year_id = $2', [student_id, yearId]);
+            if (enrollmentRows.length === 0) return res.status(404).json({ message: "Inscription non trouvée pour cet élève et cette année." });
+            const enrollment_id = enrollmentRows[0].id;
+
+            if (status) {
+                const query = `
+                    INSERT INTO daily_attendance_overrides (enrollment_id, date, status, overridden_by_user_id)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (enrollment_id, date) DO UPDATE SET status = EXCLUDED.status, overridden_by_user_id = EXCLUDED.overridden_by_user_id
+                `;
+                await req.db.query(query, [enrollment_id, date, status, user_id]);
+            } else {
+                await req.db.query('DELETE FROM daily_attendance_overrides WHERE enrollment_id = $1 AND date = $2', [enrollment_id, date]);
+            }
+            
+            const { rows: studentRows } = await req.db.query('SELECT prenom, nom FROM students WHERE id = $1', [student_id]);
+            const studentName = studentRows.length > 0 ? `${studentRows[0].prenom} ${studentRows[0].nom}` : `ID ${student_id}`;
+            await logActivity(req, 'ATTENDANCE_OVERRIDE', student_id, studentName, `Statut manuel pour ${studentName} le ${date} mis à jour en '${status || 'Automatique'}'.`);
+
+            res.json({ message: 'Statut mis à jour.' });
+        }));
+
+        app.get('/api/daily-attendance-report', authenticateToken, requirePermission('report:attendance'), asyncHandler(async (req, res) => {
+            const { yearId, className, startDate, endDate } = req.query;
+            if (!yearId || !className || !startDate || !endDate) return res.status(400).json({ message: "Année, classe et plage de dates sont requises." });
+
+            const enrollmentsQuery = `SELECT e.id as enrollment_id, s.id as student_id, s.nom, s.prenom FROM enrollments e JOIN students s ON e.student_id = s.id WHERE e.year_id = $1 AND e."className" = $2 AND s.status = 'active' AND s.instance_id = $3 ORDER BY s.nom, s.prenom`;
+            const { rows: enrollments } = await req.db.query(enrollmentsQuery, [yearId, className, req.user.instance_id]);
+
+            if (enrollments.length === 0) return res.json({ students: [], records: [], dates: [] });
+            
+            const studentList = enrollments.map(e => ({ id: e.student_id, nom: e.nom, prenom: e.prenom }));
+            const enrollmentIds = enrollments.map(e => e.enrollment_id);
+
+            const perCourseRecords = (await req.db.query(`SELECT enrollment_id, date::TEXT, status FROM attendance WHERE enrollment_id = ANY($1::int[]) AND date >= $2 AND date <= $3`, [enrollmentIds, startDate, endDate])).rows;
+            const overrideRecords = (await req.db.query(`SELECT enrollment_id, date::TEXT, status FROM daily_attendance_overrides WHERE enrollment_id = ANY($1::int[]) AND date >= $2 AND date <= $3`, [enrollmentIds, startDate, endDate])).rows;
+            const overrideMap = new Map(overrideRecords.map(r => [`${r.enrollment_id}:${r.date}`, r.status]));
+
+            const recordsByEnrollmentAndDate = perCourseRecords.reduce((acc, record) => {
+                const key = `${record.enrollment_id}:${record.date}`;
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(record.status);
+                return acc;
+            }, {});
+
+            const dates = [];
+            let currentDate = new Date(startDate);
+            const end = new Date(endDate);
+            currentDate.setUTCHours(0, 0, 0, 0);
+            end.setUTCHours(0, 0, 0, 0);
+            while(currentDate <= end) {
+                if (currentDate.getUTCDay() !== 0) dates.push(currentDate.toISOString().split('T')[0]);
+                currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+            }
+
+            const finalRecords = [];
+            for (const enrollment of enrollments) {
+                for (const date of dates) {
+                    const overrideStatus = overrideMap.get(`${enrollment.enrollment_id}:${date}`);
+                    let calculatedStatus = null;
+                    const statusesForDay = recordsByEnrollmentAndDate[`${enrollment.enrollment_id}:${date}`];
+                    
+                    if (statusesForDay && statusesForDay.length > 0) {
+                        const uniqueStatuses = new Set(statusesForDay);
+                        if (uniqueStatuses.has('absent')) {
+                             if (uniqueStatuses.has('present') || uniqueStatuses.has('late')) calculatedStatus = 'partial';
+                             else calculatedStatus = 'absent';
+                        } else if (uniqueStatuses.has('late')) {
+                            calculatedStatus = 'late';
+                        } else if (uniqueStatuses.has('present')) {
+                            calculatedStatus = 'present';
+                        }
+                    }
+
+                    finalRecords.push({ student_id: enrollment.student_id, date, status: overrideStatus || calculatedStatus, is_manual_override: !!overrideStatus });
+                }
+            }
+
+            res.json({ students: studentList, records: finalRecords, dates });
+        }));
 
         // --- SCHOOL YEAR ROUTES ---
         app.get('/api/school-years', authenticateToken, asyncHandler(async (req, res) => {
@@ -3760,7 +3845,6 @@ async function startServer() {
                 return res.status(400).json({ message: "L'heure de fin doit être après l'heure de début." });
             }
 
-            
             // Conflict check
             const { rows: assignmentInfoRows } = await req.db.query(
                 `SELECT t.id as teacher_id FROM teacher_assignments ta JOIN teachers t ON ta.teacher_id = t.id WHERE ta.id = $1 AND t.instance_id = $2`,

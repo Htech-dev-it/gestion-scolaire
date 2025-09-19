@@ -17,7 +17,13 @@ type Status = 'present' | 'absent' | 'late';
 const AttendanceModal: React.FC<AttendanceModalProps> = ({ isOpen, onClose, enrollments, subjectId, year }) => {
     const { addNotification } = useNotification();
     const [isLoading, setIsLoading] = useState(false);
-    const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0]);
+    const [attendanceDate, setAttendanceDate] = useState(() => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    });
     const [statuses, setStatuses] = useState<Record<number, Status>>({});
 
     const fetchAttendanceForDate = useCallback(async () => {

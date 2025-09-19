@@ -1,27 +1,85 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 
 const FeatureCard: React.FC<{ icon: React.ReactNode; title: string; description: string; }> = ({ icon, title, description }) => (
-    <div className="bg-white p-8 rounded-2xl shadow-lg transform transition-transform duration-300 hover:-translate-y-2 border border-slate-100 h-full">
-        <div className="flex-shrink-0 h-16 w-16 mb-6 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+    <div className="bg-white p-8 rounded-2xl shadow-lg transform transition-transform duration-300 hover:-translate-y-2 border border-slate-100 h-full flex flex-col">
+        <div className="flex-shrink-0 h-16 w-16 mb-6 rounded-full flex items-center justify-center bg-gradient-to-br from-[#82CEF9] to-blue-500 text-white shadow-lg">
             {icon}
         </div>
-        <div>
-            <h3 className="text-xl font-bold text-slate-800 font-display">{title}</h3>
+        <div className="flex-grow">
+            <h3 className="text-xl font-bold text-[#212E53] font-display">{title}</h3>
             <p className="text-sm text-slate-500 mt-2 leading-relaxed">{description}</p>
         </div>
     </div>
 );
 
 const ContactInfo: React.FC<{ icon: React.ReactNode; title: string; value: string; href: string; }> = ({ icon, title, value, href }) => (
-    <a href={href} className="group block text-center bg-white p-6 rounded-xl shadow-md hover:shadow-xl transition-shadow border">
-        <div className="flex items-center justify-center h-12 w-12 rounded-full bg-slate-100 text-slate-600 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors mx-auto mb-4">
+    <a href={href} className="group block text-center bg-white p-6 rounded-xl shadow-md hover:shadow-xl transition-shadow border border-slate-200">
+        <div className="flex items-center justify-center h-12 w-12 rounded-full bg-[#EBF2FA] text-[#212E53] group-hover:bg-[#82CEF9]/20 transition-colors mx-auto mb-4">
             {icon}
         </div>
-        <h4 className="font-semibold text-slate-700">{title}</h4>
-        <p className="text-blue-600 group-hover:underline">{value}</p>
+        <h4 className="font-semibold text-[#212E53]">{title}</h4>
+        <p className="text-[#212E53] group-hover:underline">{value}</p>
     </a>
 );
+
+const ShowcaseCarousel: React.FC = () => {
+    const images = [
+        { src: '/dashboard_showcase.png', title: 'Tableau de bord centralisé' },
+        { src: '/timetable_showcase.png', title: 'Emploi du temps intégré' },
+        { src: '/financial_report_showcase.png', title: 'Rapports financiers détaillés' },
+        { src: '/report_card_showcase.png', title: 'Génération de bulletins professionnels' },
+        { src: '/login_showcase.png', title: 'Portail de connexion sécurisé' }
+    ];
+
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const [isHovered, setIsHovered] = useState(false);
+
+    useEffect(() => {
+        if (isHovered) return;
+        const timer = setInterval(() => {
+            setCurrentIndex(prevIndex => (prevIndex + 1) % images.length);
+        }, 5000);
+        return () => clearInterval(timer);
+    }, [images.length, isHovered]);
+
+    return (
+        <div 
+            className="bg-gradient-to-br from-white to-[#EBF2FA] rounded-2xl shadow-2xl w-full border border-slate-200/50 overflow-hidden"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+        >
+            <div className="aspect-[16/9] overflow-hidden relative">
+                <div className="flex transition-transform duration-700 ease-in-out h-full" style={{ transform: `translateX(-${currentIndex * 100}%)` }}>
+                    {images.map((image) => (
+                        <div key={image.src} className="flex-shrink-0 w-full h-full flex items-center justify-center p-4">
+                            <img 
+                                src={image.src} 
+                                alt={image.title} 
+                                className="w-auto h-auto max-w-full max-h-full object-contain"
+                            />
+                        </div>
+                    ))}
+                </div>
+            </div>
+            <div className="flex items-center justify-between p-3 border-t border-slate-200/80 bg-white/50">
+                <p className="text-sm text-[#212E53] font-medium truncate pr-4">
+                    {images[currentIndex].title}
+                </p>
+                <div className="flex gap-2 flex-shrink-0">
+                    {images.map((_, index) => (
+                        <button
+                            key={index}
+                            onClick={() => setCurrentIndex(index)}
+                            className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${currentIndex === index ? 'bg-[#212E53]' : 'bg-slate-300 hover:bg-slate-400'}`}
+                            aria-label={`Go to slide ${index + 1}`}
+                        ></button>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 
 const LandingPage: React.FC = () => {
@@ -34,14 +92,14 @@ const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="bg-slate-50 text-slate-700">
+    <div className="bg-white text-slate-700">
       {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-lg shadow-sm">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-lg shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <ReactRouterDOM.Link to="/" className="flex items-center gap-2">
               <img src="/scolalink_logo.jpg" alt="ScolaLink Logo" className="h-9 w-auto" />
-              <span className="text-2xl font-bold text-slate-800 font-display">ScolaLink</span>
+              <span className="text-2xl font-bold text-[#212E53] font-display">ScolaLink</span>
             </ReactRouterDOM.Link>
             <ReactRouterDOM.Link 
               to="/login"
@@ -55,13 +113,12 @@ const LandingPage: React.FC = () => {
 
       <main>
         {/* Hero Section */}
-        <section className="relative pt-36 pb-24 text-center overflow-hidden bg-white">
-          <div className="absolute inset-0 bg-gradient-to-b from-blue-50 to-white opacity-60"></div>
-           <div className="absolute -bottom-32 -left-32 w-96 h-96 bg-orange-100 rounded-full opacity-30 blur-2xl"></div>
-           <div className="absolute -top-32 -right-32 w-96 h-96 bg-blue-100 rounded-full opacity-30 blur-2xl"></div>
+        <section className="relative pt-40 pb-28 text-center overflow-hidden bg-[#EBF2FA]">
+            <div className="absolute top-0 left-0 w-full h-full opacity-50" style={{backgroundImage: 'radial-gradient(#82CEF9 1px, transparent 1px), radial-gradient(#F27438 1px, transparent 1px)', backgroundSize: '40px 40px, 40px 40px', backgroundPosition: '0 0, 20px 20px'}}></div>
+            <div className="absolute inset-0 bg-gradient-to-t from-[#EBF2FA] via-[#EBF2FA]/80 to-transparent"></div>
           <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h1 className="text-4xl md:text-6xl font-extrabold text-slate-900 font-display leading-tight">
-              La plateforme de gestion scolaire <span className="text-blue-600">intuitive</span> et <span className="text-orange-500">complète</span>.
+            <h1 className="text-4xl md:text-6xl font-extrabold text-[#212E53] font-display leading-tight">
+              La plateforme de gestion scolaire <span className="text-[#82CEF9]">intuitive</span> et <span className="text-[#F27438]">complète</span>.
             </h1>
             <p className="mt-6 text-lg md:text-xl text-slate-600 max-w-2xl mx-auto">
               ScolaLink centralise toutes vos opérations, de l'inscription des élèves à la génération des bulletins, pour une administration fluide et efficace.
@@ -69,18 +126,18 @@ const LandingPage: React.FC = () => {
             <a 
               href="#contact" 
               onClick={handleScrollToContact}
-              className="mt-10 inline-block px-8 py-4 text-base font-bold text-white bg-[#F27438] rounded-lg shadow-lg hover:bg-orange-600 transform hover:scale-105 transition-all"
+              className="mt-10 inline-block px-8 py-4 text-base font-bold text-white bg-[#F27438] rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
             >
               Contactez-nous
             </a>
           </div>
         </section>
-
+        
         {/* Features Section */}
-        <section id="features" className="py-24 bg-slate-50">
+        <section id="features" className="py-24 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold text-slate-800 font-display">Tout ce dont votre école a besoin, au même endroit</h2>
+              <h2 className="text-3xl md:text-4xl font-bold text-[#212E53] font-display">Tout ce dont votre école a besoin, au même endroit</h2>
               <p className="mt-4 text-slate-500 max-w-2xl mx-auto">Optimisez chaque aspect de votre administration avec des outils puissants et simples d'utilisation.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -118,46 +175,53 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
+        {/* Showcase Section */}
+        <section className="py-24 bg-[#EBF2FA]">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                 <div className="text-center mb-16">
+                    <h2 className="text-3xl md:text-4xl font-bold text-[#212E53] font-display">Une Interface Claire et Puissante</h2>
+                    <p className="mt-4 text-slate-500 max-w-2xl mx-auto">Découvrez une interface conçue pour être à la fois complète et incroyablement simple à utiliser.</p>
+                </div>
+                <div className="flex justify-center px-4 md:px-0">
+                    <ShowcaseCarousel />
+                </div>
+            </div>
+        </section>
+
         {/* Security Section */}
         <section id="security" className="py-24 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold text-slate-800 font-display">Notre Engagement pour la Sécurité</h2>
+              <h2 className="text-3xl md:text-4xl font-bold text-[#212E53] font-display">Notre Engagement pour la Sécurité</h2>
               <p className="mt-4 text-slate-500 max-w-2xl mx-auto">La protection des données de votre établissement est notre priorité absolue.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              <FeatureCard
-                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-1.026.977-2.19.977-3.434m-2.09-2.09a13.916 13.916 0 00-2.25-3.11m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-1.026.977-2.19.977-3.434" /></svg>}
-                title="Isolation des Données"
-                description="Les données de chaque école sont dans un 'coffre-fort' numérique totalement isolé. Aucune autre école ne peut y accéder."
-              />
-              <FeatureCard
-                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M15 21v-2a6 6 0 00-5.197-5.975M15 21H9" /></svg>}
-                title="Gestion des Rôles"
-                description="Chaque utilisateur (secrétaire, comptable, professeur) ne voit que ce qui est nécessaire à son travail, protégeant ainsi l'information sensible."
-              />
-              <FeatureCard
-                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>}
-                title="Chiffrement des Données"
-                description="Les communications sont sécurisées et les mots de passe sont stockés de manière chiffrée, suivant les standards bancaires."
-              />
-              <FeatureCard
-                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>}
-                title="Sauvegardes Régulières"
-                description="Vos données sont sauvegardées de manière régulière et sécurisée pour prévenir toute perte accidentelle."
-              />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                <FeatureCard
+                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M15 21v-2a6 6 0 00-1-3.464M6 18v-2a6 6 0 017-3.464" /></svg>}
+                    title="Gestion des Rôles"
+                    description="Chaque utilisateur (secrétaire, comptable, professeur) ne voit que ce qui est nécessaire à son travail, protégeant ainsi l'information sensible."
+                />
+                <FeatureCard
+                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>}
+                    title="Chiffrement des Données"
+                    description="Les communications sont sécurisées et les mots de passe sont stockés de manière chiffrée, suivant les standards bancaires."
+                />
+                 <FeatureCard
+                    icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>}
+                    title="Sauvegardes Régulières"
+                    description="Vos données sont sauvegardées de manière régulière et sécurisée pour prévenir toute perte accidentelle."
+                />
             </div>
           </div>
         </section>
-
-        {/* Offline/PWA Section */}
-        <section id="offline" className="py-24 bg-slate-50">
+        
+        <section id="offline" className="py-24 bg-[#EBF2FA]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold text-slate-800 font-display">Fiabilité à Toute Épreuve : En Ligne ou Hors Ligne</h2>
+              <h2 className="text-3xl md:text-4xl font-bold text-[#212E53] font-display">Fiabilité à Toute Épreuve : En Ligne ou Hors Ligne</h2>
               <p className="mt-4 text-slate-500 max-w-2xl mx-auto">ScolaLink est conçue pour fonctionner même lorsque votre connexion internet est instable.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               <FeatureCard
                 icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z" /></svg>}
                 title="Continuité du Travail"
@@ -177,11 +241,10 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
-
         {/* Contact Section */}
         <section id="contact" className="py-24 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-800 font-display">Une question ? Contactez-nous.</h2>
+            <h2 className="text-3xl md:text-4xl font-bold text-[#212E53] font-display">Une question ? Contactez-nous.</h2>
             <p className="mt-4 text-slate-500 max-w-2xl mx-auto">Notre équipe est disponible pour répondre à vos questions ou pour organiser une démonstration personnalisée de la plateforme.</p>
             <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8 max-w-2xl mx-auto">
                 <ContactInfo
@@ -202,10 +265,10 @@ const LandingPage: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="bg-slate-800 text-white">
+      <footer className="bg-[#212E53] text-[#EBF2FA]">
         <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 text-center">
           <div className="flex justify-center items-center gap-2">
-              <img src="/scolalink_logo.png" alt="ScolaLink Logo" className="h-8 w-auto" />
+              <img src="/scolalink_logo.jpg" alt="ScolaLink Logo" className="h-8 w-auto rounded-full" />
               <span className="text-xl font-bold">ScolaLink</span>
           </div>
           <p className="mt-4 text-sm text-slate-400">&copy; {new Date().getFullYear()} ScolaLink. Tous droits réservés.</p>
