@@ -5,6 +5,7 @@ import * as ReactRouterDOM from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { SchoolYearProvider } from './contexts/SchoolYearContext';
+import { CurrencyProvider } from './contexts/CurrencyContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -18,7 +19,9 @@ root.render(
       <NotificationProvider>
         <AuthProvider>
           <SchoolYearProvider>
-            <App />
+            <CurrencyProvider>
+              <App />
+            </CurrencyProvider>
           </SchoolYearProvider>
         </AuthProvider>
       </NotificationProvider>

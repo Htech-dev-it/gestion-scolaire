@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import type { Student, Instance, ClassDefinition } from '../types';
 import Tooltip from './Tooltip';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 interface StudentTableProps {
   students: Student[];
@@ -20,6 +21,7 @@ interface StudentTableProps {
 
 const StudentTable: React.FC<StudentTableProps> = ({ students, selectedIds, setSelectedIds, onEdit, onDeleteRequest, onChangeClassRequest, className, schoolInfo, searchTerm, onSearchChange, sortConfig, onSort, classes }) => {
   const [targetClass, setTargetClass] = useState(classes.find(c => c.name !== className)?.name || classes[0]?.name || '');
+  const { formatCurrency } = useCurrency();
 
   const handleSelectAll = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -65,13 +67,13 @@ const StudentTable: React.FC<StudentTableProps> = ({ students, selectedIds, setS
         return `
             <tr>
                 <td>${student.prenom} ${student.nom}</td>
-                <td class="text-right">${student.mppa.toFixed(2)}$</td>
-                <td class="text-right">${student.payments[0].amount.toFixed(2)}$</td>
-                <td class="text-right">${student.payments[1].amount.toFixed(2)}$</td>
-                <td class="text-right">${student.payments[2].amount.toFixed(2)}$</td>
-                <td class="text-right">${student.payments[3].amount.toFixed(2)}$</td>
-                <td class="text-right">${total.toFixed(2)}$</td>
-                <td class="text-right">${balance.toFixed(2)}$</td>
+                <td class="text-right">${formatCurrency(student.mppa)}</td>
+                <td class="text-right">${formatCurrency(student.payments[0].amount)}</td>
+                <td class="text-right">${formatCurrency(student.payments[1].amount)}</td>
+                <td class="text-right">${formatCurrency(student.payments[2].amount)}</td>
+                <td class="text-right">${formatCurrency(student.payments[3].amount)}</td>
+                <td class="text-right">${formatCurrency(total)}</td>
+                <td class="text-right">${formatCurrency(balance)}</td>
             </tr>
         `;
     }).join('');
@@ -238,16 +240,16 @@ const StudentTable: React.FC<StudentTableProps> = ({ students, selectedIds, setS
                 <tr key={student.id} onDoubleClick={() => onEdit(student)} className={`hover:bg-blue-50 transition-colors duration-200 cursor-pointer ${selectedIds.has(student.id) ? 'bg-blue-100' : ''} even:bg-gray-50`}>
                   <td className="p-4"><input type="checkbox" checked={selectedIds.has(student.id)} onChange={() => handleSelectOne(student.id)} className="h-4 w-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500" /></td>
                   <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm font-medium text-slate-900">{student.prenom} {student.nom}</div></td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-right">{student.mppa.toFixed(2)}$</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-right">{formatCurrency(student.mppa)}</td>
                   {student.payments.map((p, i) => (
                     <td key={i} className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 text-center">
                         <Tooltip text={`Date: ${formatDate(p.date)}`}>
-                            <span className={p.amount > 0 ? 'text-green-600 font-semibold' : ''}>{p.amount.toFixed(2)}$</span>
+                            <span className={p.amount > 0 ? 'text-green-600 font-semibold' : ''}>{formatCurrency(p.amount)}</span>
                         </Tooltip>
                     </td>
                   ))}
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-800 text-right">{total.toFixed(2)}$</td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${balance > 0 ? 'text-red-600' : 'text-green-700'}`}>{balance.toFixed(2)}$</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-800 text-right">{formatCurrency(total)}</td>
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm font-bold text-right ${balance > 0 ? 'text-red-600' : 'text-green-700'}`}>{formatCurrency(balance)}</td>
                 </tr>
               );
             })}

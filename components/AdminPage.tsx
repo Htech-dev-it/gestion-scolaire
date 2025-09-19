@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, ChangeEvent, useRef } from 'react';
+import React, { useState, useEffect, useCallback, ChangeEvent, useRef, useMemo } from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
@@ -14,6 +14,7 @@ import PromotionManager from './PromotionManager';
 import AdminResourceManager from './AdminResourceManager';
 import PhoneInput from 'react-phone-input-2';
 import RolesManager from './RolesManager'; // Import the new component
+import { useCurrency } from '../contexts/CurrencyContext';
 
 const SuspensionWarningBanner: React.FC<{ instance: Instance | null }> = ({ instance }) => {
     const [timeRemaining, setTimeRemaining] = useState('');
@@ -588,7 +589,18 @@ const ProgrammeManager: React.FC = () => {
 const ClassFinancialsManager: React.FC = () => {
     const { addNotification } = useNotification();
     const { selectedYear, classes } = useSchoolYear();
+    const { currency } = useCurrency();
     const [classFinancials, setClassFinancials] = useState<Record<string, number | undefined>>({});
+
+    const currencySymbol = useMemo(() => {
+        switch (currency) {
+            case 'Gdes': return 'Gdes';
+            case '$HT': return '$HT';
+            case 'US': return '$';
+            case 'EU': return '€';
+            default: return 'Gdes';
+        }
+    }, [currency]);
 
     const getCacheKey = useCallback(() => {
         if (!selectedYear) return null;
@@ -671,17 +683,20 @@ const ClassFinancialsManager: React.FC = () => {
                                     {c.name}
                                 </td>
                                 <td className="p-3">
-                                    <input
-                                        id={`mppa-${c.id}`}
-                                        type="number"
-                                        value={classFinancials[c.name] ?? ''}
-                                        placeholder="Montant"
-                                        onChange={e => {
-                                            const value = e.target.value;
-                                            setClassFinancials(prev => ({...prev, [c.name]: value === '' ? undefined : Number(value)}));
-                                        }}
-                                        className="w-48 p-2 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                                     />
+                                     <div className="relative w-48">
+                                        <input
+                                            id={`mppa-${c.id}`}
+                                            type="number"
+                                            value={classFinancials[c.name] ?? ''}
+                                            placeholder="Montant"
+                                            onChange={e => {
+                                                const value = e.target.value;
+                                                setClassFinancials(prev => ({...prev, [c.name]: value === '' ? undefined : Number(value)}));
+                                            }}
+                                            className="w-full p-2 pr-12 border border-slate-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+                                         />
+                                         <span className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-500">{currencySymbol}</span>
+                                     </div>
                                 </td>
                             </tr>
                         ))}
@@ -1096,25 +1111,16 @@ const TabButton: React.FC<{ activeTab: string; tabId: string; onClick: (tabId: s
 const AdminPage: React.FC = () => {
     const { user, hasPermission } = useAuth();
     const { addNotification } = useNotification();
-    const [instanceInfo, setInstanceInfo] = useState<Instance | null>(null);
+    const { instance, refreshInstance } = useCurrency();
     const [formState, setFormState] = useState<Instance | null>(null);
     const [activeTab, setActiveTab] = useState('general');
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        const fetchInstanceInfo = async () => {
-            try {
-                const data = await apiFetch('/instance/current');
-                setInstanceInfo(data);
-                setFormState(data);
-            } catch (error) {
-                if (error instanceof Error) addNotification({ type: 'error', message: error.message });
-            }
-        };
-        fetchInstanceInfo();
-    }, [addNotification]);
+       setFormState(instance);
+    }, [instance]);
     
-    const handleInfoChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const handleInfoChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
         setFormState(prev => prev ? ({ ...prev, [name]: type === 'number' ? Number(value) : value }) : null);
     };
@@ -1140,19 +1146,18 @@ const AdminPage: React.FC = () => {
             });
 
             if (result?.queued) {
-                setInstanceInfo(formState);
                 await db.saveData('/instance/current', formState);
                  addNotification({ type: 'info', message: 'Mise à jour en attente de synchronisation.' });
             } else {
                 addNotification({ type: 'success', message: 'Informations mises à jour.' });
-                setInstanceInfo(formState);
             }
+            refreshInstance();
         } catch (error) {
             if (error instanceof Error) addNotification({ type: 'error', message: error.message });
         }
     };
 
-    if (!instanceInfo || !formState) return <div>Chargement...</div>;
+    if (!instance || !formState) return <div>Chargement...</div>;
     
     const renderTabContent = () => {
         switch(activeTab) {
@@ -1166,7 +1171,21 @@ const AdminPage: React.FC = () => {
                             <div><label className="block text-sm font-medium">Adresse</label><input type="text" name="address" value={formState.address || ''} onChange={handleInfoChange} className="w-full p-2 border rounded-md" /></div>
                             <div><label className="block text-sm font-medium">Téléphone</label><PhoneInput country={'ht'} value={formState.phone || ''} onChange={phone => setFormState(s => s ? ({...s, phone}) : null)} /></div>
                             <div><label className="block text-sm font-medium">Moyenne de Passage (%)</label><input type="number" name="passing_grade" value={formState.passing_grade || ''} onChange={handleInfoChange} className="w-full p-2 border rounded-md" /></div>
-                            <div className="flex items-end gap-4">
+                            <div>
+                                <label className="block text-sm font-medium">Devise Monétaire</label>
+                                <select
+                                    name="currency"
+                                    value={formState.currency || 'Gdes'}
+                                    onChange={handleInfoChange}
+                                    className="w-full p-2 border rounded-md bg-white"
+                                >
+                                    <option value="Gdes">Gourdes (Gdes)</option>
+                                    <option value="$HT">$HT</option>
+                                    <option value="US">Dollar Américain (US)</option>
+                                    <option value="EU">Euro (EU)</option>
+                                </select>
+                            </div>
+                            <div className="flex items-end gap-4 md:col-span-2">
                                 {formState.logo_url && <img src={formState.logo_url} alt="Logo" className="h-16 w-16 object-contain rounded-md border p-1" />}
                                 <div className="flex-grow"><label className="block text-sm font-medium">Logo</label><input type="file" ref={fileInputRef} onChange={handlePhotoChange} accept="image/*" className="w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" /></div>
                             </div>
@@ -1198,7 +1217,7 @@ const AdminPage: React.FC = () => {
                 <p className="text-lg text-slate-500 mt-2">Configuration et gestion globale de votre instance ScolaLink.</p>
             </header>
             
-            <SuspensionWarningBanner instance={instanceInfo} />
+            <SuspensionWarningBanner instance={instance} />
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                 <aside className="md:col-span-1">

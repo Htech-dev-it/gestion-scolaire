@@ -73,6 +73,7 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
         localStorage.removeItem('authToken');
         window.dispatchEvent(new Event('auth-expired'));
         window.location.hash = '/login';
+        // Return a promise that never resolves to stop further processing
         return new Promise(() => {});
       }
       
@@ -80,9 +81,13 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
       const data = responseText ? JSON.parse(responseText) : {};
 
       if (!response.ok) {
-        throw new Error(data.message || `Erreur serveur (${response.status})`);
+        // Create an error object that includes the status code
+        const error = new Error(data.message || `Erreur serveur (${response.status})`);
+        (error as any).status = response.status;
+        throw error;
       }
       
+      // Cache successful GET requests
       if (options.method === 'GET' || !options.method) {
           await db.saveData(endpoint, data);
       }
@@ -90,11 +95,22 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
       return data;
     } catch (error) {
       console.warn(`Online request for ${endpoint} failed.`, error);
+      const errorStatus = (error as any).status;
 
+      // For modification methods (POST, PUT, DELETE)...
       if (isModification) {
+        // If it's a client-side error (e.g., 401, 403, 409), the request is invalid and should never be retried.
+        // We throw the error so the UI can handle it (e.g., show "Invalid password").
+        if (errorStatus && errorStatus >= 400 && errorStatus < 500) {
+          throw error;
+        }
+        
+        // For network errors (no status) or server errors (5xx),
+        // it's a temporary issue. We queue the request for background sync.
         return await queueRequestForSync();
       }
 
+      // For GET requests, try to fall back to cache on any failure
       if (options.method === 'GET' || !options.method) {
         const cachedData = await db.getData(endpoint);
         if (cachedData) {
@@ -103,12 +119,15 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
         }
       }
       
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-         throw new Error("Impossible de communiquer avec le serveur. Vérifiez votre connexion.");
-      }
+      // Re-throw the original error for other issues
       throw error;
     }
   } else { // Offline logic
+    // Special case: auth requests should fail immediately if offline, not be queued.
+    if (endpoint.startsWith('/login') || endpoint.includes('change-password')) {
+        throw new Error("Vous êtes hors ligne. La connexion nécessite une connexion internet.");
+    }
+
     if (isModification) {
       return await queueRequestForSync();
     }

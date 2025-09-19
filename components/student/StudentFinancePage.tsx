@@ -4,6 +4,7 @@ import { apiFetch } from '../../utils/api';
 import { useSchoolYear } from '../../contexts/SchoolYearContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import type { StudentFinanceData } from '../../types';
+import { useCurrency } from '../../contexts/CurrencyContext';
 
 const SummaryCard: React.FC<{ title: string; value: string; color: string; icon: React.ReactNode }> = ({ title, value, color, icon }) => (
     <div className="bg-white p-6 rounded-xl shadow-md flex items-start gap-4">
@@ -30,6 +31,7 @@ const ProgressBar: React.FC<{ value: number }> = ({ value }) => (
 const StudentFinancePage: React.FC = () => {
     const { selectedYear } = useSchoolYear();
     const { addNotification } = useNotification();
+    const { formatCurrency } = useCurrency();
     const [financeData, setFinanceData] = useState<StudentFinanceData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
@@ -65,9 +67,9 @@ const StudentFinancePage: React.FC = () => {
         return (
             <>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <SummaryCard title="Montant Final à Payer" value={`${mppa.toFixed(2)}$`} color="bg-blue-100 text-blue-600" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>} />
-                    <SummaryCard title="Total Versé" value={`${totalPaid.toFixed(2)}$`} color="bg-green-100 text-green-600" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
-                    <SummaryCard title="Balance Restante" value={`${balance.toFixed(2)}$`} color={balance > 0 ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>} />
+                    <SummaryCard title="Montant Final à Payer" value={formatCurrency(mppa)} color="bg-blue-100 text-blue-600" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>} />
+                    <SummaryCard title="Total Versé" value={formatCurrency(totalPaid)} color="bg-green-100 text-green-600" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
+                    <SummaryCard title="Balance Restante" value={formatCurrency(balance)} color={balance > 0 ? "bg-red-100 text-red-600" : "bg-green-100 text-green-600"} icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>} />
                 </div>
 
                 <div className="p-6 bg-white rounded-xl shadow-md mb-8">
@@ -82,12 +84,12 @@ const StudentFinancePage: React.FC = () => {
                     <div className="p-6 bg-white rounded-xl shadow-md">
                         <h2 className="text-xl font-bold text-slate-800 font-display mb-4">Détail du Calcul</h2>
                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between"><span className="text-slate-500">Frais de base (MPPA):</span><span className="font-semibold">{baseMppa.toFixed(2)}$</span></div>
+                            <div className="flex justify-between"><span className="text-slate-500">Frais de base (MPPA):</span><span className="font-semibold">{formatCurrency(baseMppa)}</span></div>
                             {adjustments.map(adj => (
-                                <div key={adj.id} className="flex justify-between"><span className="text-slate-500">{adj.label}:</span><span className={`font-semibold ${adj.amount < 0 ? 'text-green-600' : 'text-red-600'}`}>{adj.amount.toFixed(2)}$</span></div>
+                                <div key={adj.id} className="flex justify-between"><span className="text-slate-500">{adj.label}:</span><span className={`font-semibold ${adj.amount < 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(adj.amount)}</span></div>
                             ))}
                             <hr/>
-                            <div className="flex justify-between font-bold"><span className="text-slate-800">Total à Payer (Ajusté):</span><span>{mppa.toFixed(2)}$</span></div>
+                            <div className="flex justify-between font-bold"><span className="text-slate-800">Total à Payer (Ajusté):</span><span>{formatCurrency(mppa)}</span></div>
                         </div>
                     </div>
                     <div className="p-6 bg-white rounded-xl shadow-md">
@@ -106,7 +108,7 @@ const StudentFinancePage: React.FC = () => {
                                         <tr key={payment.id}>
                                             <td className="px-4 py-2 whitespace-nowrap text-slate-600">{payment.date ? new Date(payment.date).toLocaleDateString('fr-FR') : 'N/A'}</td>
                                             <td className="px-4 py-2 font-medium text-slate-800">{payment.label}</td>
-                                            <td className="px-4 py-2 text-right font-mono">{payment.amount.toFixed(2)}$</td>
+                                            <td className="px-4 py-2 text-right font-mono">{formatCurrency(payment.amount)}</td>
                                         </tr>
                                     )) : (
                                         <tr>

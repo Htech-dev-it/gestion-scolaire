@@ -37,31 +37,29 @@ const LoginPage: React.FC = () => {
         body: JSON.stringify({ username, password }),
       });
 
-      // The API contract is that a successful login returns an accessToken.
-      if (response && response.accessToken) {
-        const user = login(response.accessToken);
+      // If apiFetch succeeds, we are guaranteed to have an accessToken.
+      const user = login(response.accessToken);
       
-        if (user?.role === 'teacher') {
-            navigate('/teacher');
-        } else if (user?.role === 'student') {
-            navigate('/student');
-        } else if (user?.role === 'superadmin' || user?.role === 'superadmin_delegate') {
-            navigate('/superadmin');
-        } else {
-            navigate('/dashboard');
-        }
+      // NEW: Check user status for password policy
+      if (user?.status === 'temporary_password') {
+          addNotification({ type: 'info', message: 'Mise à jour de sécurité requise.' });
+          navigate('/force-password-change', { replace: true });
+      } else if (user?.role === 'teacher') {
+          navigate('/teacher', { replace: true });
+      } else if (user?.role === 'student') {
+          navigate('/student', { replace: true });
+      } else if (user?.role === 'superadmin' || user?.role === 'superadmin_delegate') {
+          navigate('/superadmin', { replace: true });
       } else {
-        // This case handles unexpected successful responses from the server (e.g., 200 OK without a token)
-        throw new Error("La réponse du serveur est invalide.");
+          navigate('/dashboard', { replace: true });
       }
 
     } catch (err) {
-      // apiFetch throws an error for non-2xx responses, which is caught here.
-      // The error message is extracted from the server's JSON response.
-      if (err instanceof Error) {
+      // apiFetch is designed to throw an error with a user-friendly message from the server on failure.
+      if (err instanceof Error && err.message) {
         addNotification({ type: 'error', message: err.message });
       } else {
-        addNotification({ type: 'error', message: 'Une erreur inconnue est survenue.' });
+        addNotification({ type: 'error', message: "Une erreur inattendue est survenue." });
       }
     } finally {
       setIsLoading(false);

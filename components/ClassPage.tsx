@@ -8,6 +8,7 @@ import { useSchoolYear } from '../contexts/SchoolYearContext';
 import GradebookModal from './GradebookModal';
 import ConfirmationModal from './ConfirmationModal';
 import { v4 as uuidv4 } from 'uuid';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 
 const ErrorDisplay: React.FC<{ message: string }> = ({ message }) => (
@@ -35,6 +36,7 @@ const PaymentDetailModal: React.FC<{
     enrollment: Enrollment | null;
     instanceInfo: Instance | null;
 }> = ({ isOpen, onClose, enrollment, instanceInfo }) => {
+    const { formatCurrency } = useCurrency();
     if (!isOpen || !enrollment) return null;
 
     const totalPaid = enrollment.payments.reduce((acc, p) => acc + Number(p.amount), 0);
@@ -103,23 +105,23 @@ const PaymentDetailModal: React.FC<{
                         <p><strong>Classe:</strong> {enrollment.className}</p>
                     </div>
                     <div className="grid grid-cols-3 gap-4 my-4">
-                         <div className="bg-blue-50 p-3 rounded-lg text-center"><p className="text-xs text-blue-700">MPPA AJUSTÉ</p><p className="font-bold text-lg text-blue-800">{adjustedMppa.toFixed(2)}$</p></div>
-                         <div className="bg-green-50 p-3 rounded-lg text-center"><p className="text-xs text-green-700">TOTAL VERSÉ</p><p className="font-bold text-lg text-green-800">{totalPaid.toFixed(2)}$</p></div>
-                         <div className="bg-red-50 p-3 rounded-lg text-center"><p className="text-xs text-red-700">BALANCE</p><p className="font-bold text-lg text-red-800">{balance.toFixed(2)}$</p></div>
+                         <div className="bg-blue-50 p-3 rounded-lg text-center"><p className="text-xs text-blue-700">MPPA AJUSTÉ</p><p className="font-bold text-lg text-blue-800">{formatCurrency(adjustedMppa)}</p></div>
+                         <div className="bg-green-50 p-3 rounded-lg text-center"><p className="text-xs text-green-700">TOTAL VERSÉ</p><p className="font-bold text-lg text-green-800">{formatCurrency(totalPaid)}</p></div>
+                         <div className="bg-red-50 p-3 rounded-lg text-center"><p className="text-xs text-red-700">BALANCE</p><p className="font-bold text-lg text-red-800">{formatCurrency(balance)}</p></div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                         <div>
                             <h4 className="font-semibold text-slate-700 mb-2">Versements</h4>
                             <table className="w-full text-sm">
                                 <thead className="bg-slate-100"><tr><th className="p-2 text-left">Date</th><th className="p-2 text-left">Libellé</th><th className="p-2 text-right">Montant</th></tr></thead>
-                                <tbody>{enrollment.payments.map(p => <tr key={p.id} className="border-b"><td className="p-2">{p.date ? new Date(p.date).toLocaleDateString('fr-FR') : '-'}</td><td className="p-2">{p.label}</td><td className="p-2 text-right font-mono">{Number(p.amount).toFixed(2)}$</td></tr>)}</tbody>
+                                <tbody>{enrollment.payments.map(p => <tr key={p.id} className="border-b"><td className="p-2">{p.date ? new Date(p.date).toLocaleDateString('fr-FR') : '-'}</td><td className="p-2">{p.label}</td><td className="p-2 text-right font-mono">{formatCurrency(p.amount)}</td></tr>)}</tbody>
                             </table>
                         </div>
                         <div>
                             <h4 className="font-semibold text-slate-700 mb-2">Ajustements</h4>
                              <table className="w-full text-sm">
                                 <thead className="bg-slate-100"><tr><th className="p-2 text-left">Libellé</th><th className="p-2 text-right">Montant</th></tr></thead>
-                                <tbody>{enrollment.adjustments.map(adj => <tr key={adj.id} className="border-b"><td className="p-2">{adj.label}</td><td className={`p-2 text-right font-mono ${adj.amount < 0 ? 'text-green-600' : 'text-red-600'}`}>{Number(adj.amount).toFixed(2)}$</td></tr>)}</tbody>
+                                <tbody>{enrollment.adjustments.map(adj => <tr key={adj.id} className="border-b"><td className="p-2">{adj.label}</td><td className={`p-2 text-right font-mono ${adj.amount < 0 ? 'text-green-600' : 'text-red-600'}`}>{formatCurrency(adj.amount)}</td></tr>)}</tbody>
                             </table>
                         </div>
                     </div>
@@ -141,7 +143,7 @@ const PaymentForm: React.FC<{
     onSubmit: (e: React.FormEvent) => void;
     onCancel: () => void;
 }> = ({ formState, onPaymentChange, onAddPayment, onRemovePayment, onAdjustmentChange, onAddAdjustment, onRemoveAdjustment, onSubmit, onCancel }) => {
-
+    const { formatCurrency } = useCurrency();
     const totalPaid = useMemo(() => formState.payments.reduce((acc, p) => acc + Number(p.amount), 0), [formState.payments]);
     const totalAdjustments = useMemo(() => formState.adjustments.reduce((acc, adj) => acc + Number(adj.amount), 0), [formState.adjustments]);
     const adjustedMppa = useMemo(() => Number(formState.mppa) + totalAdjustments, [formState.mppa, totalAdjustments]);
@@ -161,7 +163,7 @@ const PaymentForm: React.FC<{
                 <fieldset>
                     <legend className="text-base font-semibold text-slate-500 mb-2 -ml-1">Montant de Base (MPPA)</legend>
                     <div className="mt-1 block w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-md shadow-sm font-bold text-slate-700">
-                        {Number(formState.mppa).toFixed(2)}$
+                        {formatCurrency(formState.mppa)}
                     </div>
                 </fieldset>
 
@@ -194,12 +196,12 @@ const PaymentForm: React.FC<{
                 </fieldset>
                 
                 <div className="border-t border-slate-200 pt-4 space-y-2">
-                    <div className="flex justify-between text-sm"><span className="text-slate-500">MPPA de Base:</span><span className="font-semibold">{Number(formState.mppa).toFixed(2)}$</span></div>
-                    <div className="flex justify-between text-sm"><span className="text-slate-500">Total Ajustements:</span><span className="font-semibold">{totalAdjustments.toFixed(2)}$</span></div>
-                    <div className="flex justify-between text-sm"><span className="text-slate-500 font-bold">MPPA Ajusté:</span><span className="font-bold">{adjustedMppa.toFixed(2)}$</span></div>
+                    <div className="flex justify-between text-sm"><span className="text-slate-500">MPPA de Base:</span><span className="font-semibold">{formatCurrency(formState.mppa)}</span></div>
+                    <div className="flex justify-between text-sm"><span className="text-slate-500">Total Ajustements:</span><span className="font-semibold">{formatCurrency(totalAdjustments)}</span></div>
+                    <div className="flex justify-between text-sm"><span className="text-slate-500 font-bold">MPPA Ajusté:</span><span className="font-bold">{formatCurrency(adjustedMppa)}</span></div>
                     <hr className="my-1"/>
-                    <div className="flex justify-between text-sm"><span className="text-slate-500">Total Versé:</span><span className="font-semibold text-green-600">{totalPaid.toFixed(2)}$</span></div>
-                    <div className="flex justify-between text-lg"><span className="font-bold text-slate-700">Balance:</span><span className={`font-bold ${balance > 0 ? 'text-red-600' : 'text-green-700'}`}>{balance.toFixed(2)}$</span></div>
+                    <div className="flex justify-between text-sm"><span className="text-slate-500">Total Versé:</span><span className="font-semibold text-green-600">{formatCurrency(totalPaid)}</span></div>
+                    <div className="flex justify-between text-lg"><span className="font-bold text-slate-700">Balance:</span><span className={`font-bold ${balance > 0 ? 'text-red-600' : 'text-green-700'}`}>{formatCurrency(balance)}</span></div>
                 </div>
 
                 <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-200">
@@ -236,6 +238,7 @@ const ClassPage: React.FC = () => {
   const { className } = ReactRouterDOM.useParams<{ className: string }>();
   const { addNotification } = useNotification();
   const { selectedYear, isLoading: isYearLoading, error: yearError } = useSchoolYear();
+  const { formatCurrency } = useCurrency();
   
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -542,9 +545,9 @@ const ClassPage: React.FC = () => {
                                       </td>
                                       <td className="px-6 py-4 text-slate-600">{enrollment.student?.prenom}</td>
                                       <td className="px-6 py-4 text-center"><ToggleSwitch enabled={enrollment.grades_access_enabled} onChange={(enabled) => handleToggleGradesAccess(enrollment.id, enabled)} /></td>
-                                      <td className="px-6 py-4 text-right">{adjustedMppa.toFixed(2)}$</td>
-                                      <td className="px-6 py-4 font-semibold text-right">{totalPaid.toFixed(2)}$</td>
-                                      <td className={`px-6 py-4 font-bold text-right ${balance > 0 ? 'text-red-600' : 'text-green-700'}`}>{balance.toFixed(2)}$</td>
+                                      <td className="px-6 py-4 text-right">{formatCurrency(adjustedMppa)}</td>
+                                      <td className="px-6 py-4 font-semibold text-right">{formatCurrency(totalPaid)}</td>
+                                      <td className={`px-6 py-4 font-bold text-right ${balance > 0 ? 'text-red-600' : 'text-green-700'}`}>{formatCurrency(balance)}</td>
                                       <td className="px-6 py-4 text-center">
                                           <div className="flex items-center justify-center gap-1">
                                              <button onClick={() => handleOpenDetails(enrollment)} className="p-2 text-slate-400 hover:bg-slate-100 hover:text-blue-600 rounded-full transition-colors" title="Détails Financiers">

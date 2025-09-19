@@ -98,13 +98,19 @@ async function setup() {
               logo_url TEXT,
               passing_grade NUMERIC(5, 2),
               status VARCHAR(20) NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'suspended')),
-              expires_at TIMESTAMPTZ
+              expires_at TIMESTAMPTZ,
+              currency TEXT DEFAULT 'Gdes'
           );
         `);
 
         if (!await columnExists(client, 'instances', 'expires_at')) {
             console.log("Migration: Ajout de 'expires_at' à la table 'instances'.");
             await client.query('ALTER TABLE instances ADD COLUMN expires_at TIMESTAMPTZ');
+        }
+
+        if (!await columnExists(client, 'instances', 'currency')) {
+            console.log("Migration: Ajout de 'currency' à la table 'instances'.");
+            await client.query("ALTER TABLE instances ADD COLUMN currency TEXT DEFAULT 'Gdes'");
         }
 
         await client.query(`

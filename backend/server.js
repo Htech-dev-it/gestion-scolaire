@@ -435,7 +435,7 @@ async function startServer() {
         
                 // 3. If no user found anywhere, reject
                 if (!user) {
-                    return res.status(401).json({ message: 'Identifiants invalides' });
+                    return res.status(401).json({ message: "Nom d'utilisateur ou mot de passe incorrect." });
                 }
         
                 // 4. Check instance status for non-superadmin users
@@ -540,7 +540,7 @@ async function startServer() {
                 }
                 
                 const hashedPassword = bcrypt.hashSync(password, 10);
-                const userResult = await client.query("INSERT INTO users (username, password_hash, role, instance_id, status) VALUES ($1, $2, $3, $4, 'temporary_password')", [username, hashedPassword, 'standard', req.user.instance_id]);
+                const userResult = await client.query("INSERT INTO users (username, password_hash, role, instance_id, status) VALUES ($1, $2, $3, $4, 'temporary_password') RETURNING id", [username, hashedPassword, 'standard', req.user.instance_id]);
                 const newUserId = userResult.rows[0].id;
 
                 if (roleIds && Array.isArray(roleIds) && roleIds.length > 0) {
@@ -550,7 +550,7 @@ async function startServer() {
                 
                 await client.query('COMMIT');
                 
-                await logActivity(req, 'USER_CREATED', newUserId, username, `Compte utilisateur '${username}' créé.`);
+                await logActivity(req, 'USER_CREATED', newUserId.toString(), username, `Compte utilisateur '${username}' créé.`);
                 
                 res.status(201).json({ message: `Utilisateur '${username}' créé avec succès.` });
             } catch (error) {
@@ -679,12 +679,14 @@ async function startServer() {
                     [hashedNewPassword, userId]
                 );
 
-                const newPayload = { ...req.user, status: 'active' };
+                // Re-create the token payload without old timestamps that can cause conflicts.
+                const { iat, exp, ...userProfile } = req.user;
+                const newPayload = { ...userProfile, status: 'active' };
                 const accessToken = jwt.sign(newPayload, JWT_SECRET, { expiresIn: '8h' });
 
                 await client.query('COMMIT');
                 
-                await logActivity(req, 'PASSWORD_FORCED_CHANGE', userId, username, `Mot de passe mis à jour pour l'utilisateur '${username}'.`);
+                await logActivity(req, 'PASSWORD_FORCED_CHANGE', userId.toString(), username, `Mot de passe mis à jour pour l'utilisateur '${username}'.`);
 
                 res.json({ accessToken });
 
@@ -1202,14 +1204,16 @@ async function startServer() {
         }));
         
         app.put('/api/instance/current', authenticateToken, isAdmin, asyncHandler(async (req, res) => {
-            let { name, address, phone, email, logo_url, passing_grade } = req.body;
+            let { name, address, phone, email, logo_url, passing_grade, currency } = req.body;
             name = name?.trim();
             address = address?.trim();
             phone = phone?.trim();
             email = email?.trim();
+            currency = currency?.trim();
+            
             await req.db.query(
-                'UPDATE instances SET name = $1, address = $2, phone = $3, email = $4, logo_url = $5, passing_grade = $6 WHERE id = $7',
-                [name, address, phone, email, logo_url, passing_grade, req.user.instance_id]
+                'UPDATE instances SET name = $1, address = $2, phone = $3, email = $4, logo_url = $5, passing_grade = $6, currency = $7 WHERE id = $8',
+                [name, address, phone, email, logo_url, passing_grade, currency, req.user.instance_id]
             );
             await logActivity(req, 'SCHOOL_INFO_UPDATED', req.user.instance_id, name, "Informations de l'établissement mises à jour.");
             res.json({ message: "Informations de l'école mises à jour." });
@@ -1377,7 +1381,7 @@ async function startServer() {
             try {
                 await client.query('BEGIN');
                 
-                const userResult = await client.query("INSERT INTO users (username, password_hash, role, instance_id, status) VALUES ($1, $2, $3, $4, 'temporary_password')", [username, hashedPassword, 'teacher', req.user.instance_id]);
+                const userResult = await client.query("INSERT INTO users (username, password_hash, role, instance_id, status) VALUES ($1, $2, $3, $4, 'temporary_password') RETURNING id", [username, hashedPassword, 'teacher', req.user.instance_id]);
                 const userId = userResult.rows[0].id;
                 
                 const teacherResult = await client.query('INSERT INTO teachers (nom, prenom, email, phone, nif, user_id, instance_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id', [formatLastName(nom), formatName(prenom), email, phone, nif, userId, req.user.instance_id]);
@@ -2168,32 +2172,43 @@ async function startServer() {
             if (!yearId || !Array.isArray(financials)) {
                 return res.status(400).json({ message: 'Year ID and financials array are required.' });
             }
-
+        
             const client = await req.db.connect();
             try {
                 await client.query('BEGIN');
-
+        
                 // Clear all existing entries for this year and instance first
                 await client.query(
                     'DELETE FROM class_financials WHERE year_id = $1 AND instance_id = $2',
                     [yearId, req.user.instance_id]
                 );
-
+        
                 const insertQuery = `
                     INSERT INTO class_financials (class_name, year_id, mppa, instance_id)
                     VALUES ($1, $2, $3, $4);
                 `;
-
-                // Insert new entries for classes that have a valid MPPA
+        
+                const updateEnrollmentsQuery = `
+                    UPDATE enrollments 
+                    SET mppa = $1 
+                    WHERE "className" = $2 
+                      AND year_id = $3 
+                      AND student_id IN (SELECT id FROM students WHERE instance_id = $4)
+                `;
+        
+                // Insert new entries and update existing enrollments
                 for (const item of financials) {
                     if (item.class_name && (item.mppa !== null && item.mppa !== undefined)) {
                          await client.query(insertQuery, [item.class_name, yearId, item.mppa, req.user.instance_id]);
+                         
+                         // Harmonize existing enrollments with the new default MPPA
+                         await client.query(updateEnrollmentsQuery, [item.mppa, item.class_name, yearId, req.user.instance_id]);
                     }
                 }
                 
                 await client.query('COMMIT');
-                await logActivity(req, 'CLASS_FINANCIALS_UPDATED', null, null, `Frais de scolarité mis à jour pour l'année ID ${yearId}.`);
-                res.json({ message: 'Frais de scolarité mis à jour.' });
+                await logActivity(req, 'CLASS_FINANCIALS_UPDATED', null, null, `Frais de scolarité mis à jour pour l'année ID ${yearId}. Les inscriptions existantes ont été harmonisées.`);
+                res.json({ message: 'Frais de scolarité mis à jour et inscriptions existantes harmonisées.' });
             } catch (error) {
                 await client.query('ROLLBACK');
                 throw error;
@@ -2826,7 +2841,9 @@ async function startServer() {
                     [hashedNewPassword, studentUserId]
                 );
                 
-                const newPayload = { ...req.user, status: 'active' };
+                // Re-create the token payload without old timestamps
+                const { iat, exp, ...userProfile } = req.user;
+                const newPayload = { ...userProfile, status: 'active' };
                 const accessToken = jwt.sign(newPayload, JWT_SECRET, { expiresIn: '8h' });
 
                 await client.query('COMMIT');
@@ -3400,7 +3417,7 @@ async function startServer() {
             }
         }));
 
-        // --- REPORT CARD ROUTES ---
+       // --- REPORT CARD ROUTES ---
         const canManageAppreciations = asyncHandler(async (req, res, next) => {
             if (req.user.role === 'admin' || (req.user.permissions && req.user.permissions.includes('appreciation:create'))) {
                 return next();
@@ -3743,6 +3760,7 @@ async function startServer() {
                 return res.status(400).json({ message: "L'heure de fin doit être après l'heure de début." });
             }
 
+            
             // Conflict check
             const { rows: assignmentInfoRows } = await req.db.query(
                 `SELECT t.id as teacher_id FROM teacher_assignments ta JOIN teachers t ON ta.teacher_id = t.id WHERE ta.id = $1 AND t.instance_id = $2`,
@@ -4190,7 +4208,7 @@ async function startServer() {
             res.json({ message: 'Conversation effacée.' });
         }));
 
-        // Teacher Announcements
+       // Teacher Announcements
         app.get('/api/teacher/announcements', authenticateToken, isTeacher, asyncHandler(async (req, res) => {
             const { rows: teacherRows } = await req.db.query('SELECT id FROM teachers WHERE user_id = $1 AND instance_id = $2', [req.user.id, req.user.instance_id]);
             if (teacherRows.length === 0) return res.status(404).json({ message: 'Profil professeur non trouvé.' });
@@ -4243,7 +4261,7 @@ async function startServer() {
             res.status(204).send();
         }));
 
-        // Student Announcements
+         // Student Announcements
         app.get('/api/student/announcements', authenticateToken, isStudent, asyncHandler(async (req, res) => {
             const { yearId } = req.query;
             if (!yearId) return res.status(400).json({ message: "Année scolaire requise." });

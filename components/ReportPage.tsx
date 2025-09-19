@@ -4,6 +4,7 @@ import type { Enrollment, Instance, PaginationInfo } from '../types';
 import { useNotification } from '../contexts/NotificationContext';
 import { apiFetch } from '../utils/api';
 import { useSchoolYear } from '../contexts/SchoolYearContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 // Define local types that match the API response for this specific page
 type ReportEnrollment = Enrollment & {
@@ -33,6 +34,7 @@ const SummaryCard: React.FC<{ title: string; value: string; icon: React.ReactNod
 const ReportPage: React.FC = () => {
     const { addNotification } = useNotification();
     const { classes } = useSchoolYear();
+    const { formatCurrency } = useCurrency();
     const [allEnrollments, setAllEnrollments] = useState<ReportEnrollment[]>([]);
     const [pagination, setPagination] = useState<PaginationInfo | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
@@ -168,9 +170,9 @@ const ReportPage: React.FC = () => {
             {!isLoading && !error && (
             <>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 no-print">
-                    <SummaryCard title="Total Attendu (MPPA Ajusté)" value={summaryData.totalAdjustedMPPA.toLocaleString('fr-FR', {style: 'currency', currency: 'USD'})} colorClass="bg-blue-100" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>} />
-                    <SummaryCard title="Total Versé" value={summaryData.totalPaid.toLocaleString('fr-FR', {style: 'currency', currency: 'USD'})} colorClass="bg-green-100" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>} />
-                    <SummaryCard title="Balance Restante" value={summaryData.balance.toLocaleString('fr-FR', {style: 'currency', currency: 'USD'})} colorClass="bg-red-100" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
+                    <SummaryCard title="Total Attendu (MPPA Ajusté)" value={formatCurrency(summaryData.totalAdjustedMPPA)} colorClass="bg-blue-100" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>} />
+                    <SummaryCard title="Total Versé" value={formatCurrency(summaryData.totalPaid)} colorClass="bg-green-100" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>} />
+                    <SummaryCard title="Balance Restante" value={formatCurrency(summaryData.balance)} colorClass="bg-red-100" icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>} />
                 </div>
                 
                 <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg printable-content overflow-x-auto">
@@ -200,11 +202,11 @@ const ReportPage: React.FC = () => {
                                        <td className="px-3 py-3 font-medium whitespace-nowrap">{enrollment.prenom} {enrollment.nom}</td>
                                        <td className="px-3 py-3 whitespace-nowrap">{enrollment.year_name}</td>
                                        <td className="px-3 py-3 whitespace-nowrap">{enrollment.className}</td>
-                                       <td className="px-3 py-3 text-right">{Number(enrollment.mppa).toFixed(2)}$</td>
-                                       <td className="px-3 py-3 text-right">{totalAdjustments.toFixed(2)}$</td>
-                                       <td className="px-3 py-3 text-right font-medium">{adjustedMppa.toFixed(2)}$</td>
-                                       <td className="px-3 py-3 text-right font-semibold text-slate-800">{totalPaid.toFixed(2)}$</td>
-                                       <td className={`px-3 py-3 text-right font-bold ${balance > 0 ? 'text-red-600' : 'text-green-700'}`}>{balance.toFixed(2)}$</td>
+                                       <td className="px-3 py-3 text-right">{formatCurrency(enrollment.mppa)}</td>
+                                       <td className="px-3 py-3 text-right">{formatCurrency(totalAdjustments)}</td>
+                                       <td className="px-3 py-3 text-right font-medium">{formatCurrency(adjustedMppa)}</td>
+                                       <td className="px-3 py-3 text-right font-semibold text-slate-800">{formatCurrency(totalPaid)}</td>
+                                       <td className={`px-3 py-3 text-right font-bold ${balance > 0 ? 'text-red-600' : 'text-green-700'}`}>{formatCurrency(balance)}</td>
                                    </tr>
                                );
                            }) : (

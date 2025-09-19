@@ -72,6 +72,7 @@ export interface Instance {
     passing_grade: number | null;
     status: 'active' | 'suspended';
     expires_at: string | null;
+    currency?: 'Gdes' | '$HT' | 'US' | 'EU';
 }
 
 export interface Subject {

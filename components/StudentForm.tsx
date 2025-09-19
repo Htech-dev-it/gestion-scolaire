@@ -4,6 +4,7 @@ import { useSchoolYear } from '../contexts/SchoolYearContext';
 import DateInput from './DateInput';
 import PhoneInput from 'react-phone-input-2';
 import { apiFetch } from '../utils/api';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 interface StudentFormProps {
   formState: StudentFormState;
@@ -28,6 +29,7 @@ const InputField: React.FC<{ label: string; name: keyof Omit<StudentFormState, '
 
 const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setFormState, onSubmit, onCancel, selectedYear }) => {
   const { classes } = useSchoolYear();
+  const { formatCurrency } = useCurrency();
   const [classFinancials, setClassFinancials] = useState<ClassFinancials[]>([]);
 
   // Fetch all financials for the current year once
@@ -180,7 +182,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
                 <div>
                     <label className="block text-sm font-medium text-slate-700">MPPA de Base (Montant à Payer)</label>
                     <div className="mt-1 block w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-md shadow-sm font-bold text-slate-700">
-                        {Number(formState.enrollmentMppa).toFixed(2)}$
+                        {formatCurrency(formState.enrollmentMppa)}
                     </div>
                     <p className="text-xs text-slate-500 mt-1">Le MPPA de base est géré sur la page de la classe. Les ajustements (bourses, frais) se font aussi sur cette page.</p>
                 </div>
@@ -220,7 +222,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ formState, isEditing, setForm
                         <div>
                             <label className="block text-sm font-medium text-slate-700">MPPA (Montant à Payer)</label>
                             <div className="mt-1 block w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-md shadow-sm font-bold text-slate-700">
-                                {Number(formState.enrollmentMppa).toFixed(2)}$
+                                {formatCurrency(formState.enrollmentMppa)}
                             </div>
                              <p className="text-xs text-slate-500 mt-1">Montant par défaut pour la classe. Géré dans l'onglet "Frais Scolaire" de l'administration.</p>
                         </div>

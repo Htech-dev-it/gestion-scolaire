@@ -4,6 +4,7 @@ import type { StudentWithEnrollment, StudentProfile, Instance, PaginationInfo } 
 import { useAuth } from '../auth/AuthContext';
 import ImageLightbox from './ImageLightbox'; // Import the new component
 import { useSchoolYear } from '../contexts/SchoolYearContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 interface AllStudentsTableProps {
   students: StudentWithEnrollment[];
@@ -47,6 +48,7 @@ const AllStudentsTable: React.FC<AllStudentsTableProps> = ({ students, selectedI
   const navigate = ReactRouterDOM.useNavigate();
   const { user } = useAuth();
   const { classes } = useSchoolYear();
+  const { formatCurrency } = useCurrency();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<{ key: keyof StudentProfile; direction: 'ascending' | 'descending' } | null>({ key: 'nom', direction: 'ascending' });
   const [lightboxStudent, setLightboxStudent] = useState<StudentWithEnrollment | null>(null);
@@ -205,7 +207,7 @@ const handlePrintSheets = () => {
 
   const sheetsHtml = selectedStudents.map(student => {
       const avatarHtml = getAvatarHtml(student);
-      const mppaText = student.enrollment ? `${Number(student.enrollment.mppa).toFixed(2)}$` : 'Non-inscrit(e) pour cette année';
+      const mppaText = student.enrollment ? formatCurrency(student.enrollment.mppa) : 'Non-inscrit(e) pour cette année';
       
       return `
         <div class="page">
@@ -465,7 +467,7 @@ const handlePrintSheets = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">{formatDate(student.date_of_birth)}</td>
-                      <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right`}>{student.enrollment ? `${Number(student.enrollment?.mppa).toFixed(2)}$` : '-'}</td>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold text-right`}>{student.enrollment ? formatCurrency(student.enrollment.mppa) : '-'}</td>
                     </tr>
                 );
             })}
