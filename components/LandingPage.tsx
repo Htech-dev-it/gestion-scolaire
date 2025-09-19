@@ -2,7 +2,7 @@ import React from 'react';
 import * as ReactRouterDOM from 'react-router-dom';
 
 const FeatureCard: React.FC<{ icon: React.ReactNode; title: string; description: string; }> = ({ icon, title, description }) => (
-    <div className="bg-white p-8 rounded-2xl shadow-lg transform transition-transform duration-300 hover:-translate-y-2 border border-slate-100">
+    <div className="bg-white p-8 rounded-2xl shadow-lg transform transition-transform duration-300 hover:-translate-y-2 border border-slate-100 h-full">
         <div className="flex-shrink-0 h-16 w-16 mb-6 rounded-xl flex items-center justify-center bg-gradient-to-br from-blue-500 to-blue-600 text-white">
             {icon}
         </div>
@@ -25,6 +25,14 @@ const ContactInfo: React.FC<{ icon: React.ReactNode; title: string; value: strin
 
 
 const LandingPage: React.FC = () => {
+  const handleScrollToContact = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    const contactSection = document.getElementById('contact');
+    if (contactSection) {
+      contactSection.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="bg-slate-50 text-slate-700">
       {/* Header */}
@@ -58,12 +66,13 @@ const LandingPage: React.FC = () => {
             <p className="mt-6 text-lg md:text-xl text-slate-600 max-w-2xl mx-auto">
               ScolaLink centralise toutes vos opérations, de l'inscription des élèves à la génération des bulletins, pour une administration fluide et efficace.
             </p>
-            <ReactRouterDOM.Link 
-              to="/login" 
+            <a 
+              href="#contact" 
+              onClick={handleScrollToContact}
               className="mt-10 inline-block px-8 py-4 text-base font-bold text-white bg-[#F27438] rounded-lg shadow-lg hover:bg-orange-600 transform hover:scale-105 transition-all"
             >
-              Accéder à mon portail
-            </ReactRouterDOM.Link>
+              Contactez-nous
+            </a>
           </div>
         </section>
 
@@ -76,12 +85,12 @@ const LandingPage: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <FeatureCard 
-                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M17 20h5v-2a3 3 0 0 0-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 0 1 5-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 0 1 9.288 0M15 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2 2 0 1 1-4 0 2 2 0 0 1 4 0Zm-18 0a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" /></svg>}
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
                 title="Gestion des Élèves"
                 description="Suivez les dossiers complets de vos élèves, de l'inscription à l'archivage, avec toutes les informations centralisées."
               />
               <FeatureCard 
-                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>}
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>}
                 title="Suivi Financier Simplifié"
                 description="Gérez les frais de scolarité, enregistrez les versements et consultez les balances en temps réel pour chaque élève."
               />
@@ -108,6 +117,66 @@ const LandingPage: React.FC = () => {
             </div>
           </div>
         </section>
+
+        {/* Security Section */}
+        <section id="security" className="py-24 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-bold text-slate-800 font-display">Notre Engagement pour la Sécurité</h2>
+              <p className="mt-4 text-slate-500 max-w-2xl mx-auto">La protection des données de votre établissement est notre priorité absolue.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              <FeatureCard
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 11c0 3.517-1.009 6.799-2.753 9.571m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-1.026.977-2.19.977-3.434m-2.09-2.09a13.916 13.916 0 00-2.25-3.11m-3.44-2.04l.054-.09A13.916 13.916 0 008 11a4 4 0 118 0c0 1.017-.07 2.019-.203 3m-2.118 6.844A21.88 21.88 0 0015.171 17m3.839 1.132c.645-1.026.977-2.19.977-3.434" /></svg>}
+                title="Isolation des Données"
+                description="Les données de chaque école sont dans un 'coffre-fort' numérique totalement isolé. Aucune autre école ne peut y accéder."
+              />
+              <FeatureCard
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M15 21v-2a6 6 0 00-5.197-5.975M15 21H9" /></svg>}
+                title="Gestion des Rôles"
+                description="Chaque utilisateur (secrétaire, comptable, professeur) ne voit que ce qui est nécessaire à son travail, protégeant ainsi l'information sensible."
+              />
+              <FeatureCard
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>}
+                title="Chiffrement des Données"
+                description="Les communications sont sécurisées et les mots de passe sont stockés de manière chiffrée, suivant les standards bancaires."
+              />
+              <FeatureCard
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>}
+                title="Sauvegardes Régulières"
+                description="Vos données sont sauvegardées de manière régulière et sécurisée pour prévenir toute perte accidentelle."
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* Offline/PWA Section */}
+        <section id="offline" className="py-24 bg-slate-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-bold text-slate-800 font-display">Fiabilité à Toute Épreuve : En Ligne ou Hors Ligne</h2>
+              <p className="mt-4 text-slate-500 max-w-2xl mx-auto">ScolaLink est conçue pour fonctionner même lorsque votre connexion internet est instable.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <FeatureCard
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z" /></svg>}
+                title="Continuité du Travail"
+                description="Ne perdez jamais votre travail. ScolaLink sauvegarde vos modifications même sans internet et synchronise tout dès que la connexion revient."
+              />
+              <FeatureCard
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>}
+                title="Application Installable"
+                description="Installez ScolaLink sur votre ordinateur ou tablette pour un accès direct depuis votre bureau, comme une application native."
+              />
+              <FeatureCard
+                icon={<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+                title="Performance Exceptionnelle"
+                description="Grâce à sa technologie PWA, l'application est incroyablement rapide au lancement et à l'utilisation quotidienne."
+              />
+            </div>
+          </div>
+        </section>
+
 
         {/* Contact Section */}
         <section id="contact" className="py-24 bg-white">
